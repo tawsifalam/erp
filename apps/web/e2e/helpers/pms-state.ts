@@ -92,12 +92,42 @@ const INITIAL_ROOMS: MockRoom[] = [
   },
 ];
 
+export type MockRoomType = {
+  id: string;
+  name: string;
+  maxAdults: number;
+  maxChildren: number;
+};
+
+export type MockGuest = {
+  id: string;
+  fullName: string;
+  phone?: string;
+  email?: string;
+};
+
+const INITIAL_ROOM_TYPES: MockRoomType[] = [
+  { id: "rt_001", name: "Standard Double", maxAdults: 2, maxChildren: 1 },
+  { id: "rt_002", name: "Deluxe Suite", maxAdults: 3, maxChildren: 2 },
+  { id: "rt_003", name: "Economy Single", maxAdults: 1, maxChildren: 0 },
+];
+
+const INITIAL_GUESTS: MockGuest[] = [
+  { id: "gst_001", fullName: "Rahim Ahmed", phone: "+8801711000001" },
+  { id: "gst_002", fullName: "Fatima Khan", phone: "+8801711000002" },
+  { id: "gst_003", fullName: "Karim Uddin", phone: "+8801711000003" },
+];
+
 let reservations = clone(INITIAL_RESERVATIONS);
 let rooms = clone(INITIAL_ROOMS);
+let roomTypes = clone(INITIAL_ROOM_TYPES);
+let guests = clone(INITIAL_GUESTS);
 
 export function resetPmsState() {
   reservations = clone(INITIAL_RESERVATIONS);
   rooms = clone(INITIAL_ROOMS);
+  roomTypes = clone(INITIAL_ROOM_TYPES);
+  guests = clone(INITIAL_GUESTS);
 }
 
 export function getPmsReservations() {
@@ -106,6 +136,68 @@ export function getPmsReservations() {
 
 export function getPmsRooms() {
   return rooms;
+}
+
+export function getPmsRoomTypes() {
+  return roomTypes;
+}
+
+export function getPmsGuests() {
+  return guests;
+}
+
+export function handlePmsRoomTypeMutation(method: string, url: string): unknown {
+  const idMatch = url.match(/\/room-types\/([^/?]+)/);
+  const id = idMatch?.[1];
+  if (!id) return {};
+
+  if (method === "DELETE") {
+    const idx = roomTypes.findIndex((rt) => rt.id === id);
+    if (idx >= 0) roomTypes.splice(idx, 1);
+    return { id };
+  }
+
+  const rt = roomTypes.find((r) => r.id === id);
+  return rt ?? {};
+}
+
+export function handlePmsGuestMutation(
+  method: string,
+  url: string,
+  body: Record<string, unknown> | null,
+): unknown {
+  const idMatch = url.match(/\/guests\/([^/?]+)/);
+  const id = idMatch?.[1];
+
+  if (method === "POST") {
+    const guest: MockGuest = {
+      id: "gst-new",
+      fullName: String(body?.fullName ?? "New Guest"),
+      phone: body?.phone ? String(body.phone) : undefined,
+      email: body?.email ? String(body.email) : undefined,
+    };
+    guests.push(guest);
+    return guest;
+  }
+
+  if (!id) return {};
+
+  if (method === "DELETE") {
+    const idx = guests.findIndex((g) => g.id === id);
+    if (idx >= 0) guests.splice(idx, 1);
+    return { id };
+  }
+
+  const guest = guests.find((g) => g.id === id);
+  if (!guest) return {};
+
+  if (method === "PATCH" && body) {
+    if (body.fullName) guest.fullName = String(body.fullName);
+    if (body.phone !== undefined) guest.phone = String(body.phone);
+    if (body.email !== undefined) guest.email = String(body.email);
+  }
+
+  return guest;
 }
 
 export function handlePmsReservationMutation(

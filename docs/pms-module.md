@@ -271,6 +271,8 @@ pnpm --filter @erp/api test -- accounting-listeners
 pnpm --filter @erp/web test:e2e pms
 ```
 
+E2E coverage includes reservation lifecycle, edit modals, **delete** flows (reservations, rooms, room types, guests), and the **payment** modal (`e2e/pms-flow.spec.ts`).
+
 ## Future (phase 2)
 
 See [channel-manager.md](./phase2/channel-manager.md) for OTA sync and `INQUIRY` import from external channels.

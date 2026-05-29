@@ -367,6 +367,175 @@ describe("PmsService", () => {
     });
   });
 
+  describe("confirmReservation", () => {
+    it("throws when reservation is not INQUIRY", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue({
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.CONFIRMED,
+        roomId: "room-1",
+        checkIn: new Date("2026-06-01"),
+        checkOut: new Date("2026-06-03"),
+        guest: {},
+        room: { roomType: {} },
+      });
+
+      await expect(
+        service.confirmReservation("branch-1", "res-1"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("confirms inquiry when room is available", async () => {
+      const reservation = {
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.INQUIRY,
+        roomId: "room-1",
+        checkIn: new Date("2026-06-01"),
+        checkOut: new Date("2026-06-03"),
+        guest: {},
+        room: { roomType: {} },
+      };
+      mockPrisma.reservation.findFirst.mockResolvedValue(reservation);
+      mockAvailability.findAvailableRooms.mockResolvedValue([{ id: "room-1" }]);
+      const confirmed = { ...reservation, status: ReservationStatus.CONFIRMED };
+      mockPrisma.reservation.update.mockResolvedValue(confirmed);
+
+      const result = await service.confirmReservation("branch-1", "res-1");
+
+      expect(result.status).toBe(ReservationStatus.CONFIRMED);
+      expect(mockAvailability.findAvailableRooms).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branchId: "branch-1",
+          excludeReservationId: "res-1",
+        }),
+      );
+    });
+  });
+
+  describe("updateReservation", () => {
+    it("throws when reservation is checked out", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue({
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.CHECKED_OUT,
+        guest: {},
+        room: { roomType: {} },
+      });
+
+      await expect(
+        service.updateReservation("branch-1", "res-1", { totalAmount: 100 }),
+      ).rejects.toThrow("Cannot update a closed reservation");
+    });
+
+    it("throws when checked-in and changing guest", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue({
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.CHECKED_IN,
+        guestId: "g-1",
+        roomId: "room-1",
+        checkIn: new Date("2026-06-01"),
+        checkOut: new Date("2026-06-03"),
+        guest: {},
+        room: { roomType: {} },
+      });
+
+      await expect(
+        service.updateReservation("branch-1", "res-1", { guestId: "g-2" }),
+      ).rejects.toThrow("Checked-in reservations can only update");
+    });
+
+    it("updates confirmed reservation when room stays available", async () => {
+      const reservation = {
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.CONFIRMED,
+        guestId: "g-1",
+        roomId: "room-1",
+        checkIn: new Date("2026-06-01"),
+        checkOut: new Date("2026-06-03"),
+        guest: {},
+        room: { roomType: {} },
+      };
+      mockPrisma.reservation.findFirst.mockResolvedValue(reservation);
+      mockAvailability.findAvailableRooms.mockResolvedValue([{ id: "room-2" }]);
+      mockPrisma.reservation.update.mockResolvedValue({
+        ...reservation,
+        roomId: "room-2",
+      });
+
+      await service.updateReservation("branch-1", "res-1", { roomId: "room-2" });
+
+      expect(mockPrisma.reservation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "res-1" },
+          data: expect.objectContaining({ roomId: "room-2" }),
+        }),
+      );
+    });
+  });
+
+  describe("deleteGuest", () => {
+    it("throws when guest has active reservations", async () => {
+      mockPrisma.guest.findFirst.mockResolvedValue({ id: "gst-1" });
+      mockPrisma.reservation.count.mockResolvedValue(2);
+
+      await expect(service.deleteGuest("org-1", "gst-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("deletes guest without active reservations", async () => {
+      mockPrisma.guest.findFirst.mockResolvedValue({ id: "gst-1" });
+      mockPrisma.reservation.count.mockResolvedValue(0);
+      mockPrisma.guest.delete.mockResolvedValue({ id: "gst-1" });
+
+      await service.deleteGuest("org-1", "gst-1");
+
+      expect(mockPrisma.guest.delete).toHaveBeenCalledWith({
+        where: { id: "gst-1" },
+      });
+    });
+  });
+
+  describe("updateRoomStatus", () => {
+    it("throws when housekeeping tries to set OCCUPIED", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue({
+        id: "rm-1",
+        branchId: "branch-1",
+        status: RoomStatus.VACANT,
+        roomType: {},
+      });
+
+      await expect(
+        service.updateRoomStatus("branch-1", "rm-1", RoomStatus.OCCUPIED),
+      ).rejects.toThrow("Use check-in to mark a room occupied");
+    });
+
+    it("allows DIRTY to VACANT and emits realtime", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue({
+        id: "rm-1",
+        branchId: "branch-1",
+        status: RoomStatus.DIRTY,
+        roomType: {},
+      });
+      mockPrisma.room.update.mockResolvedValue({
+        id: "rm-1",
+        status: RoomStatus.VACANT,
+        roomType: {},
+      });
+
+      await service.updateRoomStatus("branch-1", "rm-1", RoomStatus.VACANT);
+
+      expect(mockRealtime.emitRoomStatus).toHaveBeenCalledWith(
+        "branch-1",
+        "rm-1",
+        RoomStatus.VACANT,
+      );
+    });
+  });
+
   describe("listBranches", () => {
     it("queries branches by organizationId", async () => {
       mockPrisma.branch.findMany.mockResolvedValue([]);

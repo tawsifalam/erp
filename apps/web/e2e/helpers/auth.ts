@@ -1,9 +1,13 @@
 import { Page } from "@playwright/test";
 import {
+  getPmsGuests,
   getPmsReservations,
   getPmsRooms,
+  getPmsRoomTypes,
+  handlePmsGuestMutation,
   handlePmsReservationMutation,
   handlePmsRoomMutation,
+  handlePmsRoomTypeMutation,
   resetPmsState,
 } from "./pms-state";
 
@@ -150,11 +154,6 @@ export const MOCK_RESERVATIONS = [
   },
 ];
 
-export const MOCK_ROOM_TYPES = [
-  { id: "rt_001", name: "Standard Double", maxAdults: 2, maxChildren: 1 },
-  { id: "rt_002", name: "Deluxe Suite", maxAdults: 3, maxChildren: 2 },
-];
-
 /** Seed data: POS orders */
 export const MOCK_ORDERS = [
   {
@@ -173,11 +172,6 @@ export const MOCK_ORDERS = [
     tableNumber: "T-7",
     lines: [{ quantity: 1, menuItem: { name: "Tea" } }],
   },
-];
-
-export const MOCK_GUESTS = [
-  { id: "gst_001", fullName: "Rahim Ahmed", phone: "+8801711000001" },
-  { id: "gst_002", fullName: "Fatima Khan", phone: "+8801711000002" },
 ];
 
 export const MOCK_ROOMS = [
@@ -343,20 +337,21 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pms/guests**", (route) => {
+  await page.route("**/localhost:3001/api/pms/guests**", async (route) => {
     const method = route.request().method();
-    if (method === "GET") return fulfillJson(route, MOCK_GUESTS);
-    if (method === "POST") {
-      return fulfillJson(route, { id: "gst-new", fullName: "New Guest" });
-    }
-    return fulfillJson(route, MOCK_GUESTS[0]);
+    const url = route.request().url();
+    if (method === "GET") return fulfillJson(route, getPmsGuests());
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handlePmsGuestMutation(method, url, body);
+    return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pms/room-types**", (route) => {
+  await page.route("**/localhost:3001/api/pms/room-types**", async (route) => {
     const method = route.request().method();
-    if (method === "GET") return fulfillJson(route, MOCK_ROOM_TYPES);
-    if (method === "DELETE") return fulfillJson(route, { id: "deleted" });
-    return fulfillJson(route, MOCK_ROOM_TYPES[0]);
+    const url = route.request().url();
+    if (method === "GET") return fulfillJson(route, getPmsRoomTypes());
+    const result = handlePmsRoomTypeMutation(method, url);
+    return fulfillJson(route, result);
   });
 
   await page.route("**/localhost:3001/api/pms/availability**", (route) =>

@@ -297,12 +297,12 @@ The PMS module handles room types, rooms, guests, reservations, availability, ho
 
 After selecting **organization** and **branch** in the header, open **PMS** in the sidebar:
 
-| Tab | Purpose |
-|-----|---------|
-| Reservations | Create CONFIRMED/INQUIRY stays, confirm inquiries, check-in/out, cancel, record payments |
-| Rooms | Add rooms, view status, housekeeping (DIRTY→VACANT, VACANT↔MAINTENANCE), live Socket.IO updates |
-| Room types | Define capacity categories used when creating rooms |
-| Guests | CRUD guest profiles (org-wide) |
+| Tab | Features |
+|-----|----------|
+| **Reservations** | List stays; create CONFIRMED/INQUIRY; **edit** (guest, dates, room, total); confirm inquiry; check-in/out; cancel; record `paidAmount` via Payment modal; **delete** (not while CHECKED_IN) |
+| **Rooms** | List rooms; create room; **edit** room number, type, price; **delete** (not OCCUPIED / active reservations); housekeeping status buttons; live updates via Socket.IO `room.status` |
+| **Room types** | Create/edit/**delete** types (`maxAdults`, `maxChildren`; delete blocked if rooms use type) |
+| **Guests** | Create/edit/**delete** guests (delete blocked if active reservations exist) |
 
 Branch creation is under **Settings** (`/tenants/branches`). Use `POST /pms/branches` only for API/scripts.
 
@@ -344,6 +344,11 @@ curl -s -X POST "$BASE/pms/room-types" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"Standard Double","maxAdults":2,"maxChildren":1}' | jq
+
+# Delete room type (blocked while rooms reference it)
+curl -s -X DELETE "$BASE/pms/room-types/$ROOM_TYPE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
 **Expected response:**
@@ -387,6 +392,18 @@ curl -s -X PATCH "$BASE/pms/rooms/$ROOM_ID/status?branchId=$BRANCH_ID" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{"status":"VACANT"}' | jq
+
+# Edit room
+curl -s -X PATCH "$BASE/pms/rooms/$ROOM_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"roomNumber":"105","basePrice":4000}' | jq
+
+# Delete room (not OCCUPIED; no active reservations)
+curl -s -X DELETE "$BASE/pms/rooms/$ROOM_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
 **Expected response (abridged):**
@@ -440,6 +457,13 @@ curl -s -X POST "$BASE/pms/guests" \
   "phone": "+8801712345678",
   "email": "tanvir@example.com"
 }
+```
+
+```bash
+# Delete guest (blocked while INQUIRY/CONFIRMED/CHECKED_IN reservations exist)
+curl -s -X DELETE "$BASE/pms/guests/$GUEST_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
 ### Step 5: Check Room Availability
@@ -569,6 +593,36 @@ curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/payment?branchId=$BRANC
 ```
 
 Create inquiries with `"status":"INQUIRY"` on `POST /pms/reservations` — they do not block availability until confirmed.
+
+### Step 11: Edit and delete reservations
+
+```bash
+# Edit guest, dates, room, or total (availability re-checked for CONFIRMED)
+curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"guestId":"'$GUEST_ID'","roomId":"'$ROOM_ID'","totalAmount":8000}' | jq
+
+# Delete reservation (not while CHECKED_IN — check out first)
+curl -s -X DELETE "$BASE/pms/reservations/$RESERVATION_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### Accounting integration (folio)
+
+When **`paidAmount` increases** on `PATCH /reservations/:id/payment`, the API emits `reservation.payment_recorded` and posts:
+
+- **Debit** Cash (`1000`) / **Credit** Room Revenue (`4000`) for the payment **delta**
+
+On **check-out**, if `paidAmount < totalAmount`, emits `reservation.checked_out` and posts:
+
+- **Debit** Accounts Receivable (`1300`) / **Credit** Room Revenue (`4000`) for the **unpaid balance**
+
+Requires chart of accounts from seed or Settings. If accounts are missing, payment/check-out still succeed; journal entries are skipped. View resulting journals under **Accounting** → Journals.
+
+`reservation.checked_in` is emitted on check-in for integrations (room status + Socket.IO); it does not post journals in phase 1.
 
 ### Room Status State Machine
 

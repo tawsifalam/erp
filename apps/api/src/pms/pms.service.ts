@@ -10,10 +10,18 @@ import { AvailabilityService } from "./availability.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ReservationCheckedInEvent } from "../common/events/reservation-checked-in.event";
+import { ReservationPaymentEvent } from "../common/events/reservation-payment.event";
+import { ReservationCheckedOutEvent } from "../common/events/reservation-checked-out.event";
 
 const CANCELLABLE: ReservationStatus[] = [
   ReservationStatus.INQUIRY,
   ReservationStatus.CONFIRMED,
+];
+
+const BLOCKING_ROOM_RESERVATIONS: ReservationStatus[] = [
+  ReservationStatus.INQUIRY,
+  ReservationStatus.CONFIRMED,
+  ReservationStatus.CHECKED_IN,
 ];
 
 @Injectable()
@@ -27,6 +35,15 @@ export class PmsService {
 
   listBranches(organizationId: string) {
     return this.prisma.branch.findMany({ where: { organizationId } });
+  }
+
+  private async organizationIdForBranch(branchId: string) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+      select: { organizationId: true },
+    });
+    if (!branch) throw new NotFoundException("Branch not found");
+    return branch.organizationId;
   }
 
   createBranch(organizationId: string, data: { name: string; timezone: string }) {
@@ -54,6 +71,18 @@ export class PmsService {
     });
     if (!existing) throw new NotFoundException("Room type not found");
     return this.prisma.roomType.update({ where: { id: roomTypeId }, data });
+  }
+
+  async deleteRoomType(organizationId: string, roomTypeId: string) {
+    const existing = await this.prisma.roomType.findFirst({
+      where: { id: roomTypeId, organizationId },
+    });
+    if (!existing) throw new NotFoundException("Room type not found");
+    const inUse = await this.prisma.room.count({ where: { roomTypeId } });
+    if (inUse > 0) {
+      throw new ConflictException("Room type is assigned to rooms and cannot be deleted");
+    }
+    return this.prisma.roomType.delete({ where: { id: roomTypeId } });
   }
 
   listRooms(branchId: string) {
@@ -147,6 +176,27 @@ export class PmsService {
 
     this.realtime.emitRoomStatus(branchId, roomId, status);
     return updated;
+  }
+
+  async deleteRoom(branchId: string, roomId: string) {
+    const room = await this.getRoom(branchId, roomId);
+
+    if (room.status === RoomStatus.OCCUPIED) {
+      throw new BadRequestException("Cannot delete an occupied room; check out the guest first");
+    }
+
+    const activeReservations = await this.prisma.reservation.count({
+      where: {
+        roomId,
+        branchId,
+        status: { in: BLOCKING_ROOM_RESERVATIONS },
+      },
+    });
+    if (activeReservations > 0) {
+      throw new ConflictException("Room has active reservations and cannot be deleted");
+    }
+
+    return this.prisma.room.delete({ where: { id: roomId } });
   }
 
   listGuests(organizationId: string) {
@@ -413,11 +463,24 @@ export class PmsService {
       throw new BadRequestException("paidAmount cannot exceed totalAmount");
     }
 
-    return this.prisma.reservation.update({
+    const previousPaid = Number(reservation.paidAmount);
+    const delta = paidAmount - previousPaid;
+
+    const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: { paidAmount },
       include: { guest: true, room: { include: { roomType: true } } },
     });
+
+    if (delta > 0) {
+      const organizationId = await this.organizationIdForBranch(branchId);
+      this.events.emit(
+        "reservation.payment_recorded",
+        new ReservationPaymentEvent(organizationId, reservationId, delta),
+      );
+    }
+
+    return updated;
   }
 
   async checkIn(reservationId: string, branchId: string) {
@@ -465,6 +528,15 @@ export class PmsService {
       }),
     ]);
 
+    const unpaid = Number(reservation.totalAmount) - Number(reservation.paidAmount);
+    if (unpaid > 0) {
+      const organizationId = await this.organizationIdForBranch(branchId);
+      this.events.emit(
+        "reservation.checked_out",
+        new ReservationCheckedOutEvent(organizationId, reservationId, unpaid),
+      );
+    }
+
     this.realtime.emitRoomStatus(branchId, reservation.roomId, RoomStatus.DIRTY);
     return this.getReservation(branchId, reservationId);
   }
@@ -483,5 +555,17 @@ export class PmsService {
       data: { status: ReservationStatus.CANCELLED },
       include: { guest: true, room: { include: { roomType: true } } },
     });
+  }
+
+  async deleteReservation(branchId: string, reservationId: string) {
+    const reservation = await this.getReservation(branchId, reservationId);
+
+    if (reservation.status === ReservationStatus.CHECKED_IN) {
+      throw new BadRequestException(
+        "Checked-in reservations cannot be deleted; check out first",
+      );
+    }
+
+    return this.prisma.reservation.delete({ where: { id: reservationId } });
   }
 }

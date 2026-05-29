@@ -1,6 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import {
   BadRequestException,
+  ConflictException,
   NotFoundException,
 } from "@nestjs/common";
 import { ReservationStatus, RoomStatus } from "@prisma/client";
@@ -11,15 +12,31 @@ import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 
 const mockPrisma = {
-  branch: { findMany: jest.fn(), create: jest.fn() },
-  roomType: { findMany: jest.fn(), create: jest.fn() },
-  room: { findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
-  guest: { findMany: jest.fn(), create: jest.fn() },
+  branch: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
+  roomType: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
+  },
+  room: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
+  },
+  guest: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn(), delete: jest.fn(), count: jest.fn() },
   reservation: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -369,6 +386,153 @@ describe("PmsService", () => {
         include: { roomType: true },
         orderBy: { roomNumber: "asc" },
       });
+    });
+  });
+
+  describe("deleteRoomType", () => {
+    it("throws when room type is in use", async () => {
+      mockPrisma.roomType.findFirst.mockResolvedValue({ id: "rt-1" });
+      mockPrisma.room.count.mockResolvedValue(1);
+
+      await expect(service.deleteRoomType("org-1", "rt-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("deletes unused room type", async () => {
+      mockPrisma.roomType.findFirst.mockResolvedValue({ id: "rt-1" });
+      mockPrisma.room.count.mockResolvedValue(0);
+      mockPrisma.roomType.delete.mockResolvedValue({ id: "rt-1" });
+
+      await service.deleteRoomType("org-1", "rt-1");
+
+      expect(mockPrisma.roomType.delete).toHaveBeenCalledWith({
+        where: { id: "rt-1" },
+      });
+    });
+  });
+
+  describe("deleteRoom", () => {
+    it("throws when room is occupied", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue({
+        id: "rm-1",
+        branchId: "branch-1",
+        status: RoomStatus.OCCUPIED,
+        roomType: {},
+      });
+
+      await expect(service.deleteRoom("branch-1", "rm-1")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("deletes vacant room without active reservations", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue({
+        id: "rm-1",
+        branchId: "branch-1",
+        status: RoomStatus.VACANT,
+        roomType: {},
+      });
+      mockPrisma.reservation.count.mockResolvedValue(0);
+      mockPrisma.room.delete.mockResolvedValue({ id: "rm-1" });
+
+      await service.deleteRoom("branch-1", "rm-1");
+
+      expect(mockPrisma.room.delete).toHaveBeenCalledWith({ where: { id: "rm-1" } });
+    });
+  });
+
+  describe("deleteReservation", () => {
+    it("throws when checked in", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue({
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.CHECKED_IN,
+        guest: {},
+        room: { roomType: {} },
+      });
+
+      await expect(service.deleteReservation("branch-1", "res-1")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("deletes cancelled reservation", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue({
+        id: "res-1",
+        branchId: "branch-1",
+        status: ReservationStatus.CANCELLED,
+        guest: {},
+        room: { roomType: {} },
+      });
+      mockPrisma.reservation.delete.mockResolvedValue({ id: "res-1" });
+
+      await service.deleteReservation("branch-1", "res-1");
+
+      expect(mockPrisma.reservation.delete).toHaveBeenCalledWith({
+        where: { id: "res-1" },
+      });
+    });
+  });
+
+  describe("recordPayment", () => {
+    it("emits reservation.payment_recorded for payment delta", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue({
+        id: "res-1",
+        branchId: "branch-1",
+        totalAmount: 1000,
+        paidAmount: 200,
+        guest: {},
+        room: { roomType: {} },
+      });
+      mockPrisma.branch.findUnique.mockResolvedValue({ organizationId: "org-1" });
+      mockPrisma.reservation.update.mockResolvedValue({ id: "res-1" });
+
+      await service.recordPayment("branch-1", "res-1", 500);
+
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        "reservation.payment_recorded",
+        expect.objectContaining({
+          organizationId: "org-1",
+          reservationId: "res-1",
+          deltaPaid: 300,
+        }),
+      );
+    });
+  });
+
+  describe("checkOut folio", () => {
+    it("emits reservation.checked_out when balance remains", async () => {
+      mockPrisma.reservation.findFirst
+        .mockResolvedValueOnce({
+          id: "res-1",
+          branchId: "branch-1",
+          roomId: "rm-1",
+          status: ReservationStatus.CHECKED_IN,
+          totalAmount: 1000,
+          paidAmount: 400,
+          guest: {},
+          room: { roomType: {} },
+        })
+        .mockResolvedValueOnce({
+          id: "res-1",
+          status: ReservationStatus.CHECKED_OUT,
+          guest: {},
+          room: { roomType: {} },
+        });
+      mockPrisma.$transaction.mockResolvedValue([{}, {}]);
+      mockPrisma.branch.findUnique.mockResolvedValue({ organizationId: "org-1" });
+
+      await service.checkOut("res-1", "branch-1");
+
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        "reservation.checked_out",
+        expect.objectContaining({
+          organizationId: "org-1",
+          reservationId: "res-1",
+          unpaidAmount: 600,
+        }),
+      );
     });
   });
 });

@@ -72,6 +72,12 @@ export class PmsController {
     return this.pms.updateRoomType(t.organizationId, id, body);
   }
 
+  @Delete("room-types/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  deleteRoomType(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.pms.deleteRoomType(t.organizationId, id);
+  }
+
   @Get("rooms")
   @RequirePermission(Permission.PMS_READ)
   rooms(@Tenant() t: TenantContext, @Query("branchId") branchId: string) {
@@ -128,6 +134,16 @@ export class PmsController {
     @Body() body: { status: RoomStatus },
   ) {
     return this.pms.updateRoomStatus(this.branchId(t, branchId), id, body.status);
+  }
+
+  @Delete("rooms/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  deleteRoom(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+  ) {
+    return this.pms.deleteRoom(this.branchId(t, branchId), id);
   }
 
   @Get("guests")
@@ -301,5 +317,15 @@ export class PmsController {
     @Tenant() t: TenantContext,
   ) {
     return this.pms.cancelReservation(id, this.branchId(t, branchId));
+  }
+
+  @Delete("reservations/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  deleteReservation(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+  ) {
+    return this.pms.deleteReservation(this.branchId(t, branchId), id);
   }
 }

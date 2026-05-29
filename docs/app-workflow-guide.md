@@ -1261,6 +1261,8 @@ The application uses `@nestjs/event-emitter` (EventEmitter2) for internal event-
 |----------------------------|----------------------|--------------------------------------------------------|
 | `order.completed`          | `PosService`         | `{ orderId, branchId, organizationId, totalAmount }`   |
 | `reservation.checked_in`   | `PmsService`         | `{ reservationId, roomId, branchId }`                  |
+| `reservation.payment_recorded` | `PmsService`     | `{ organizationId, reservationId, deltaPaid }`           |
+| `reservation.checked_out`  | `PmsService`         | `{ organizationId, reservationId, unpaidAmount }`      |
 | `payroll.run_requested`    | `HrService`          | `{ payrollRunId }`                                     |
 | `inventory.consumed`       | `InventoryRecipes`   | `{ orderId, organizationId, cogsAmount }`              |
 
@@ -1446,11 +1448,13 @@ See [pms-module.md](pms-module.md) for curl examples.
 | GET/POST | `/pms/branches` | PMS_READ/WRITE | List/create branches |
 | GET/POST | `/pms/room-types` | PMS_READ/WRITE | List/create room types |
 | PATCH | `/pms/room-types/:id` | PMS_WRITE | Update room type |
+| DELETE | `/pms/room-types/:id` | PMS_WRITE | Delete room type |
 | GET | `/pms/rooms?branchId=` | PMS_READ | List rooms |
 | GET | `/pms/rooms/:id` | PMS_READ | Get room |
 | POST | `/pms/rooms` | PMS_WRITE | Create room |
 | PATCH | `/pms/rooms/:id` | PMS_WRITE | Update room |
 | PATCH | `/pms/rooms/:id/status` | PMS_WRITE | Housekeeping status |
+| DELETE | `/pms/rooms/:id` | PMS_WRITE | Delete room |
 | GET/POST | `/pms/guests` | PMS_READ/WRITE | List/create guests |
 | GET/PATCH/DELETE | `/pms/guests/:id` | PMS_READ/WRITE | Guest CRUD |
 | GET/POST | `/pms/reservations?branchId=` | PMS_READ/WRITE | List/create reservations |
@@ -1461,6 +1465,7 @@ See [pms-module.md](pms-module.md) for curl examples.
 | PATCH | `/pms/reservations/:id/check-in` | PMS_WRITE | Check-in |
 | PATCH | `/pms/reservations/:id/check-out` | PMS_WRITE | Check-out |
 | PATCH | `/pms/reservations/:id/cancel` | PMS_WRITE | Cancel |
+| DELETE | `/pms/reservations/:id` | PMS_WRITE | Delete reservation |
 
 ### POS Endpoints
 

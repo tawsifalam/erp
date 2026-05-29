@@ -111,20 +111,41 @@ export function RoomTypesTab({ tenant }: { tenant: TenantHeaders }) {
                   <Table.Cell>{rt.maxAdults}</Table.Cell>
                   <Table.Cell>{rt.maxChildren}</Table.Cell>
                   <Table.Cell>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingId(rt.id);
-                        setForm({
-                          name: rt.name,
-                          maxAdults: rt.maxAdults,
-                          maxChildren: rt.maxChildren,
-                        });
-                      }}
-                    >
-                      Edit
-                    </Button>
+                    <Flex gap={1}>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingId(rt.id);
+                          setForm({
+                            name: rt.name,
+                            maxAdults: rt.maxAdults,
+                            maxChildren: rt.maxChildren,
+                          });
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        colorPalette="red"
+                        variant="outline"
+                        onClick={async () => {
+                          if (!confirm(`Delete room type "${rt.name}"?`)) return;
+                          try {
+                            await apiFetch(`/pms/room-types/${rt.id}`, {
+                              method: "DELETE",
+                              tenant,
+                            });
+                            load();
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : "Cannot delete room type");
+                          }
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </Flex>
                   </Table.Cell>
                 </Table.Row>
               ))}

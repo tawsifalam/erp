@@ -22,9 +22,9 @@ Open **PMS** in the sidebar. Select **organization** and **branch** in the heade
 
 | Tab | Features |
 |-----|----------|
-| **Reservations** | List stays; create CONFIRMED or INQUIRY; availability-based room picker; confirm inquiry; check-in/out; cancel; record `paidAmount` |
-| **Rooms** | List rooms; create room; housekeeping status buttons; live updates via Socket.IO `room.status` |
-| **Room types** | Create/edit types (`maxAdults`, `maxChildren`) |
+| **Reservations** | List stays; create CONFIRMED/INQUIRY; **edit** (guest, dates, room, total); confirm inquiry; check-in/out; cancel; record `paidAmount`; **delete** (not while CHECKED_IN) |
+| **Rooms** | List rooms; create room; **edit** room number, type, price; **delete** (not OCCUPIED / active reservations); housekeeping status buttons; live updates via Socket.IO `room.status` |
+| **Room types** | Create/edit/**delete** types (`maxAdults`, `maxChildren`; delete blocked if rooms use type) |
 | **Guests** | Create/edit/delete guests (delete blocked if active reservations exist) |
 
 Branch setup (create branches) is under **Settings** (`/tenants/branches`). `POST /pms/branches` remains for API/scripts.
@@ -78,7 +78,21 @@ curl -s -X PATCH "$BASE/pms/room-types/$ROOM_TYPE_ID" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"Standard Twin"}' | jq
+
+# Delete (blocked while rooms reference this type)
+curl -s -X DELETE "$BASE/pms/room-types/$ROOM_TYPE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
 ```
+
+### Delete rules
+
+| Entity | Allowed when |
+|--------|----------------|
+| Room type | No rooms assigned to the type |
+| Room | Not `OCCUPIED`; no INQUIRY/CONFIRMED/CHECKED_IN reservations on that room |
+| Reservation | Not `CHECKED_IN` (check out first) |
+| Guest | No active reservations (existing rule) |
 
 ### Rooms
 
@@ -103,6 +117,11 @@ curl -s -X PATCH "$BASE/pms/rooms/$ROOM_ID/status?branchId=$BRANCH_ID" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{"status":"VACANT"}' | jq
+
+# Delete room
+curl -s -X DELETE "$BASE/pms/rooms/$ROOM_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
 ### Guests
@@ -157,6 +176,19 @@ curl -s -X POST "$BASE/pms/reservations" \
   -H "Content-Type: application/json" \
   -d "{\"branchId\":\"$BRANCH_ID\",\"guestId\":\"$GUEST_ID\",\"roomId\":\"$ROOM_ID\",\"checkIn\":\"2026-06-01T14:00:00Z\",\"checkOut\":\"2026-06-03T11:00:00Z\",\"totalAmount\":7000,\"paidAmount\":2000}" | jq
 
+curl -s -X PATCH "$BASE/pms/reservations/$RES_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d "{\"guestId\":\"$GUEST_ID\",\"roomId\":\"$ROOM_ID\",\"checkIn\":\"2026-06-05T14:00:00Z\",\"checkOut\":\"2026-06-07T11:00:00Z\",\"totalAmount\":8000}" | jq
+
+curl -s -X PATCH "$BASE/pms/rooms/$ROOM_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"roomNumber":"105","basePrice":4000}' | jq
+
 curl -s -X PATCH "$BASE/pms/reservations/$RES_ID/confirm?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
@@ -178,6 +210,10 @@ curl -s -X PATCH "$BASE/pms/reservations/$RES_ID/check-out?branchId=$BRANCH_ID" 
 curl -s -X PATCH "$BASE/pms/reservations/$RES_ID/cancel?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X DELETE "$BASE/pms/reservations/$RES_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
 ## Realtime
@@ -191,11 +227,25 @@ socket.on("room.status", ({ roomId, status }) => { /* refresh UI */ });
 
 Emitted on check-in, check-out, and housekeeping status changes.
 
+## Accounting integration (folio)
+
+When **`paidAmount` increases** on `PATCH /reservations/:id/payment`, the API emits `reservation.payment_recorded` and posts:
+
+- **Debit** Cash (`1000`) / **Credit** Room Revenue (`4000`) for the payment **delta**
+
+On **check-out**, if `paidAmount < totalAmount`, emits `reservation.checked_out` and posts:
+
+- **Debit** Accounts Receivable (`1300`) / **Credit** Room Revenue (`4000`) for the **unpaid balance**
+
+Requires chart of accounts from seed or Settings setup. If accounts are missing, payment/check-out still succeed; journal entries are skipped.
+
 ## Events
 
 | Event | When | Payload |
 |-------|------|---------|
 | `reservation.checked_in` | After check-in | `{ reservationId, roomId, branchId }` |
+| `reservation.payment_recorded` | Payment delta > 0 | `{ organizationId, reservationId, deltaPaid }` |
+| `reservation.checked_out` | Check-out with balance due | `{ organizationId, reservationId, unpaidAmount }` |
 
 ## Dashboard metrics
 
@@ -216,6 +266,8 @@ Emitted on check-in, check-out, and housekeeping status changes.
 
 ```bash
 pnpm --filter @erp/api test -- pms
+pnpm --filter @erp/api test -- pms-events.listener
+pnpm --filter @erp/api test -- accounting-listeners
 pnpm --filter @erp/web test:e2e pms
 ```
 

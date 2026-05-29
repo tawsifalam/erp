@@ -39,4 +39,48 @@ export class AccountingListenersService {
       ],
     });
   }
+
+  async postRoomPayment(
+    organizationId: string,
+    reservationId: string,
+    amount: number,
+  ) {
+    if (amount <= 0) return;
+    const cash = await this.accounting.getAccountByCode(organizationId, "1000");
+    const revenue = await this.accounting.getAccountByCode(organizationId, "4000");
+    if (!cash || !revenue) return;
+
+    return this.accounting.createJournalEntry({
+      organizationId,
+      referenceType: "Reservation",
+      referenceId: reservationId,
+      description: "Room payment received",
+      lines: [
+        { accountId: cash.id, debit: amount, credit: 0 },
+        { accountId: revenue.id, debit: 0, credit: amount },
+      ],
+    });
+  }
+
+  async postRoomReceivable(
+    organizationId: string,
+    reservationId: string,
+    amount: number,
+  ) {
+    if (amount <= 0) return;
+    const ar = await this.accounting.getAccountByCode(organizationId, "1300");
+    const revenue = await this.accounting.getAccountByCode(organizationId, "4000");
+    if (!ar || !revenue) return;
+
+    return this.accounting.createJournalEntry({
+      organizationId,
+      referenceType: "Reservation",
+      referenceId: reservationId,
+      description: "Room revenue — balance on check-out",
+      lines: [
+        { accountId: ar.id, debit: amount, credit: 0 },
+        { accountId: revenue.id, debit: 0, credit: amount },
+      ],
+    });
+  }
 }

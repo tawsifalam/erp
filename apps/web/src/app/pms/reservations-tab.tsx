@@ -35,6 +35,15 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   });
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    guestId: "",
+    roomId: "",
+    checkIn: "",
+    checkOut: "",
+    totalAmount: "",
+  });
+  const [editRooms, setEditRooms] = useState<Room[]>([]);
 
   const load = useCallback(async () => {
     if (!tenant.organizationId || !branchId) return;
@@ -84,6 +93,66 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
       setAvailableRooms([]);
     }
   }, [form.checkIn, form.checkOut, form.status, fetchAvailability]);
+
+  const fetchEditAvailability = useCallback(async () => {
+    if (!branchId || !editId || !editForm.checkIn || !editForm.checkOut) {
+      setEditRooms([]);
+      return;
+    }
+    try {
+      const rooms = await apiFetch<Room[]>(
+        `/pms/availability?branchId=${branchId}&checkIn=${editForm.checkIn}T14:00:00Z&checkOut=${editForm.checkOut}T11:00:00Z&excludeReservationId=${editId}`,
+        { tenant },
+      );
+      setEditRooms(rooms);
+    } catch {
+      setEditRooms([]);
+    }
+  }, [branchId, editId, editForm.checkIn, editForm.checkOut, tenant]);
+
+  useEffect(() => {
+    if (editId) fetchEditAvailability();
+  }, [editId, editForm.checkIn, editForm.checkOut, fetchEditAvailability]);
+
+  const startEdit = (r: Reservation) => {
+    if (r.status !== "INQUIRY" && r.status !== "CONFIRMED") return;
+    const guestId =
+      r.guest.id ?? guests.find((g) => g.fullName === r.guest.fullName)?.id ?? "";
+    const roomId = r.room.id ?? "";
+    setEditId(r.id);
+    setEditForm({
+      guestId,
+      roomId,
+      checkIn: r.checkIn.slice(0, 10),
+      checkOut: r.checkOut.slice(0, 10),
+      totalAmount: String(r.totalAmount),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!branchId || !editId) return;
+    if (!editForm.guestId || !editForm.roomId || !editForm.checkIn || !editForm.checkOut) {
+      setError("Guest, room, and dates are required.");
+      return;
+    }
+    try {
+      await apiFetch(`/pms/reservations/${editId}?branchId=${branchId}`, {
+        method: "PATCH",
+        tenant,
+        body: JSON.stringify({
+          guestId: editForm.guestId,
+          roomId: editForm.roomId,
+          checkIn: `${editForm.checkIn}T14:00:00Z`,
+          checkOut: `${editForm.checkOut}T11:00:00Z`,
+          totalAmount: Number(editForm.totalAmount),
+        }),
+      });
+      setEditId(null);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update reservation");
+    }
+  };
 
   const handleAction = async (
     id: string,
@@ -367,6 +436,34 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
                       >
                         Payment
                       </Button>
+                      {(r.status === "INQUIRY" || r.status === "CONFIRMED") && (
+                        <Button size="xs" variant="outline" onClick={() => startEdit(r)}>
+                          Edit
+                        </Button>
+                      )}
+                      {r.status !== "CHECKED_IN" && (
+                        <Button
+                          size="xs"
+                          colorPalette="red"
+                          variant="outline"
+                          onClick={async () => {
+                            if (!confirm("Delete this reservation record?")) return;
+                            try {
+                              await apiFetch(
+                                `/pms/reservations/${r.id}?branchId=${branchId}`,
+                                { method: "DELETE", tenant },
+                              );
+                              load();
+                            } catch (e) {
+                              setError(
+                                e instanceof Error ? e.message : "Cannot delete reservation",
+                              );
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      )}
                     </Flex>
                   </Table.Cell>
                 </Table.Row>
@@ -376,6 +473,81 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
           {reservations.length === 0 && (
             <EmptyState message="No reservations for this branch." />
           )}
+        </Box>
+      )}
+
+      {editId && (
+        <Box
+          position="fixed"
+          inset={0}
+          bg="blackAlpha.400"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          zIndex={10}
+        >
+          <Box bg="white" p={6} borderRadius="md" minW="360px" maxW="90vw">
+            <Text fontWeight="semibold" mb={3}>
+              Edit reservation
+            </Text>
+            <Stack gap={3}>
+              <NativeSelect.Root size="sm">
+                <NativeSelect.Field
+                  value={editForm.guestId}
+                  onChange={(e) => setEditForm({ ...editForm, guestId: e.target.value })}
+                >
+                  <option value="">Guest</option>
+                  {guests.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.fullName}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+              </NativeSelect.Root>
+              <Flex gap={2}>
+                <Input
+                  size="sm"
+                  type="date"
+                  value={editForm.checkIn}
+                  onChange={(e) => setEditForm({ ...editForm, checkIn: e.target.value })}
+                />
+                <Input
+                  size="sm"
+                  type="date"
+                  value={editForm.checkOut}
+                  onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
+                />
+              </Flex>
+              <NativeSelect.Root size="sm">
+                <NativeSelect.Field
+                  value={editForm.roomId}
+                  onChange={(e) => setEditForm({ ...editForm, roomId: e.target.value })}
+                >
+                  <option value="">Available room</option>
+                  {editRooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.roomNumber} — {room.roomType.name}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+              </NativeSelect.Root>
+              <Input
+                size="sm"
+                type="number"
+                placeholder="Total amount"
+                value={editForm.totalAmount}
+                onChange={(e) => setEditForm({ ...editForm, totalAmount: e.target.value })}
+              />
+              <Flex gap={2}>
+                <Button size="sm" colorPalette="green" onClick={saveEdit}>
+                  Save
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditId(null)}>
+                  Cancel
+                </Button>
+              </Flex>
+            </Stack>
+          </Box>
         </Box>
       )}
 

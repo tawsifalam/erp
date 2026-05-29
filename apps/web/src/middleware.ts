@@ -1,7 +1,30 @@
+import { NextResponse, type NextRequest } from "next/server";
 import { authMiddleware } from "@propelauth/nextjs/server/app-router";
 
-export const middleware = authMiddleware;
+const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/api/auth/"];
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  if (isPublic || pathname === "/") {
+    return authMiddleware(req);
+  }
+
+  // Run PropelAuth middleware to refresh tokens / attach headers
+  const res = await authMiddleware(req);
+
+  // Check if user has a valid session (access token cookie exists)
+  const hasSession = req.cookies.has("__pa_at");
+  if (!hasSession) {
+    const loginUrl = req.nextUrl.clone();
+    loginUrl.pathname = "/auth/login";
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return res;
+}
 
 export const config = {
-  matcher: ["/api/auth/(.*)", "/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

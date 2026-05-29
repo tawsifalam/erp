@@ -5,9 +5,18 @@ export function signIn() {
   window.location.href = "/api/auth/login";
 }
 
-/** Redirect to PropelAuth logout (handled by /api/auth/logout). */
-export function signOut() {
-  window.location.href = "/api/auth/logout";
+/** Redirect to PropelAuth hosted signup (handled by /api/auth/signup). */
+export function signUp() {
+  window.location.href = "/api/auth/signup";
+}
+
+/** Calls PropelAuth logout (POST clears session + invalidates token), then redirects. */
+export async function signOut() {
+  await fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+  window.location.href = "/auth/login";
 }
 
 /**

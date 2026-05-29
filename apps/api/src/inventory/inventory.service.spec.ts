@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { MovementDirection, MovementType } from "@prisma/client";
 import { InventoryService } from "./inventory.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -11,7 +11,9 @@ jest.mock("@erp/utils", () => ({
 const mockPrisma = {
   inventoryItem: {
     findMany: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
   },
   inventoryMovement: {
     findMany: jest.fn(),
@@ -193,6 +195,25 @@ describe("InventoryService", () => {
       });
     });
 
+    it("assigns direction OUT for ADJUSTMENT when direction OUT passed", async () => {
+      mockPrisma.inventoryMovement.create.mockResolvedValue({});
+
+      await service.createMovement({
+        itemId: "item-1",
+        branchId: "branch-1",
+        movementType: MovementType.ADJUSTMENT,
+        quantity: 5,
+        direction: MovementDirection.OUT,
+      });
+
+      expect(mockPrisma.inventoryMovement.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          direction: MovementDirection.OUT,
+          movementType: MovementType.ADJUSTMENT,
+        }),
+      });
+    });
+
     it("passes all fields to prisma create", async () => {
       mockPrisma.inventoryMovement.create.mockResolvedValue({});
 
@@ -231,6 +252,7 @@ describe("InventoryService", () => {
       expect(result).toEqual(items);
       expect(mockPrisma.inventoryItem.findMany).toHaveBeenCalledWith({
         where: { branchId: "branch-1" },
+        orderBy: { name: "asc" },
       });
     });
   });
@@ -265,6 +287,60 @@ describe("InventoryService", () => {
       const result = await service.listItemsWithStock("branch-1");
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("createItem", () => {
+    it("throws when name is empty", () => {
+      expect(() =>
+        service.createItem("branch-1", { name: "  ", sku: "SKU-1", unit: "kg" }),
+      ).toThrow(BadRequestException);
+    });
+
+    it("creates item with trimmed fields", async () => {
+      mockPrisma.inventoryItem.create.mockResolvedValue({ id: "inv-1" });
+
+      await service.createItem("branch-1", {
+        name: "  Rice  ",
+        sku: " RICE-1 ",
+        unit: " kg ",
+        lowStockThreshold: 10,
+      });
+
+      expect(mockPrisma.inventoryItem.create).toHaveBeenCalledWith({
+        data: {
+          branchId: "branch-1",
+          name: "Rice",
+          sku: "RICE-1",
+          unit: "kg",
+          lowStockThreshold: 10,
+        },
+      });
+    });
+  });
+
+  describe("updateItem", () => {
+    it("throws when item not found", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateItem("branch-1", "missing", { name: "X" }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("updates name and low stock threshold", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({ id: "inv-1" });
+      mockPrisma.inventoryItem.update.mockResolvedValue({ id: "inv-1", name: "Basmati" });
+
+      await service.updateItem("branch-1", "inv-1", {
+        name: "Basmati",
+        lowStockThreshold: 5,
+      });
+
+      expect(mockPrisma.inventoryItem.update).toHaveBeenCalledWith({
+        where: { id: "inv-1" },
+        data: { name: "Basmati", lowStockThreshold: 5 },
+      });
     });
   });
 });

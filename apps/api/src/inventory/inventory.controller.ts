@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
-import { MovementType } from "@prisma/client";
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { MovementDirection, MovementType } from "@prisma/client";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";
@@ -28,9 +28,28 @@ export class InventoryController {
   @RequirePermission(Permission.INVENTORY_WRITE)
   createItem(
     @Tenant() t: TenantContext,
-    @Body() body: { branchId?: string; name: string; sku: string; unit: string },
+    @Body()
+    body: {
+      branchId?: string;
+      name: string;
+      sku: string;
+      unit: string;
+      lowStockThreshold?: number;
+    },
   ) {
     return this.inventory.createItem(body.branchId || t.branchId!, body);
+  }
+
+  @Patch("items/:id")
+  @RequirePermission(Permission.INVENTORY_WRITE)
+  updateItem(
+    @Param("id") id: string,
+    @Tenant() t: TenantContext,
+    @Query("branchId") branchId: string | undefined,
+    @Body()
+    body: { name?: string; unit?: string; lowStockThreshold?: number | null },
+  ) {
+    return this.inventory.updateItem(branchId || t.branchId!, id, body);
   }
 
   @Get("items/:id/stock")
@@ -53,8 +72,10 @@ export class InventoryController {
       branchId?: string;
       movementType: MovementType;
       quantity: number;
+      direction?: MovementDirection;
       referenceType?: string;
       referenceId?: string;
+      notes?: string;
     },
   ) {
     return this.inventory.createMovement({

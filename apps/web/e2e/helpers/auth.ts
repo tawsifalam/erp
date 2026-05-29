@@ -18,6 +18,12 @@ import {
   handlePosOrderMutation,
   resetPosState,
 } from "./pos-state";
+import {
+  getInventoryItems,
+  handleInventoryItemMutation,
+  handleInventoryMovementMutation,
+  resetInventoryState,
+} from "./inventory-state";
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -237,12 +243,8 @@ function resetRecipeState() {
   for (const key of Object.keys(mockRecipes)) delete mockRecipes[key];
 }
 
-/** Seed data: inventory items */
-export const MOCK_INVENTORY = [
-  { id: "inv-001", name: "Basmati Rice", sku: "RICE-BAS-25", unit: "kg", currentStock: 120 },
-  { id: "inv-002", name: "Olive Oil", sku: "OIL-OLV-5L", unit: "litre", currentStock: 34 },
-  { id: "inv-003", name: "Chicken Breast", sku: "MEAT-CHK-01", unit: "kg", currentStock: 45 },
-];
+/** Seed data: inventory items (initial snapshot; use getInventoryItems() after mutations) */
+export const MOCK_INVENTORY = getInventoryItems();
 
 /**
  * Intercept all backend API calls (localhost:3001) and return seed data so
@@ -252,6 +254,7 @@ export async function mockApiRoutes(page: Page) {
   resetPmsState();
   resetPosState();
   resetRecipeState();
+  resetInventoryState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -395,9 +398,28 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/inventory/items**", (route) => {
-    if (route.request().method() !== "GET") return fulfillJson(route, {});
-    return fulfillJson(route, MOCK_INVENTORY);
+  await page.route("**/localhost:3001/api/inventory/items**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleInventoryItemMutation(method, url, body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/inventory/movements**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleInventoryMovementMutation(method, url, body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/inventory/items/*/movements**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleInventoryMovementMutation(method, url, body);
+    return fulfillJson(route, result);
   });
 
   await page.route("**/localhost:3001/api/inventory/recipes**", async (route) => {
@@ -412,7 +434,7 @@ export async function mockApiRoutes(page: Page) {
         lines: stored.lines.map((l) => ({
           ...l,
           quantity: String(l.quantity),
-          inventoryItem: MOCK_INVENTORY.find((i) => i.id === l.inventoryItemId),
+          inventoryItem: getInventoryItems().find((i) => i.id === l.inventoryItemId),
         })),
       });
     }

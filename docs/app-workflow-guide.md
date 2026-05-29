@@ -862,8 +862,10 @@ The inventory system uses a **ledger model** — current stock is never stored d
 
 | Route | Purpose |
 |-------|---------|
-| **`/inventory` → Items tab** | List items with on-hand stock; create/edit items; record movements |
+| **`/inventory` → Items tab** | List items with on-hand stock and LOW/OK status; **create** item; **edit** (click row: name, unit, low-stock threshold); **record movements** (purchase, waste, adjustment IN/OUT, etc.); movement history |
 | **`/inventory` → Recipes (BOM) tab** | Select a menu item; edit bill-of-materials lines; save via recipe API |
+
+> **Full reference:** [docs/inventory-module.md](inventory-module.md) — API tables, Web UI, movement types, recipe deduction, and testing.
 
 ### Step 1: List Items with Current Stock
 
@@ -907,7 +909,36 @@ curl -s "$BASE/inventory/items?branchId=$BRANCH_ID" \
 
 > Stock is computed live: `50kg purchased - 0.6kg sold - 0.3kg staff meal = 49.1kg` for Rice.
 
-### Step 2: Create an Inventory Movement (Manual Purchase)
+### Step 2: Create an Inventory Item
+
+```bash
+curl -s -X POST "$BASE/inventory/items" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "name": "Basmati Rice",
+    "sku": "RICE-01",
+    "unit": "kg",
+    "lowStockThreshold": 10
+  }' | jq
+```
+
+### Step 3: Update an Item (name, unit, low-stock threshold)
+
+```bash
+curl -s -X PATCH "$BASE/inventory/items/$ITEM_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Premium Basmati","lowStockThreshold":15}' | jq
+```
+
+SKU cannot be changed after creation (unique per branch).
+
+### Step 4: Create an Inventory Movement (Manual Purchase)
 
 ```bash
 curl -s -X POST "$BASE/inventory/movements" \
@@ -936,7 +967,7 @@ curl -s -X POST "$BASE/inventory/movements" \
 }
 ```
 
-### Step 3: Record a Waste Movement
+### Step 5: Record a Waste Movement
 
 ```bash
 curl -s -X POST "$BASE/inventory/movements" \
@@ -949,6 +980,23 @@ curl -s -X POST "$BASE/inventory/movements" \
     "branchId": "00000000-0000-0000-0000-000000000001",
     "movementType": "WASTE",
     "quantity": 3
+  }' | jq
+```
+
+### Step 6: Record an Adjustment (IN or OUT)
+
+```bash
+curl -s -X POST "$BASE/inventory/movements" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemId": "<inv-rice-uuid>",
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "movementType": "ADJUSTMENT",
+    "direction": "OUT",
+    "quantity": 0.5
   }' | jq
 ```
 
@@ -965,7 +1013,7 @@ There is no `currentStock` column in the database. Every stock query aggregates 
 | Type          | Direction | When Used                                  |
 |---------------|-----------|--------------------------------------------|
 | `PURCHASE`    | IN        | Goods bought from supplier                 |
-| `ADJUSTMENT`  | IN or OUT | Correction (IN if positive, OUT if negative)|
+| `ADJUSTMENT`  | IN or OUT | Correction — pass `"direction":"IN"` or `"OUT"` in API body |
 | `SALE`        | OUT       | Deducted when a POS order is completed     |
 | `WASTE`       | OUT       | Spoiled or damaged goods                   |
 | `STAFF_MEAL`  | OUT       | Employee meals (linked to HR module)       |
@@ -1621,10 +1669,13 @@ See [pos-module.md](pos-module.md) for curl examples.
 
 ### Inventory Endpoints
 
+See [inventory-module.md](inventory-module.md) for curl examples.
+
 | Method | Path                                | Permission      | Description            |
 |--------|--------------------------------------|----------------|------------------------|
 | GET    | `/inventory/items?branchId=`         | INVENTORY_READ | List items + stock     |
 | POST   | `/inventory/items`                   | INVENTORY_WRITE| Create item            |
+| PATCH  | `/inventory/items/:id`               | INVENTORY_WRITE| Update item            |
 | GET    | `/inventory/items/:id/stock`         | INVENTORY_READ | Get current stock      |
 | POST   | `/inventory/movements`               | INVENTORY_WRITE| Create movement        |
 | GET    | `/inventory/items/:id/movements`     | INVENTORY_READ | Movement history       |

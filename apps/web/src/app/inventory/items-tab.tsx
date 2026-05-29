@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Box, Button, Table, Text, Input, Flex, NativeSelect, Stack } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Table,
+  Text,
+  Input,
+  Flex,
+  NativeSelect,
+  Stack,
+} from "@chakra-ui/react";
 import { EmptyState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -12,7 +21,7 @@ type Item = {
   sku: string;
   unit: string;
   currentStock: number;
-  lowStockThreshold?: string;
+  lowStockThreshold?: string | null;
 };
 type Movement = {
   id: string;
@@ -29,30 +38,47 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
   const [movements, setMovements] = useState<Movement[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [itemForm, setItemForm] = useState({
     name: "",
     sku: "",
     unit: "",
     lowStockThreshold: "",
   });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    unit: "",
+    lowStockThreshold: "",
+  });
   const [movForm, setMovForm] = useState({
     itemId: "",
     movementType: "PURCHASE",
+    adjustmentDirection: "IN",
     quantity: "",
     notes: "",
   });
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!tenant.branchId) return;
     apiFetch<Item[]>(`/inventory/items?branchId=${tenant.branchId}`, { tenant })
       .then(setItems)
-      .catch(console.error);
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load items"));
   }, [tenant.branchId, tenant.organizationId]);
 
   useEffect(load, [load]);
 
   const loadMovements = async (itemId: string) => {
     setSelectedItem(itemId);
+    const item = items.find((i) => i.id === itemId);
+    if (item) {
+      setEditingItem(item);
+      setEditForm({
+        name: item.name,
+        unit: item.unit,
+        lowStockThreshold: item.lowStockThreshold ?? "",
+      });
+    }
     const data = await apiFetch<Movement[]>(
       `/inventory/items/${itemId}/movements?branchId=${tenant.branchId}`,
       { tenant },
@@ -61,46 +87,101 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
   };
 
   const handleCreateItem = async () => {
-    await apiFetch("/inventory/items", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({
-        branchId: tenant.branchId,
-        name: itemForm.name,
-        sku: itemForm.sku,
-        unit: itemForm.unit,
-        lowStockThreshold: itemForm.lowStockThreshold
-          ? Number(itemForm.lowStockThreshold)
-          : undefined,
-      }),
-    });
-    setItemForm({ name: "", sku: "", unit: "", lowStockThreshold: "" });
-    setShowItemForm(false);
-    load();
+    try {
+      setError(null);
+      await apiFetch("/inventory/items", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({
+          branchId: tenant.branchId,
+          name: itemForm.name,
+          sku: itemForm.sku,
+          unit: itemForm.unit,
+          lowStockThreshold: itemForm.lowStockThreshold
+            ? Number(itemForm.lowStockThreshold)
+            : undefined,
+        }),
+      });
+      setItemForm({ name: "", sku: "", unit: "", lowStockThreshold: "" });
+      setShowItemForm(false);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create item");
+    }
+  };
+
+  const handleUpdateItem = async () => {
+    if (!editingItem) return;
+    try {
+      setError(null);
+      await apiFetch(
+        `/inventory/items/${editingItem.id}?branchId=${tenant.branchId}`,
+        {
+          method: "PATCH",
+          tenant,
+          body: JSON.stringify({
+            name: editForm.name,
+            unit: editForm.unit,
+            lowStockThreshold: editForm.lowStockThreshold
+              ? Number(editForm.lowStockThreshold)
+              : null,
+          }),
+        },
+      );
+      load();
+      if (selectedItem) loadMovements(selectedItem);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update item");
+    }
   };
 
   const handleAddMovement = async () => {
-    await apiFetch("/inventory/movements", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({
+    try {
+      setError(null);
+      const body: Record<string, unknown> = {
         itemId: movForm.itemId,
         branchId: tenant.branchId,
         movementType: movForm.movementType,
         quantity: Number(movForm.quantity),
         notes: movForm.notes || undefined,
-      }),
-    });
-    setMovForm({ itemId: "", movementType: "PURCHASE", quantity: "", notes: "" });
-    setShowAdd(false);
-    load();
-    if (selectedItem) loadMovements(selectedItem);
+      };
+      if (movForm.movementType === "ADJUSTMENT") {
+        body.direction = movForm.adjustmentDirection;
+      }
+      await apiFetch("/inventory/movements", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify(body),
+      });
+      setMovForm({
+        itemId: "",
+        movementType: "PURCHASE",
+        adjustmentDirection: "IN",
+        quantity: "",
+        notes: "",
+      });
+      setShowAdd(false);
+      load();
+      if (selectedItem) loadMovements(selectedItem);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record movement");
+    }
   };
 
   const selectedItemData = items.find((i) => i.id === selectedItem);
 
+  if (!tenant.branchId) {
+    return <EmptyState message="Select a branch in the header to manage inventory." />;
+  }
+
   return (
     <Box>
+      {error && (
+        <Text color="red.500" mb={3} fontSize="sm">
+          {error}
+        </Text>
+      )}
+
       <Flex gap={2} mb={4}>
         <Button size="sm" onClick={load}>
           Refresh
@@ -185,6 +266,19 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
                   <option value="ADJUSTMENT">Adjustment</option>
                 </NativeSelect.Field>
               </NativeSelect.Root>
+              {movForm.movementType === "ADJUSTMENT" && (
+                <NativeSelect.Root size="sm" w="120px">
+                  <NativeSelect.Field
+                    value={movForm.adjustmentDirection}
+                    onChange={(e) =>
+                      setMovForm({ ...movForm, adjustmentDirection: e.target.value })
+                    }
+                  >
+                    <option value="IN">Adjust IN</option>
+                    <option value="OUT">Adjust OUT</option>
+                  </NativeSelect.Field>
+                </NativeSelect.Root>
+              )}
               <Input
                 size="sm"
                 w="100px"
@@ -260,8 +354,38 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
           {items.length === 0 && <EmptyState message="No inventory items yet." />}
         </Box>
 
-        {selectedItem && (
+        {selectedItem && editingItem && (
           <Box w="350px" bg="white" borderRadius="md" p={4}>
+            <Text fontWeight="semibold" mb={2}>
+              Edit: {selectedItemData?.sku}
+            </Text>
+            <Stack gap={2} mb={4}>
+              <Input
+                size="sm"
+                placeholder="Name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+              <Input
+                size="sm"
+                placeholder="Unit"
+                value={editForm.unit}
+                onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+              />
+              <Input
+                size="sm"
+                type="number"
+                placeholder="Low stock threshold"
+                value={editForm.lowStockThreshold}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, lowStockThreshold: e.target.value })
+                }
+              />
+              <Button size="sm" colorPalette="blue" onClick={handleUpdateItem}>
+                Save changes
+              </Button>
+            </Stack>
+
             <Text fontWeight="semibold" mb={2}>
               Movements: {selectedItemData?.name}
             </Text>

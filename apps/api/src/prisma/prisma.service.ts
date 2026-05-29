@@ -2,10 +2,12 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { generateId, getModelPrefix } from "@erp/utils";
 
-function assignIdIfNeeded(model: string, data: Record<string, unknown>): void {
-  if (!data || data.id) return;
+function assignPrefixedId(model: string, data: Record<string, unknown>): void {
+  if (!data) return;
   const prefix = getModelPrefix(model);
-  if (prefix) {
+  if (!prefix) return;
+  // Only assign if no id yet OR if the existing id lacks the correct prefix
+  if (!data.id || !(data.id as string).startsWith(`${prefix}_`)) {
     data.id = generateId(model);
   }
 }
@@ -15,13 +17,13 @@ function withIdGeneration(client: PrismaClient) {
     query: {
       $allModels: {
         async create({ model, args, query }) {
-          assignIdIfNeeded(model, args.data as Record<string, unknown>);
+          assignPrefixedId(model, args.data as Record<string, unknown>);
           return query(args);
         },
         async createMany({ model, args, query }) {
           if (Array.isArray(args.data)) {
             for (const item of args.data) {
-              assignIdIfNeeded(model, item as Record<string, unknown>);
+              assignPrefixedId(model, item as Record<string, unknown>);
             }
           }
           return query(args);
@@ -29,13 +31,13 @@ function withIdGeneration(client: PrismaClient) {
         async createManyAndReturn({ model, args, query }) {
           if (Array.isArray(args.data)) {
             for (const item of args.data) {
-              assignIdIfNeeded(model, item as Record<string, unknown>);
+              assignPrefixedId(model, item as Record<string, unknown>);
             }
           }
           return query(args);
         },
         async upsert({ model, args, query }) {
-          assignIdIfNeeded(model, args.create as Record<string, unknown>);
+          assignPrefixedId(model, args.create as Record<string, unknown>);
           return query(args);
         },
       },

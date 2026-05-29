@@ -2,18 +2,20 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useState,
   useEffect,
   type ReactNode,
 } from "react";
 import { apiFetch } from "./api-client";
-
-type OrgMembership = {
-  organizationId: string;
-  role: string;
-  organization: { id: string; name: string; branches: { id: string; name: string }[] };
-};
+import {
+  type OrgMembership,
+  pickInitialTenant,
+  resolveBranchChange,
+  resolveOrganizationChange,
+} from "./tenant";
+import { readStoredTenant, writeStoredTenant } from "./tenant-storage";
 
 type TenantState = {
   organizationId: string | null;
@@ -27,8 +29,8 @@ type TenantState = {
 const TenantContext = createContext<TenantState | null>(null);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [branchId, setBranchId] = useState<string | null>(null);
+  const [organizationId, setOrganizationIdState] = useState<string | null>(null);
+  const [branchId, setBranchIdState] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<OrgMembership[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,16 +49,46 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           organization: m.organization,
         }));
         setMemberships(mapped);
-        if (mapped[0]) {
-          setOrganizationId(mapped[0].organizationId);
-          if (mapped[0].organization.branches[0]) {
-            setBranchId(mapped[0].organization.branches[0].id);
-          }
+        const initial = pickInitialTenant(mapped, readStoredTenant());
+        setOrganizationIdState(initial.organizationId);
+        setBranchIdState(initial.branchId);
+        if (initial.organizationId) {
+          writeStoredTenant({
+            organizationId: initial.organizationId,
+            branchId: initial.branchId,
+          });
         }
       })
       .catch(() => setMemberships([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const persist = useCallback((orgId: string | null, brId: string | null) => {
+    if (orgId) {
+      writeStoredTenant({ organizationId: orgId, branchId: brId });
+    }
+  }, []);
+
+  const setOrganizationId = useCallback(
+    (id: string) => {
+      const next = resolveOrganizationChange(memberships, id);
+      setOrganizationIdState(next.organizationId);
+      setBranchIdState(next.branchId);
+      persist(next.organizationId, next.branchId);
+    },
+    [memberships, persist],
+  );
+
+  const setBranchId = useCallback(
+    (id: string) => {
+      const resolved = resolveBranchChange(memberships, organizationId, id);
+      setBranchIdState(resolved);
+      if (organizationId) {
+        persist(organizationId, resolved);
+      }
+    },
+    [memberships, organizationId, persist],
+  );
 
   return (
     <TenantContext.Provider
@@ -87,3 +119,5 @@ export function useTenantHeaders() {
     branchId: branchId ?? undefined,
   };
 }
+
+export type { OrgMembership };

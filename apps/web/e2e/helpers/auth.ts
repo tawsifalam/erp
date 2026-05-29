@@ -1,7 +1,10 @@
 import { Page } from "@playwright/test";
 
-const FAKE_ORG_ID = "org-test-001";
-const FAKE_BRANCH_ID = "branch-test-001";
+export const FAKE_ORG_ID = "org-test-001";
+export const FAKE_ORG_ID_2 = "org-test-002";
+export const FAKE_BRANCH_ID = "branch-test-001";
+export const FAKE_BRANCH_ID_2 = "branch-test-002";
+export const FAKE_BRANCH_ID_2B = "branch-test-003";
 
 /**
  * Mock PropelAuth and backend API auth so pages render as if a user is
@@ -74,18 +77,47 @@ export const MOCK_ORGANIZATIONS = [
     organization: {
       id: FAKE_ORG_ID,
       name: "Boulevard Café",
-      branches: [{ id: FAKE_BRANCH_ID, name: "Main Branch" }],
+      branches: [
+        { id: FAKE_BRANCH_ID, name: "Main Branch" },
+        { id: FAKE_BRANCH_ID_2, name: "Annex Branch" },
+      ],
+    },
+  },
+  {
+    organizationId: FAKE_ORG_ID_2,
+    role: "Admin",
+    organization: {
+      id: FAKE_ORG_ID_2,
+      name: "Harbor Hotel Group",
+      branches: [{ id: FAKE_BRANCH_ID_2B, name: "Harbor Downtown" }],
     },
   },
 ];
 
-/** Seed data: dashboard summary */
-export const MOCK_DASHBOARD: Record<string, unknown> = {
-  occupancyPct: 72,
-  activeReservations: 5,
-  revenueToday: 12450.0,
-  lowStockAlerts: 3,
+/** Dashboard metrics vary by org/branch for E2E tenant switching */
+export const MOCK_DASHBOARD_BY_TENANT: Record<string, Record<string, unknown>> = {
+  [`${FAKE_ORG_ID}:${FAKE_BRANCH_ID}`]: {
+    occupancyPct: 72,
+    activeReservations: 5,
+    revenueToday: 12450.0,
+    lowStockAlerts: 3,
+  },
+  [`${FAKE_ORG_ID}:${FAKE_BRANCH_ID_2}`]: {
+    occupancyPct: 45,
+    activeReservations: 2,
+    revenueToday: 3200.0,
+    lowStockAlerts: 1,
+  },
+  [`${FAKE_ORG_ID_2}:${FAKE_BRANCH_ID_2B}`]: {
+    occupancyPct: 88,
+    activeReservations: 12,
+    revenueToday: 28900.0,
+    lowStockAlerts: 0,
+  },
 };
+
+export const MOCK_DASHBOARD: Record<string, unknown> =
+  MOCK_DASHBOARD_BY_TENANT[`${FAKE_ORG_ID}:${FAKE_BRANCH_ID}`]!;
 
 /** Seed data: PMS reservations */
 export const MOCK_RESERVATIONS = [
@@ -221,13 +253,18 @@ export async function mockApiRoutes(page: Page) {
     }),
   );
 
-  await page.route("**/localhost:3001/api/reporting/dashboard**", (route) =>
-    route.fulfill({
+  await page.route("**/localhost:3001/api/reporting/dashboard**", (route) => {
+    const orgId = route.request().headers()["x-organization-id"];
+    const branchId = route.request().headers()["x-branch-id"];
+    const key = `${orgId ?? FAKE_ORG_ID}:${branchId ?? FAKE_BRANCH_ID}`;
+    const body =
+      MOCK_DASHBOARD_BY_TENANT[key] ?? MOCK_DASHBOARD_BY_TENANT[`${FAKE_ORG_ID}:${FAKE_BRANCH_ID}`];
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(MOCK_DASHBOARD),
-    }),
-  );
+      body: JSON.stringify(body),
+    });
+  });
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({

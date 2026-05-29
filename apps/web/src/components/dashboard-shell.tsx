@@ -1,9 +1,9 @@
 "use client";
 
-import { Box, Flex, Link, Text, Button, NativeSelect } from "@chakra-ui/react";
+import { Box, Flex, Link, Text, Button } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { useTenant } from "@/lib/tenant-context";
 import { signOut } from "@/lib/auth";
+import { TenantSelector } from "@/components/tenant-selector";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -23,9 +23,6 @@ export function DashboardShell({
   children: React.ReactNode;
   title?: string;
 }) {
-  const tenant = useTenant();
-  const currentOrg = tenant.memberships.find((m) => m.organizationId === tenant.organizationId);
-
   return (
     <Flex minH="100vh">
       <Box as="nav" w="220px" p={4}>
@@ -48,30 +45,7 @@ export function DashboardShell({
               {title}
             </Text>
           )}
-          <NativeSelect.Root size="sm" w="200px">
-            <NativeSelect.Field
-              value={tenant.organizationId ?? ""}
-              onChange={(e) => tenant.setOrganizationId(e.target.value)}
-            >
-              {tenant.memberships.map((m) => (
-                <option key={m.organizationId} value={m.organizationId}>
-                  {m.organization.name}
-                </option>
-              ))}
-            </NativeSelect.Field>
-          </NativeSelect.Root>
-          <NativeSelect.Root size="sm" w="180px">
-            <NativeSelect.Field
-              value={tenant.branchId ?? ""}
-              onChange={(e) => tenant.setBranchId(e.target.value)}
-            >
-              {currentOrg?.organization.branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </NativeSelect.Field>
-          </NativeSelect.Root>
+          <TenantSelector />
         </Flex>
         {children}
       </Box>

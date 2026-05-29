@@ -121,5 +121,6 @@ pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 - [Accounting Module](docs/accounting-module.md) — chart of accounts, journals, automated postings
 - [HR Module](docs/hr-module.md) — employees, attendance, staff meals, payroll
 - [Reporting Module](docs/reporting-module.md) — dashboard metrics and CSV exports
-- [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture and Settings API surface
+- [Settings Module](docs/settings-module.md) — organizations, branches, inventory pools
+- [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
 - [Deployment](docs/deployment.md) — production deployment

@@ -210,6 +210,7 @@ Open **Settings** (`/settings`) in the sidebar (OWNER / ADMIN only for managemen
 | **Rename organization** | Updates display `name` in the local database. |
 | **Add branch** | Creates a new `Branch` under the current organization. |
 | **Edit branch** | Updates branch `name` and `timezone`. |
+| **Inventory pools** | View/edit guest & staff pools; add custom pools (codes as text slugs). |
 
 After changes, the app refreshes memberships so the header **Organization / Branch** dropdowns stay in sync.
 
@@ -1660,6 +1661,7 @@ pnpm --filter @erp/web test:e2e inventory
 pnpm --filter @erp/web test:e2e accounting
 pnpm --filter @erp/web test:e2e hr
 pnpm --filter @erp/web test:e2e reports
+pnpm --filter @erp/web test:e2e settings
 pnpm --filter @erp/web test:e2e dashboard
 ```
 
@@ -1677,7 +1679,7 @@ pnpm test -- --coverage
 | Integration   | Jest + Prisma   | Database operations, transactions        |
 | E2E           | Playwright      | Full user workflows via the browser      |
 
-Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`, `e2e/hr.spec.ts`, `e2e/reports.spec.ts`, `e2e/dashboard.spec.ts`.
+Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`, `e2e/hr.spec.ts`, `e2e/reports.spec.ts`, `e2e/settings.spec.ts`, `e2e/dashboard.spec.ts`.
 
 ---
 

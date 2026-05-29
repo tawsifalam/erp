@@ -26,9 +26,11 @@ type InventoryPool = {
 export function InventoryPoolsSection({
   tenant,
   onMessage,
+  onError,
 }: {
   tenant: TenantHeaders | undefined;
   onMessage: (msg: string) => void;
+  onError?: (msg: string | null) => void;
 }) {
   const [pools, setPools] = useState<InventoryPool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,8 @@ export function InventoryPoolsSection({
     try {
       const data = await apiFetch<InventoryPool[]>("/inventory/pools", { tenant });
       setPools(data);
+    } catch (e) {
+      onError?.(e instanceof Error ? e.message : "Failed to load pools");
     } finally {
       setLoading(false);
     }
@@ -55,32 +59,42 @@ export function InventoryPoolsSection({
 
   const createPool = async () => {
     if (!tenant) return;
-    await apiFetch("/inventory/pools", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify(form),
-    });
-    setForm({ code: "", name: "" });
-    setShowForm(false);
-    onMessage("Inventory pool created");
-    load();
+    onError?.(null);
+    try {
+      await apiFetch("/inventory/pools", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify(form),
+      });
+      setForm({ code: "", name: "" });
+      setShowForm(false);
+      onMessage("Inventory pool created");
+      load();
+    } catch (e) {
+      onError?.(e instanceof Error ? e.message : "Failed to create pool");
+    }
   };
 
   const updatePool = async (id: string, data: Partial<InventoryPool>) => {
     if (!tenant) return;
-    await apiFetch(`/inventory/pools/${id}`, {
-      method: "PATCH",
-      tenant,
-      body: JSON.stringify(data),
-    });
-    onMessage("Inventory pool updated");
-    load();
+    onError?.(null);
+    try {
+      await apiFetch(`/inventory/pools/${id}`, {
+        method: "PATCH",
+        tenant,
+        body: JSON.stringify(data),
+      });
+      onMessage("Inventory pool updated");
+      load();
+    } catch (e) {
+      onError?.(e instanceof Error ? e.message : "Failed to update pool");
+    }
   };
 
   if (!tenant) return null;
 
   return (
-    <Box mt={8}>
+    <Box>
       <Flex justify="space-between" align="center" mb={3}>
         <Box>
           <Text fontWeight="semibold">Inventory pools</Text>

@@ -41,6 +41,10 @@ import {
   handleReportingMutation,
   resetReportingState,
 } from "./reporting-state";
+import {
+  handleTenantMutation,
+  resetTenantState,
+} from "./tenant-state";
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -250,6 +254,7 @@ export async function mockApiRoutes(page: Page) {
   resetAccountingState();
   resetHrState();
   resetReportingState();
+  resetTenantState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -258,53 +263,43 @@ export async function mockApiRoutes(page: Page) {
       body: JSON.stringify(body),
     });
 
-  await page.route("**/localhost:3001/api/tenants/organizations**", (route) => {
+  await page.route("**/localhost:3001/api/tenants/organizations/current**", async (route) => {
     const method = route.request().method();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleTenantMutation(method, route.request().url(), body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/tenants/branches/**", async (route) => {
+    const method = route.request().method();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleTenantMutation(method, route.request().url(), body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/tenants/branches**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    if (url.match(/\/branches\/[^/?]+/)) {
+      return route.continue();
+    }
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleTenantMutation(method, url, body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/tenants/organizations**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    if (url.includes("/current")) {
+      return route.continue();
+    }
     if (method === "GET") {
       return fulfillJson(route, MOCK_ORGANIZATIONS);
     }
     if (method === "POST") {
-      return fulfillJson(route, {
-        organization: {
-          id: "org-new-001",
-          name: "New Org",
-          branches: [{ id: "branch-new-001", name: "Main Branch" }],
-        },
-      });
-    }
-    return fulfillJson(route, {});
-  });
-
-  await page.route("**/localhost:3001/api/tenants/organizations/current**", (route) => {
-    if (route.request().method() === "PATCH") {
-      return fulfillJson(route, { id: FAKE_ORG_ID, name: "Updated Org Name" });
-    }
-    return fulfillJson(route, {
-      id: FAKE_ORG_ID,
-      name: "Boulevard Café",
-      propelAuthOrgId: "demo-org-propelauth",
-      branches: MOCK_ORGANIZATIONS[0]!.organization.branches,
-    });
-  });
-
-  await page.route("**/localhost:3001/api/tenants/branches**", (route) => {
-    const method = route.request().method();
-    if (method === "GET") {
-      return fulfillJson(route, MOCK_ORGANIZATIONS[0]!.organization.branches);
-    }
-    if (method === "POST") {
-      return fulfillJson(route, {
-        id: "branch-new-002",
-        name: "New Branch",
-        timezone: "Asia/Dhaka",
-      });
-    }
-    return fulfillJson(route, {});
-  });
-
-  await page.route("**/localhost:3001/api/tenants/branches/**", (route) => {
-    if (route.request().method() === "PATCH") {
-      return fulfillJson(route, { id: FAKE_BRANCH_ID, name: "Renamed Branch", timezone: "Asia/Dhaka" });
+      const body = route.request().postDataJSON() as Record<string, unknown> | null;
+      return fulfillJson(route, handleTenantMutation(method, url, body));
     }
     return fulfillJson(route, {});
   });

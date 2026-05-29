@@ -8,6 +8,7 @@ import {
   Input,
   Stack,
   Table,
+  Tabs,
   Text,
 } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
@@ -43,6 +44,7 @@ function tenantHeadersFor(orgId: string | null, branchId: string | null): Tenant
 
 export default function SettingsPage() {
   const tenant = useTenant();
+  const [tab, setTab] = useState("organization");
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,16 +54,18 @@ export default function SettingsPage() {
   const [showBranchForm, setShowBranchForm] = useState(false);
   const [showNewOrgForm, setShowNewOrgForm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const isAdmin = canManageTenants(tenant.role);
+  const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
 
   const load = useCallback(async () => {
-    const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
     if (!tenantHeaders || !isAdmin) {
       setLoading(false);
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       const [orgData, branchData] = await Promise.all([
         apiFetch<OrganizationDetail>("/tenants/organizations/current", { tenant: tenantHeaders }),
@@ -71,7 +75,7 @@ export default function SettingsPage() {
       setOrgName(orgData.name);
       setBranches(branchData);
     } catch (e) {
-      console.error(e);
+      setError(e instanceof Error ? e.message : "Failed to load settings");
     } finally {
       setLoading(false);
     }
@@ -82,73 +86,96 @@ export default function SettingsPage() {
   }, [load]);
 
   const saveOrgName = async () => {
-    const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
     if (!tenantHeaders) return;
-    await apiFetch("/tenants/organizations/current", {
-      method: "PATCH",
-      tenant: tenantHeaders,
-      body: JSON.stringify({ name: orgName }),
-    });
-    setMessage("Organization updated");
-    await tenant.refreshMemberships();
-    load();
+    setError(null);
+    try {
+      await apiFetch("/tenants/organizations/current", {
+        method: "PATCH",
+        tenant: tenantHeaders,
+        body: JSON.stringify({ name: orgName }),
+      });
+      setMessage("Organization updated");
+      await tenant.refreshMemberships();
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update organization");
+    }
   };
 
   const addBranch = async () => {
-    const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
     if (!tenantHeaders) return;
-    await apiFetch("/tenants/branches", {
-      method: "POST",
-      tenant: tenantHeaders,
-      body: JSON.stringify(branchForm),
-    });
-    setBranchForm({ name: "", timezone: "Asia/Dhaka" });
-    setShowBranchForm(false);
-    setMessage("Branch created");
-    await tenant.refreshMemberships();
-    load();
+    setError(null);
+    try {
+      await apiFetch("/tenants/branches", {
+        method: "POST",
+        tenant: tenantHeaders,
+        body: JSON.stringify(branchForm),
+      });
+      setBranchForm({ name: "", timezone: "Asia/Dhaka" });
+      setShowBranchForm(false);
+      setMessage("Branch created");
+      await tenant.refreshMemberships();
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create branch");
+    }
   };
 
   const updateBranch = async (id: string, data: { name: string; timezone: string }) => {
-    const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
     if (!tenantHeaders) return;
-    await apiFetch(`/tenants/branches/${id}`, {
-      method: "PATCH",
-      tenant: tenantHeaders,
-      body: JSON.stringify(data),
-    });
-    setMessage("Branch updated");
-    await tenant.refreshMemberships();
-    load();
+    setError(null);
+    try {
+      await apiFetch(`/tenants/branches/${id}`, {
+        method: "PATCH",
+        tenant: tenantHeaders,
+        body: JSON.stringify(data),
+      });
+      setMessage("Branch updated");
+      await tenant.refreshMemberships();
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update branch");
+    }
   };
 
   const createOrganization = async () => {
-    const name = newOrgForm.name;
-    const result = await apiFetch<{
-      organization: { id: string; branches: { id: string }[] };
-    }>("/tenants/organizations", {
-      method: "POST",
-      body: JSON.stringify(newOrgForm),
-    });
-    setShowNewOrgForm(false);
-    setNewOrgForm({ name: "", timezone: "Asia/Dhaka" });
-    setMessage(`Organization "${name}" created`);
-    await tenant.refreshMemberships();
-    if (result?.organization?.id) {
-      tenant.setOrganizationId(result.organization.id);
-      if (result.organization.branches[0]) {
-        tenant.setBranchId(result.organization.branches[0].id);
+    setError(null);
+    try {
+      const name = newOrgForm.name;
+      const result = await apiFetch<{
+        organization: { id: string; branches: { id: string }[] };
+      }>("/tenants/organizations", {
+        method: "POST",
+        body: JSON.stringify(newOrgForm),
+      });
+      setShowNewOrgForm(false);
+      setNewOrgForm({ name: "", timezone: "Asia/Dhaka" });
+      setMessage(`Organization "${name}" created`);
+      await tenant.refreshMemberships();
+      if (result?.organization?.id) {
+        tenant.setOrganizationId(result.organization.id);
+        if (result.organization.branches[0]) {
+          tenant.setBranchId(result.organization.branches[0].id);
+        }
       }
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create organization");
     }
-    load();
   };
 
   return (
     <DashboardShell title="Settings">
       <PageHeader
-        title="Organization & branches"
-        description="Manage properties, branches, inventory pools, and how data is scoped across modules"
+        title="Settings"
+        description="Organization, branches, and inventory pool configuration"
       />
+
+      {error && (
+        <Text color="red.500" mb={3} fontSize="sm">
+          {error}
+        </Text>
+      )}
 
       {!isAdmin && (
         <Box bg="orange.50" borderRadius="md" p={4} mb={4}>
@@ -160,129 +187,139 @@ export default function SettingsPage() {
       )}
 
       {isAdmin && (
-        <>
-          <Flex gap={2} mb={4}>
-            <Button size="sm" variant="outline" onClick={() => setShowNewOrgForm(!showNewOrgForm)}>
-              {showNewOrgForm ? "Cancel" : "+ New organization"}
-            </Button>
-            <Button size="sm" onClick={load}>
-              Refresh
-            </Button>
-          </Flex>
+        <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)}>
+          <Tabs.List mb={4}>
+            <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
+            <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
+          </Tabs.List>
 
-          {showNewOrgForm && (
-            <Box bg="white" borderRadius="md" p={4} mb={4}>
-              <Text fontWeight="semibold" mb={3}>
-                Create organization
-              </Text>
-              <Text fontSize="sm" color="fg.muted" mb={3}>
-                Creates a new organization in the database, a default &quot;Main Branch&quot;, and
-                assigns you as OWNER. Link PropelAuth separately for SSO if needed.
-              </Text>
-              <Flex gap={2} wrap="wrap" mb={3}>
-                <Input
-                  size="sm"
-                  w="220px"
-                  placeholder="Organization name"
-                  value={newOrgForm.name}
-                  onChange={(e) => setNewOrgForm({ ...newOrgForm, name: e.target.value })}
-                />
-                <Input
-                  size="sm"
-                  w="180px"
-                  placeholder="Timezone (IANA)"
-                  value={newOrgForm.timezone}
-                  onChange={(e) => setNewOrgForm({ ...newOrgForm, timezone: e.target.value })}
-                />
-              </Flex>
-              <Button size="sm" colorPalette="blue" onClick={createOrganization}>
-                Create organization
+          <Tabs.Content value="organization" pt={2}>
+            <Flex gap={2} mb={4}>
+              <Button size="sm" variant="outline" onClick={() => setShowNewOrgForm(!showNewOrgForm)}>
+                {showNewOrgForm ? "Cancel" : "+ New organization"}
               </Button>
-            </Box>
-          )}
+              <Button size="sm" onClick={load}>
+                Refresh
+              </Button>
+            </Flex>
 
-          {loading && <LoadingState />}
-          {!loading && org && (
-            <Box bg="white" borderRadius="md" p={4} mb={6}>
-              <Text fontWeight="semibold" mb={2}>
-                Current organization
-              </Text>
-              <Text fontSize="xs" color="fg.muted" fontFamily="mono" mb={3}>
-                ID: {org.id} · PropelAuth: {shortId(org.propelAuthOrgId, 12)}
-              </Text>
-              <Flex gap={2} align="center" mb={2}>
-                <Input
-                  size="sm"
-                  maxW="320px"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                />
-                <Button size="sm" colorPalette="green" onClick={saveOrgName}>
-                  Save name
-                </Button>
-              </Flex>
-            </Box>
-          )}
-
-          <Flex justify="space-between" align="center" mb={3}>
-            <Text fontWeight="semibold">Branches</Text>
-            <Button size="sm" colorPalette="blue" onClick={() => setShowBranchForm(!showBranchForm)}>
-              {showBranchForm ? "Cancel" : "+ Add branch"}
-            </Button>
-          </Flex>
-
-          {showBranchForm && (
-            <Box bg="white" borderRadius="md" p={4} mb={4}>
-              <Stack gap={3}>
-                <Flex gap={2} wrap="wrap">
+            {showNewOrgForm && (
+              <Box bg="white" borderRadius="md" p={4} mb={4}>
+                <Text fontWeight="semibold" mb={3}>
+                  Create organization
+                </Text>
+                <Text fontSize="sm" color="fg.muted" mb={3}>
+                  Creates a new organization, default &quot;Main Branch&quot;, guest/staff inventory
+                  pools, and assigns you as OWNER.
+                </Text>
+                <Flex gap={2} wrap="wrap" mb={3}>
                   <Input
                     size="sm"
-                    w="200px"
-                    placeholder="Branch name"
-                    value={branchForm.name}
-                    onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                    w="220px"
+                    placeholder="Organization name"
+                    value={newOrgForm.name}
+                    onChange={(e) => setNewOrgForm({ ...newOrgForm, name: e.target.value })}
                   />
                   <Input
                     size="sm"
                     w="180px"
-                    placeholder="Timezone"
-                    value={branchForm.timezone}
-                    onChange={(e) => setBranchForm({ ...branchForm, timezone: e.target.value })}
+                    placeholder="Timezone (IANA)"
+                    value={newOrgForm.timezone}
+                    onChange={(e) => setNewOrgForm({ ...newOrgForm, timezone: e.target.value })}
                   />
                 </Flex>
-                <Button size="sm" colorPalette="green" w="fit-content" onClick={addBranch}>
-                  Create branch
+                <Button size="sm" colorPalette="blue" onClick={createOrganization}>
+                  Create organization
                 </Button>
-              </Stack>
-            </Box>
-          )}
-
-          <Box bg="white" borderRadius="md" p={4}>
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>Name</Table.ColumnHeader>
-                  <Table.ColumnHeader>Timezone</Table.ColumnHeader>
-                  <Table.ColumnHeader>ID</Table.ColumnHeader>
-                  <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {branches.map((b) => (
-                  <BranchRow key={b.id} branch={b} onSave={updateBranch} />
-                ))}
-              </Table.Body>
-            </Table.Root>
-            {branches.length === 0 && !loading && (
-              <EmptyState message="No branches yet. Add one to use PMS, POS, and inventory." />
+              </Box>
             )}
-          </Box>
 
-          <InventoryPoolsSection
-            tenant={tenantHeadersFor(tenant.organizationId, tenant.branchId)}
-            onMessage={setMessage}
-          />
-        </>
+            {loading && <LoadingState />}
+            {!loading && org && (
+              <Box bg="white" borderRadius="md" p={4} mb={6}>
+                <Text fontWeight="semibold" mb={2}>
+                  Current organization
+                </Text>
+                <Text fontSize="xs" color="fg.muted" fontFamily="mono" mb={3}>
+                  ID: {org.id} · PropelAuth: {shortId(org.propelAuthOrgId, 12)}
+                </Text>
+                <Flex gap={2} align="center" mb={2}>
+                  <Input
+                    size="sm"
+                    maxW="320px"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                  />
+                  <Button size="sm" colorPalette="green" onClick={saveOrgName}>
+                    Save name
+                  </Button>
+                </Flex>
+              </Box>
+            )}
+
+            <Flex justify="space-between" align="center" mb={3}>
+              <Text fontWeight="semibold">Branches</Text>
+              <Button size="sm" colorPalette="blue" onClick={() => setShowBranchForm(!showBranchForm)}>
+                {showBranchForm ? "Cancel" : "+ Add branch"}
+              </Button>
+            </Flex>
+
+            {showBranchForm && (
+              <Box bg="white" borderRadius="md" p={4} mb={4}>
+                <Stack gap={3}>
+                  <Flex gap={2} wrap="wrap">
+                    <Input
+                      size="sm"
+                      w="200px"
+                      placeholder="Branch name"
+                      value={branchForm.name}
+                      onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                    />
+                    <Input
+                      size="sm"
+                      w="180px"
+                      placeholder="Timezone"
+                      value={branchForm.timezone}
+                      onChange={(e) => setBranchForm({ ...branchForm, timezone: e.target.value })}
+                    />
+                  </Flex>
+                  <Button size="sm" colorPalette="green" w="fit-content" onClick={addBranch}>
+                    Create branch
+                  </Button>
+                </Stack>
+              </Box>
+            )}
+
+            <Box bg="white" borderRadius="md" p={4}>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Name</Table.ColumnHeader>
+                    <Table.ColumnHeader>Timezone</Table.ColumnHeader>
+                    <Table.ColumnHeader>ID</Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {branches.map((b) => (
+                    <BranchRow key={b.id} branch={b} onSave={updateBranch} />
+                  ))}
+                </Table.Body>
+              </Table.Root>
+              {branches.length === 0 && !loading && (
+                <EmptyState message="No branches yet. Add one to use PMS, POS, and inventory." />
+              )}
+            </Box>
+          </Tabs.Content>
+
+          <Tabs.Content value="pools" pt={2}>
+            <InventoryPoolsSection
+              tenant={tenantHeaders}
+              onMessage={setMessage}
+              onError={setError}
+            />
+          </Tabs.Content>
+        </Tabs.Root>
       )}
 
       {message && (

@@ -33,10 +33,10 @@ See `packages/utils/src/rbac.ts` for the matrix.
 
 | Surface | Purpose |
 |---------|---------|
-| **Web → Settings** (`/settings`) | Create organizations, rename org, add/edit branches (OWNER / ADMIN) |
+| **Web → Settings** (`/settings`) | Create organizations, rename org, add/edit branches, manage inventory pools (OWNER / ADMIN) |
 | **Header selectors** | Switch active org/branch for all modules; persisted in `localStorage` (`erp:tenant`) |
 | **API → `/api/tenants`** | CRUD for branches; create org; PATCH org name |
 
 After changing branches in Settings, call `refreshMemberships()` so header dropdowns include new branches.
 
-How each module scopes data is documented in [App Workflow Guide — §1b](app-workflow-guide.md#1b-organization--branch-management).
+How each module scopes data is documented in [App Workflow Guide — §1b](app-workflow-guide.md#1b-organization--branch-management). Full Settings reference: [Settings module](settings-module.md).

@@ -14,7 +14,12 @@ export class PropelAuthService implements OnModuleInit {
   onModuleInit() {
     const authUrl = this.config.getOrThrow<string>("PROPELAUTH_AUTH_URL");
     const apiKey = this.config.getOrThrow<string>("PROPELAUTH_API_KEY");
-    const verifierKey = this.config.get<string>("PROPELAUTH_VERIFIER_KEY");
+    const rawVerifierKey = this.config.get<string>("PROPELAUTH_VERIFIER_KEY");
+
+    // .env stores the PEM as a single line with literal \n — convert to real newlines
+    const verifierKey = rawVerifierKey?.includes("\\n")
+      ? rawVerifierKey.replace(/\\n/g, "\n")
+      : rawVerifierKey;
 
     const auth = initBaseAuth({
       authUrl,

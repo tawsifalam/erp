@@ -10,12 +10,19 @@ export function signOut() {
   window.location.href = "/api/auth/logout";
 }
 
-/** Access token for API calls to NestJS (PropelAuth session route). */
+/**
+ * Fetches the current access token from the PropelAuth session.
+ * Uses the /api/auth/userinfo endpoint which is handled by the PropelAuth SDK route handler.
+ */
 export async function getAccessToken(): Promise<string | null> {
-  const res = await fetch("/api/auth/access_token");
+  const res = await fetch("/api/auth/userinfo", {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
   if (!res.ok) return null;
-  const data = (await res.json()) as { access_token?: string };
-  return data.access_token ?? null;
+  const data = (await res.json()) as { accessToken?: string };
+  return data.accessToken ?? null;
 }
 
 /** Sync PropelAuth user into local ERP database after login. */

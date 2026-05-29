@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { OnEvent } from "@nestjs/event-emitter";
 import { OrderCompletedEvent } from "./order-completed.event";
-import { InventoryConsumedEvent } from "./inventory-consumed.event";
 import { InventoryRecipesService } from "../../inventory/inventory-recipes.service";
 import { AccountingListenersService } from "../../accounting/accounting-listeners.service";
 
@@ -19,14 +18,5 @@ export class OrderEventsListener {
     if (cogs > 0) {
       await this.accounting.postCogs(event.organizationId, event.orderId, cogs);
     }
-  }
-
-  @OnEvent("inventory.consumed")
-  async handleInventoryConsumed(event: InventoryConsumedEvent) {
-    await this.accounting.postCogs(
-      event.organizationId,
-      event.orderId,
-      event.cogsAmount,
-    );
   }
 }

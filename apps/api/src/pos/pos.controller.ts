@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import { OrderStatus } from "@prisma/client";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
@@ -33,16 +43,66 @@ export class PosController {
     return this.pos.createCategory(t.organizationId, this.branch(t, body.branchId), body);
   }
 
+  @Patch("menu/categories/:id")
+  @RequirePermission(Permission.POS_WRITE)
+  updateCategory(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId: string | undefined,
+    @Body() body: { name?: string; sortOrder?: number },
+  ) {
+    return this.pos.updateCategory(this.branch(t, branchId), id, body);
+  }
+
+  @Delete("menu/categories/:id")
+  @RequirePermission(Permission.POS_WRITE)
+  deleteCategory(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId: string | undefined,
+  ) {
+    return this.pos.deleteCategory(this.branch(t, branchId), id);
+  }
+
   @Post("menu/items")
   @RequirePermission(Permission.POS_WRITE)
-  createItem(@Body() body: { categoryId: string; name: string; price: number }) {
+  createItem(
+    @Body()
+    body: { categoryId: string; name: string; price: number; isActive?: boolean },
+  ) {
     return this.pos.createMenuItem(body);
+  }
+
+  @Patch("menu/items/:id")
+  @RequirePermission(Permission.POS_WRITE)
+  updateItem(
+    @Param("id") id: string,
+    @Body()
+    body: { name?: string; price?: number; isActive?: boolean; categoryId?: string },
+  ) {
+    return this.pos.updateMenuItem(id, body);
+  }
+
+  @Delete("menu/items/:id")
+  @RequirePermission(Permission.POS_WRITE)
+  deleteItem(@Param("id") id: string) {
+    return this.pos.deleteMenuItem(id);
   }
 
   @Get("orders")
   @RequirePermission(Permission.POS_READ)
   orders(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
     return this.pos.listOrders(this.branch(t, branchId));
+  }
+
+  @Get("orders/:id")
+  @RequirePermission(Permission.POS_READ)
+  getOrder(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId?: string,
+  ) {
+    return this.pos.getOrder(this.branch(t, branchId), id);
   }
 
   @Post("orders")
@@ -62,7 +122,11 @@ export class PosController {
 
   @Post("orders/:id/submit")
   @RequirePermission(Permission.POS_WRITE)
-  submit(@Param("id") id: string, @Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+  submit(
+    @Param("id") id: string,
+    @Tenant() t: TenantContext,
+    @Query("branchId") branchId?: string,
+  ) {
     return this.pos.submitOrder(id, this.branch(t, branchId), t.organizationId);
   }
 
@@ -77,6 +141,16 @@ export class PosController {
     return this.pos.completeOrder(id, this.branch(t, branchId), t.organizationId, body.paidAmount);
   }
 
+  @Post("orders/:id/cancel")
+  @RequirePermission(Permission.POS_WRITE)
+  cancel(
+    @Param("id") id: string,
+    @Tenant() t: TenantContext,
+    @Query("branchId") branchId?: string,
+  ) {
+    return this.pos.cancelOrder(id, this.branch(t, branchId));
+  }
+
   @Patch("orders/:id/status")
   @RequirePermission(Permission.POS_WRITE)
   status(
@@ -86,5 +160,15 @@ export class PosController {
     @Query("branchId") branchId?: string,
   ) {
     return this.pos.updateOrderStatus(id, this.branch(t, branchId), body.status);
+  }
+
+  @Delete("orders/:id")
+  @RequirePermission(Permission.POS_WRITE)
+  deleteOrder(
+    @Param("id") id: string,
+    @Tenant() t: TenantContext,
+    @Query("branchId") branchId?: string,
+  ) {
+    return this.pos.deleteOrder(id, this.branch(t, branchId));
   }
 }

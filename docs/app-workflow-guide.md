@@ -648,6 +648,18 @@ Requires chart of accounts from seed or Settings. If accounts are missing, payme
 
 The POS module handles menu management, order lifecycle, kitchen ticket flow, and payment.
 
+> **Full reference:** [docs/pos-module.md](pos-module.md) — API tables, Web UI, state machines, folio integration, and testing.
+
+### Web UI
+
+| Route | Purpose |
+|-------|---------|
+| **`/pos` → Orders tab** | List orders (filter active/all/status); new order cart (table, notes, qty); submit to kitchen; complete & pay (full/partial); cancel; **delete** (DRAFT/CANCELLED only); link to Accounting journals |
+| **`/pos` → Menu tab** | CRUD categories and menu items; **active/inactive** toggle on items |
+| **`/pos/kitchen`** | Kitchen display: SUBMITTED → PREPARING → READY; Socket.IO live queue |
+
+Select **organization** and **branch** in the header before using POS.
+
 ### Step 1: List Menu Categories (with Items)
 
 ```bash
@@ -770,12 +782,44 @@ curl -s -X POST "$BASE/pos/orders/$ORDER_ID/complete" \
    - **Accounting entries** — revenue journal entry + COGS entry (see [Section 5](#5-accounting))
 4. Socket.IO emits `order.updated`
 
+### Step 5: Cancel an Order
+
+```bash
+curl -s -X POST "$BASE/pos/orders/$ORDER_ID/cancel?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Only **DRAFT** or **SUBMITTED** orders can be cancelled.
+
+### Step 6: Kitchen status updates
+
+```bash
+curl -s -X PATCH "$BASE/pos/orders/$ORDER_ID/status?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"PREPARING"}' | jq
+```
+
+Allowed transitions: `SUBMITTED` → `PREPARING` → `READY`. Complete payment on POS when ready.
+
+### Step 7: Delete draft or cancelled order
+
+```bash
+curl -s -X DELETE "$BASE/pos/orders/$ORDER_ID?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Only **DRAFT** or **CANCELLED** orders can be deleted. **COMPLETED** orders are kept for audit and accounting.
+
 ### Order Status Flow
 
 ```
-  DRAFT  ──submit──►  SUBMITTED  ──complete──►  COMPLETED
-    │                                               │
-    └──────────────── cancel ───────────────►  CANCELLED
+  DRAFT  ──submit──►  SUBMITTED  ──kitchen──►  PREPARING  ──►  READY  ──complete──►  COMPLETED
+    │                    │
+    └──── cancel ────────┴──── cancel ───►  CANCELLED
 ```
 
 ### Kitchen Ticket Flow
@@ -796,6 +840,13 @@ Order Submitted
 ## 4. Inventory Management
 
 The inventory system uses a **ledger model** — current stock is never stored directly; it is always computed as `SUM(IN) - SUM(OUT)`.
+
+### Web UI
+
+| Route | Purpose |
+|-------|---------|
+| **`/inventory` → Items tab** | List items with on-hand stock; create/edit items; record movements |
+| **`/inventory` → Recipes (BOM) tab** | Select a menu item; edit bill-of-materials lines; save via recipe API |
 
 ### Step 1: List Items with Current Stock
 
@@ -904,7 +955,7 @@ There is no `currentStock` column in the database. Every stock query aggregates 
 
 ### Recipe/BOM Auto-Deduction
 
-Each menu item can have a **Recipe** (Bill of Materials) linking it to inventory items with quantities. When an `order.completed` event fires:
+Each menu item can have a **Recipe** (Bill of Materials) linking it to inventory items with quantities. Configure recipes in the web UI under **Inventory → Recipes (BOM)** (`/inventory`), or via API:
 
 ```
 order.completed event
@@ -1318,7 +1369,6 @@ The application uses `@nestjs/event-emitter` (EventEmitter2) for internal event-
 | `reservation.payment_recorded` | `PmsService`     | `{ organizationId, reservationId, deltaPaid }`           |
 | `reservation.checked_out`  | `PmsService`         | `{ organizationId, reservationId, unpaidAmount }`      |
 | `payroll.run_requested`    | `HrService`          | `{ payrollRunId }`                                     |
-| `inventory.consumed`       | `InventoryRecipes`   | `{ orderId, organizationId, cogsAmount }`              |
 
 ### Event Flow Diagrams
 
@@ -1523,16 +1573,25 @@ See [pms-module.md](pms-module.md) for curl examples.
 
 ### POS Endpoints
 
-| Method | Path                               | Permission  | Description            |
-|--------|-------------------------------------|------------|------------------------|
-| GET    | `/pos/menu/categories?branchId=`    | POS_READ   | List menu categories   |
-| POST   | `/pos/menu/categories`              | POS_WRITE  | Create category        |
-| POST   | `/pos/menu/items`                   | POS_WRITE  | Create menu item       |
-| GET    | `/pos/orders?branchId=`             | POS_READ   | List orders            |
-| POST   | `/pos/orders`                       | POS_WRITE  | Create order           |
-| POST   | `/pos/orders/:id/submit`            | POS_WRITE  | Submit to kitchen      |
-| POST   | `/pos/orders/:id/complete`          | POS_WRITE  | Complete + pay         |
-| PATCH  | `/pos/orders/:id/status`            | POS_WRITE  | Update status          |
+See [pos-module.md](pos-module.md) for curl examples.
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET | `/pos/menu/categories?branchId=` | POS_READ | List categories + items |
+| POST | `/pos/menu/categories` | POS_WRITE | Create category |
+| PATCH | `/pos/menu/categories/:id` | POS_WRITE | Update category |
+| DELETE | `/pos/menu/categories/:id` | POS_WRITE | Delete category |
+| POST | `/pos/menu/items` | POS_WRITE | Create menu item |
+| PATCH | `/pos/menu/items/:id` | POS_WRITE | Update menu item |
+| DELETE | `/pos/menu/items/:id` | POS_WRITE | Delete menu item |
+| GET | `/pos/orders?branchId=` | POS_READ | List orders |
+| GET | `/pos/orders/:id` | POS_READ | Get order |
+| POST | `/pos/orders` | POS_WRITE | Create order |
+| POST | `/pos/orders/:id/submit` | POS_WRITE | Submit to kitchen |
+| POST | `/pos/orders/:id/complete` | POS_WRITE | Complete + pay |
+| POST | `/pos/orders/:id/cancel` | POS_WRITE | Cancel order |
+| DELETE | `/pos/orders/:id` | POS_WRITE | Delete order (DRAFT/CANCELLED) |
+| PATCH | `/pos/orders/:id/status` | POS_WRITE | Kitchen status |
 
 ### Inventory Endpoints
 

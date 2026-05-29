@@ -7,19 +7,22 @@ test.describe("POS – Orders", () => {
     await mockApiRoutes(page);
   });
 
-  test("loads and shows Orders heading", async ({ page }) => {
+  test("loads POS page with tabs", async ({ page }) => {
     await page.goto("/pos");
-    await expect(page.getByRole("heading", { name: /Orders/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Point of Sale/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Orders" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Menu" })).toBeVisible();
   });
 
-  test("shows table with correct column headers", async ({ page }) => {
+  test("shows order table with correct column headers", async ({ page }) => {
     await page.goto("/pos");
 
     const headers = page.locator("table thead th");
     await expect(headers.nth(0)).toHaveText("Table");
-    await expect(headers.nth(1)).toHaveText("Total");
-    await expect(headers.nth(2)).toHaveText("Status");
-    await expect(headers.nth(3)).toHaveText("Payment");
+    await expect(headers.nth(1)).toHaveText("Items");
+    await expect(headers.nth(2)).toHaveText("Total");
+    await expect(headers.nth(3)).toHaveText("Status");
+    await expect(headers.nth(4)).toHaveText("Payment");
   });
 
   test("displays order seed data", async ({ page }) => {
@@ -27,5 +30,61 @@ test.describe("POS – Orders", () => {
 
     await expect(page.getByRole("cell", { name: "T-3" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "T-7" })).toBeVisible();
+  });
+});
+
+test.describe("POS – lifecycle", () => {
+  test.beforeEach(async ({ page }) => {
+    page.on("dialog", (dialog) => dialog.accept());
+    await mockAuth(page);
+    await mockApiRoutes(page);
+  });
+
+  test("submit draft → complete with payment", async ({ page }) => {
+    await page.goto("/pos");
+    const draftRow = page.getByRole("row").filter({ hasText: "T-1" });
+    await expect(draftRow.getByText("DRAFT")).toBeVisible();
+
+    await draftRow.getByRole("button", { name: "Send to Kitchen" }).click();
+    await expect(draftRow.getByText("SUBMITTED")).toBeVisible({ timeout: 5000 });
+
+    await draftRow.getByRole("button", { name: "Complete & Pay" }).click();
+    await expect(page.getByText("Complete & pay")).toBeVisible();
+    await page.getByRole("button", { name: "Complete" }).click();
+    await expect(draftRow.getByText("COMPLETED")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("cancel submitted order", async ({ page }) => {
+    await page.goto("/pos");
+    const row = page.getByRole("row").filter({ hasText: "T-3" });
+    await row.getByRole("button", { name: "Cancel" }).click();
+    await expect(row.getByText("CANCELLED")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("partial payment on submitted order", async ({ page }) => {
+    await page.goto("/pos");
+    const row = page.getByRole("row").filter({ hasText: "T-3" });
+    await row.getByRole("button", { name: "Complete & Pay" }).click();
+    const input = page.locator('input[type="number"]').last();
+    await input.fill("300");
+    await page.getByRole("button", { name: "Complete" }).click();
+    await expect(row.getByText("PARTIAL")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("menu tab add category", async ({ page }) => {
+    await page.goto("/pos");
+    await page.getByRole("tab", { name: "Menu" }).click();
+    await page.getByPlaceholder("Category name").fill("Desserts");
+    await page.getByRole("button", { name: "Add category" }).click();
+    await expect(page.getByText("Desserts")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("delete cancelled order removes row", async ({ page }) => {
+    await page.goto("/pos");
+    await page.getByRole("combobox").selectOption("CANCELLED");
+    const row = page.getByRole("row").filter({ hasText: "T-9" });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByRole("row").filter({ hasText: "T-9" })).toHaveCount(0);
   });
 });

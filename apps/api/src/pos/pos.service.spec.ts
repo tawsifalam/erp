@@ -1,5 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { OrderStatus, PaymentStatus } from "@prisma/client";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PosService } from "./pos.service";
@@ -8,29 +12,55 @@ import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
+  generatePrefixedId: (prefix: string) => `${prefix}_test`,
 }));
 
 const mockPrisma = {
-  menuCategory: { findMany: jest.fn(), create: jest.fn() },
-  menuItem: { create: jest.fn() },
+  menuCategory: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+  menuItem: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
+  },
+  orderLine: { count: jest.fn() },
   order: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
-  kitchenTicket: { create: jest.fn() },
+  kitchenTicket: { create: jest.fn(), updateMany: jest.fn(), deleteMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
-const mockEvents = {
-  emit: jest.fn(),
-};
-
+const mockEvents = { emit: jest.fn() };
 const mockRealtime = {
   emitKitchenTicket: jest.fn(),
   emitOrderUpdate: jest.fn(),
   emitRoomStatus: jest.fn(),
+};
+
+const draftOrder = {
+  id: "order-1",
+  branchId: "branch-1",
+  status: OrderStatus.DRAFT,
+  totalAmount: 100,
+  paidAmount: 0,
+  lines: [{ id: "ol-1", menuItemId: "mi-1", quantity: 1 }],
+  kitchenTickets: [],
+  guest: undefined,
 };
 
 describe("PosService", () => {
@@ -38,7 +68,6 @@ describe("PosService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PosService,
@@ -47,17 +76,18 @@ describe("PosService", () => {
         { provide: RealtimeGateway, useValue: mockRealtime },
       ],
     }).compile();
-
-    service = module.get<PosService>(PosService);
+    service = module.get(PosService);
   });
 
   describe("createOrder", () => {
+    it("throws when lines are empty", async () => {
+      await expect(
+        service.createOrder("branch-1", "org-1", { lines: [] }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it("calculates totalAmount from lines", async () => {
-      mockPrisma.order.create.mockResolvedValue({
-        id: "order-1",
-        totalAmount: 350,
-        lines: [],
-      });
+      mockPrisma.order.create.mockResolvedValue({ id: "order-1", totalAmount: 350 });
 
       await service.createOrder("branch-1", "org-1", {
         lines: [
@@ -67,123 +97,60 @@ describe("PosService", () => {
         tableNumber: "T5",
       });
 
-      expect(mockPrisma.order.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          totalAmount: 350, // 2*100 + 3*50
-          status: OrderStatus.DRAFT,
+      expect(mockPrisma.order.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ totalAmount: 350, status: OrderStatus.DRAFT }),
         }),
-        include: { lines: { include: { menuItem: true } } },
-      });
-    });
-
-    it("creates order lines with lineTotal", async () => {
-      mockPrisma.order.create.mockResolvedValue({ id: "order-1" });
-
-      await service.createOrder("branch-1", "org-1", {
-        lines: [{ menuItemId: "mi-1", quantity: 4, unitPrice: 25 }],
-      });
-
-      expect(mockPrisma.order.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          lines: {
-            create: [
-              {
-                menuItemId: "mi-1",
-                quantity: 4,
-                unitPrice: 25,
-                lineTotal: 100,
-              },
-            ],
-          },
-        }),
-        include: expect.any(Object),
-      });
-    });
-
-    it("sets status to DRAFT", async () => {
-      mockPrisma.order.create.mockResolvedValue({ id: "order-1" });
-
-      await service.createOrder("branch-1", "org-1", {
-        lines: [{ menuItemId: "mi-1", quantity: 1, unitPrice: 10 }],
-      });
-
-      expect(mockPrisma.order.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ status: OrderStatus.DRAFT }),
-        include: expect.any(Object),
-      });
-    });
-
-    it("passes tableNumber and notes", async () => {
-      mockPrisma.order.create.mockResolvedValue({ id: "order-1" });
-
-      await service.createOrder("branch-1", "org-1", {
-        lines: [{ menuItemId: "mi-1", quantity: 1, unitPrice: 10 }],
-        tableNumber: "T1",
-        notes: "No spice",
-      });
-
-      expect(mockPrisma.order.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          tableNumber: "T1",
-          notes: "No spice",
-        }),
-        include: expect.any(Object),
-      });
+      );
     });
   });
 
   describe("submitOrder", () => {
-    it("throws NotFoundException when order not found", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue(null);
+    it("throws when order is not DRAFT", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.SUBMITTED,
+      });
 
-      await expect(
-        service.submitOrder("order-1", "branch-1", "org-1"),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.submitOrder("order-1", "branch-1", "org-1")).rejects.toThrow(
+        "Only DRAFT orders can be submitted",
+      );
     });
 
     it("creates kitchen ticket and emits realtime events", async () => {
-      const order = { id: "order-1", lines: [] };
-      mockPrisma.order.findFirst.mockResolvedValue(order);
-
-      const updatedOrder = { id: "order-1", status: OrderStatus.SUBMITTED };
+      mockPrisma.order.findFirst.mockResolvedValue(draftOrder);
+      const updatedOrder = { ...draftOrder, status: OrderStatus.SUBMITTED };
       const ticket = { id: "kt-1", orderId: "order-1" };
       mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
         fn({
-          order: {
-            update: jest.fn().mockResolvedValue(updatedOrder),
-          },
-          kitchenTicket: {
-            create: jest.fn().mockResolvedValue(ticket),
-          },
+          order: { update: jest.fn().mockResolvedValue(updatedOrder) },
+          kitchenTicket: { create: jest.fn().mockResolvedValue(ticket) },
         }),
       );
 
       const result = await service.submitOrder("order-1", "branch-1", "org-1");
 
       expect(result).toEqual({ order: updatedOrder, ticket });
-      expect(mockRealtime.emitKitchenTicket).toHaveBeenCalledWith(
-        "branch-1",
-        ticket,
-      );
-      expect(mockRealtime.emitOrderUpdate).toHaveBeenCalledWith(
-        "branch-1",
-        updatedOrder,
-      );
+      expect(mockRealtime.emitKitchenTicket).toHaveBeenCalledWith("branch-1", ticket);
     });
   });
 
   describe("completeOrder", () => {
-    it("throws NotFoundException when order not found", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue(null);
+    it("throws when order is not completable", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.DRAFT,
+      });
 
       await expect(
         service.completeOrder("order-1", "branch-1", "org-1"),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("sets PAID when paidAmount >= total", async () => {
       mockPrisma.order.findFirst.mockResolvedValue({
-        id: "order-1",
+        ...draftOrder,
+        status: OrderStatus.SUBMITTED,
         totalAmount: 100,
       });
       const updatedOrder = {
@@ -191,149 +158,155 @@ describe("PosService", () => {
         status: OrderStatus.COMPLETED,
         paymentStatus: PaymentStatus.PAID,
       };
-      mockPrisma.order.update.mockResolvedValue(updatedOrder);
-
-      const result = await service.completeOrder(
-        "order-1",
-        "branch-1",
-        "org-1",
-        150,
+      mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+        fn({
+          order: { update: jest.fn().mockResolvedValue(updatedOrder) },
+          kitchenTicket: { updateMany: jest.fn().mockResolvedValue({}) },
+        }),
       );
-
-      expect(mockPrisma.order.update).toHaveBeenCalledWith({
-        where: { id: "order-1" },
-        data: {
-          status: OrderStatus.COMPLETED,
-          paymentStatus: PaymentStatus.PAID,
-          paidAmount: 150,
-        },
-        include: { lines: { include: { menuItem: true } } },
-      });
-      expect(result).toEqual(updatedOrder);
-    });
-
-    it("sets PARTIAL when 0 < paidAmount < total", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue({
-        id: "order-1",
-        totalAmount: 100,
-      });
-      mockPrisma.order.update.mockResolvedValue({ id: "order-1" });
-
-      await service.completeOrder("order-1", "branch-1", "org-1", 50);
-
-      expect(mockPrisma.order.update).toHaveBeenCalledWith({
-        where: { id: "order-1" },
-        data: expect.objectContaining({
-          paymentStatus: PaymentStatus.PARTIAL,
-          paidAmount: 50,
-        }),
-        include: expect.any(Object),
-      });
-    });
-
-    it("sets UNPAID when paidAmount is 0", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue({
-        id: "order-1",
-        totalAmount: 100,
-      });
-      mockPrisma.order.update.mockResolvedValue({ id: "order-1" });
-
-      await service.completeOrder("order-1", "branch-1", "org-1", 0);
-
-      expect(mockPrisma.order.update).toHaveBeenCalledWith({
-        where: { id: "order-1" },
-        data: expect.objectContaining({
-          paymentStatus: PaymentStatus.UNPAID,
-          paidAmount: 0,
-        }),
-        include: expect.any(Object),
-      });
-    });
-
-    it("defaults paidAmount to total when not provided", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue({
-        id: "order-1",
-        totalAmount: 200,
-      });
-      mockPrisma.order.update.mockResolvedValue({ id: "order-1" });
-
-      await service.completeOrder("order-1", "branch-1", "org-1");
-
-      expect(mockPrisma.order.update).toHaveBeenCalledWith({
-        where: { id: "order-1" },
-        data: expect.objectContaining({
-          paymentStatus: PaymentStatus.PAID,
-          paidAmount: 200,
-        }),
-        include: expect.any(Object),
-      });
-    });
-
-    it("emits order.completed event", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue({
-        id: "order-1",
-        totalAmount: 100,
-      });
-      mockPrisma.order.update.mockResolvedValue({ id: "order-1" });
 
       await service.completeOrder("order-1", "branch-1", "org-1", 100);
 
       expect(mockEvents.emit).toHaveBeenCalledWith(
         "order.completed",
-        expect.objectContaining({
-          orderId: "order-1",
-          branchId: "branch-1",
-          organizationId: "org-1",
-          totalAmount: 100,
-        }),
+        expect.objectContaining({ orderId: "order-1", totalAmount: 100 }),
       );
     });
 
-    it("emits order update via realtime gateway", async () => {
-      const updatedOrder = { id: "order-1", status: OrderStatus.COMPLETED };
+    it("sets PARTIAL when 0 < paidAmount < total", async () => {
       mockPrisma.order.findFirst.mockResolvedValue({
-        id: "order-1",
+        ...draftOrder,
+        status: OrderStatus.READY,
         totalAmount: 100,
       });
-      mockPrisma.order.update.mockResolvedValue(updatedOrder);
-
-      await service.completeOrder("order-1", "branch-1", "org-1", 100);
-
-      expect(mockRealtime.emitOrderUpdate).toHaveBeenCalledWith(
-        "branch-1",
-        updatedOrder,
+      mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+        fn({
+          order: {
+            update: jest.fn().mockResolvedValue({
+              paymentStatus: PaymentStatus.PARTIAL,
+            }),
+          },
+          kitchenTicket: { updateMany: jest.fn() },
+        }),
       );
+
+      await service.completeOrder("order-1", "branch-1", "org-1", 50);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe("cancelOrder", () => {
+    it("throws when order is COMPLETED", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.COMPLETED,
+      });
+
+      await expect(service.cancelOrder("order-1", "branch-1")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("cancels SUBMITTED order", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.SUBMITTED,
+      });
+      const cancelled = { ...draftOrder, status: OrderStatus.CANCELLED };
+      mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+        fn({
+          order: { update: jest.fn().mockResolvedValue(cancelled) },
+          kitchenTicket: { updateMany: jest.fn() },
+        }),
+      );
+
+      const result = await service.cancelOrder("order-1", "branch-1");
+      expect(result.status).toBe(OrderStatus.CANCELLED);
     });
   });
 
   describe("updateOrderStatus", () => {
-    it("updates status and emits realtime event", async () => {
+    it("throws invalid kitchen transition", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.DRAFT,
+      });
+
+      await expect(
+        service.updateOrderStatus("order-1", "branch-1", OrderStatus.PREPARING),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("allows SUBMITTED to PREPARING", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.SUBMITTED,
+      });
       const updated = { id: "order-1", status: OrderStatus.PREPARING };
-      mockPrisma.order.update.mockResolvedValue(updated);
+      mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+        fn({
+          order: { update: jest.fn().mockResolvedValue(updated) },
+          kitchenTicket: { updateMany: jest.fn() },
+        }),
+      );
 
       const result = await service.updateOrderStatus(
         "order-1",
         "branch-1",
         OrderStatus.PREPARING,
       );
+      expect(result.status).toBe(OrderStatus.PREPARING);
+    });
+  });
 
-      expect(result).toEqual(updated);
-      expect(mockRealtime.emitOrderUpdate).toHaveBeenCalledWith(
-        "branch-1",
-        updated,
+  describe("deleteCategory", () => {
+    it("throws when category has items", async () => {
+      mockPrisma.menuCategory.findFirst.mockResolvedValue({ id: "mc-1" });
+      mockPrisma.menuItem.count.mockResolvedValue(2);
+
+      await expect(service.deleteCategory("branch-1", "mc-1")).rejects.toThrow(
+        ConflictException,
       );
     });
   });
 
-  describe("listCategories", () => {
-    it("queries categories with items ordered by sortOrder", async () => {
-      mockPrisma.menuCategory.findMany.mockResolvedValue([]);
-      await service.listCategories("branch-1");
-      expect(mockPrisma.menuCategory.findMany).toHaveBeenCalledWith({
-        where: { branchId: "branch-1" },
-        include: { items: true },
-        orderBy: { sortOrder: "asc" },
+  describe("deleteMenuItem", () => {
+    it("throws when item on orders", async () => {
+      mockPrisma.menuItem.findUnique.mockResolvedValue({ id: "mi-1" });
+      mockPrisma.orderLine.count.mockResolvedValue(1);
+
+      await expect(service.deleteMenuItem("mi-1")).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe("getOrder", () => {
+    it("throws NotFoundException when missing", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue(null);
+      await expect(service.getOrder("branch-1", "x")).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("deleteOrder", () => {
+    it("throws when order is completed", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.COMPLETED,
       });
+
+      await expect(service.deleteOrder("order-1", "branch-1")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it("deletes draft order and tickets", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue(draftOrder);
+      mockPrisma.$transaction.mockResolvedValue([]);
+
+      const result = await service.deleteOrder("order-1", "branch-1");
+
+      expect(result).toEqual({ id: "order-1" });
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
   });
 });

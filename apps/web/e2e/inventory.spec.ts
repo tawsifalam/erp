@@ -18,7 +18,7 @@ test.describe("Inventory – Stock", () => {
     const headers = page.locator("table thead th");
     await expect(headers.nth(0)).toHaveText("SKU");
     await expect(headers.nth(1)).toHaveText("Name");
-    await expect(headers.nth(2)).toHaveText("On hand");
+    await expect(headers.nth(2)).toHaveText("On Hand");
     await expect(headers.nth(3)).toHaveText("Unit");
   });
 
@@ -34,5 +34,12 @@ test.describe("Inventory – Stock", () => {
 
     await expect(page.getByRole("cell", { name: "MEAT-CHK-01" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Chicken Breast" })).toBeVisible();
+  });
+
+  test("recipes tab loads menu item picker", async ({ page }) => {
+    await page.goto("/inventory");
+    await page.getByRole("tab", { name: /Recipes/i }).click();
+    await expect(page.getByText(/Bill of materials/i)).toBeVisible();
+    await expect(page.getByText("Select menu item")).toBeVisible();
   });
 });

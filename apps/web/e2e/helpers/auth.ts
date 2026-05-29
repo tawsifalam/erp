@@ -10,6 +10,14 @@ import {
   handlePmsRoomTypeMutation,
   resetPmsState,
 } from "./pms-state";
+import {
+  getPosCategories,
+  getPosOrders,
+  handlePosCategoryMutation,
+  handlePosMenuItemMutation,
+  handlePosOrderMutation,
+  resetPosState,
+} from "./pos-state";
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -154,25 +162,7 @@ export const MOCK_RESERVATIONS = [
   },
 ];
 
-/** Seed data: POS orders */
-export const MOCK_ORDERS = [
-  {
-    id: "ord_001",
-    status: "SUBMITTED",
-    paymentStatus: "UNPAID",
-    totalAmount: "2350.00",
-    tableNumber: "T-3",
-    lines: [{ quantity: 2, menuItem: { name: "Chicken Biryani" } }],
-  },
-  {
-    id: "ord_002",
-    status: "COMPLETED",
-    paymentStatus: "PAID",
-    totalAmount: "870.00",
-    tableNumber: "T-7",
-    lines: [{ quantity: 1, menuItem: { name: "Tea" } }],
-  },
-];
+/** Seed data: POS orders — use getPosOrders() from pos-state */
 
 export const MOCK_ROOMS = [
   {
@@ -191,13 +181,7 @@ export const MOCK_ROOMS = [
   },
 ];
 
-export const MOCK_MENU_CATEGORIES = [
-  {
-    id: "mc_001",
-    name: "Mains",
-    items: [{ id: "mi_001", name: "Chicken Biryani", price: "320" }],
-  },
-];
+/** Seed data: menu categories — use getPosCategories() from pos-state */
 
 export const MOCK_ACCOUNTS = [
   { id: "acc_1000", code: "1000", name: "Cash", type: "ASSET" },
@@ -243,6 +227,16 @@ export const MOCK_REPORT_JOBS = [
   },
 ];
 
+/** In-memory recipe store for E2E mocks */
+const mockRecipes: Record<
+  string,
+  { menuItemId: string; lines: { inventoryItemId: string; quantity: number }[] }
+> = {};
+
+function resetRecipeState() {
+  for (const key of Object.keys(mockRecipes)) delete mockRecipes[key];
+}
+
 /** Seed data: inventory items */
 export const MOCK_INVENTORY = [
   { id: "inv-001", name: "Basmati Rice", sku: "RICE-BAS-25", unit: "kg", currentStock: 120 },
@@ -256,6 +250,8 @@ export const MOCK_INVENTORY = [
  */
 export async function mockApiRoutes(page: Page) {
   resetPmsState();
+  resetPosState();
+  resetRecipeState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -369,18 +365,66 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pos/orders**", (route) => {
-    if (route.request().method() !== "GET") return fulfillJson(route, {});
-    return fulfillJson(route, MOCK_ORDERS);
+  await page.route("**/localhost:3001/api/pos/orders**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    if (method === "GET" && !url.match(/\/orders\/[^/?]+$/)) {
+      return fulfillJson(route, getPosOrders());
+    }
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handlePosOrderMutation(method, url, body);
+    return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pos/menu/categories**", (route) =>
-    fulfillJson(route, MOCK_MENU_CATEGORIES),
-  );
+  await page.route("**/localhost:3001/api/pos/menu/categories**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    if (method === "GET" && !url.match(/\/categories\/[^/?]+$/)) {
+      return fulfillJson(route, getPosCategories());
+    }
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handlePosCategoryMutation(method, url, body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/pos/menu/items**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handlePosMenuItemMutation(method, url, body);
+    return fulfillJson(route, result);
+  });
 
   await page.route("**/localhost:3001/api/inventory/items**", (route) => {
     if (route.request().method() !== "GET") return fulfillJson(route, {});
     return fulfillJson(route, MOCK_INVENTORY);
+  });
+
+  await page.route("**/localhost:3001/api/inventory/recipes**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const idMatch = url.match(/\/recipes\/([^/?]+)/);
+    if (method === "GET" && idMatch) {
+      const stored = mockRecipes[idMatch[1]];
+      if (!stored) return fulfillJson(route, null);
+      return fulfillJson(route, {
+        menuItemId: stored.menuItemId,
+        lines: stored.lines.map((l) => ({
+          ...l,
+          quantity: String(l.quantity),
+          inventoryItem: MOCK_INVENTORY.find((i) => i.id === l.inventoryItemId),
+        })),
+      });
+    }
+    if (method === "POST") {
+      const body = route.request().postDataJSON() as {
+        menuItemId: string;
+        lines: { inventoryItemId: string; quantity: number }[];
+      };
+      mockRecipes[body.menuItemId] = body;
+      return fulfillJson(route, body);
+    }
+    return fulfillJson(route, {});
   });
 
   await page.route("**/localhost:3001/api/accounting/journals**", (route) => {

@@ -8,13 +8,7 @@ import { useTenantHeaders } from "@/lib/tenant-context";
 import { apiFetch } from "@/lib/api-client";
 import { erpTheme, EmptyState } from "@erp/ui";
 import { shortId } from "@/lib/format";
-
-type Order = {
-  id: string;
-  status: string;
-  tableNumber?: string;
-  lines: { quantity: number; menuItem: { name: string } }[];
-};
+import type { Order } from "@/lib/pos-types";
 
 type KitchenCard = {
   id: string;
@@ -26,6 +20,7 @@ type KitchenCard = {
 export default function KitchenPage() {
   const tenant = useTenantHeaders();
   const [cards, setCards] = useState<KitchenCard[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const loadOrders = useCallback(() => {
     if (!tenant.branchId) return;
@@ -43,7 +38,7 @@ export default function KitchenPage() {
           })),
         );
       })
-      .catch(console.error);
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load queue"));
   }, [tenant.branchId, tenant.organizationId]);
 
   useEffect(loadOrders, [loadOrders]);
@@ -53,21 +48,26 @@ export default function KitchenPage() {
     const socket = getSocket();
     if (!socket) return;
     joinKitchen(tenant.branchId);
-    socket.on("kitchen.ticket", () => {
-      loadOrders();
-    });
+    const refresh = () => loadOrders();
+    socket.on("kitchen.ticket", refresh);
+    socket.on("order.updated", refresh);
     return () => {
-      socket.off("kitchen.ticket");
+      socket.off("kitchen.ticket", refresh);
+      socket.off("order.updated", refresh);
     };
   }, [tenant.branchId, loadOrders]);
 
   const updateStatus = async (orderId: string, status: string) => {
-    await apiFetch(`/pos/orders/${orderId}/status?branchId=${tenant.branchId}`, {
-      method: "PATCH",
-      tenant,
-      body: JSON.stringify({ status }),
-    });
-    loadOrders();
+    try {
+      await apiFetch(`/pos/orders/${orderId}/status?branchId=${tenant.branchId}`, {
+        method: "PATCH",
+        tenant,
+        body: JSON.stringify({ status }),
+      });
+      loadOrders();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update status");
+    }
   };
 
   return (
@@ -80,6 +80,12 @@ export default function KitchenPage() {
           <NextLink href="/pos">← Back to POS</NextLink>
         </Link>
       </Flex>
+
+      {error && (
+        <Text color="red.300" mb={3} fontSize="sm">
+          {error}
+        </Text>
+      )}
 
       <Button size="sm" mb={4} variant="surface" onClick={loadOrders}>
         Refresh queue
@@ -101,7 +107,12 @@ export default function KitchenPage() {
               Order {shortId(t.orderId)}
               {t.order?.tableNumber ? ` · Table ${t.order.tableNumber}` : ""}
             </Text>
-            <Text mb={2}>{t.status}</Text>
+            <Text mb={1}>{t.status}</Text>
+            {t.order?.notes && (
+              <Text fontSize="sm" color="orange.200" mb={2}>
+                Note: {t.order.notes}
+              </Text>
+            )}
             {t.order?.lines && (
               <Stack gap={1} mb={3} fontSize="sm">
                 {t.order.lines.map((l, i) => (
@@ -129,6 +140,11 @@ export default function KitchenPage() {
                 >
                   Mark ready
                 </Button>
+              )}
+              {t.status === "READY" && (
+                <Text fontSize="sm" color="fg.muted">
+                  Ready — complete payment on POS
+                </Text>
               )}
             </Flex>
           </Box>

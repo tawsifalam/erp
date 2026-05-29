@@ -17,4 +17,14 @@ test.describe("Kitchen display", () => {
     await page.goto("/pos/kitchen");
     await expect(page.getByRole("link", { name: /Back to POS/i })).toBeVisible();
   });
+
+  test("start prep → mark ready", async ({ page }) => {
+    await page.goto("/pos/kitchen");
+    const card = page.getByText("Chicken Biryani").locator("..").locator("..");
+    await card.getByRole("button", { name: "Start prep" }).click();
+    await expect(card.getByText("PREPARING")).toBeVisible({ timeout: 5000 });
+    await card.getByRole("button", { name: "Mark ready" }).click();
+    await expect(card.getByText("READY")).toBeVisible({ timeout: 5000 });
+    await expect(card.getByText(/complete payment on POS/i)).toBeVisible();
+  });
 });

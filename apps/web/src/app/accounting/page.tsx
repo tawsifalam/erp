@@ -37,6 +37,7 @@ export default function AccountingPage() {
     lines: [{ accountId: "", debit: "", credit: "" }] as JournalLineForm[],
   });
   const [accountForm, setAccountForm] = useState({ code: "", name: "", type: "ASSET" });
+  const [journalError, setJournalError] = useState<string | null>(null);
 
   const accountsQuery = useAsync(
     () => apiFetch<Account[]>("/accounting/accounts", { tenant }),
@@ -63,23 +64,41 @@ export default function AccountingPage() {
   };
 
   const handleCreateJournal = async () => {
-    await apiFetch("/accounting/journals", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({
-        description: journalForm.description || undefined,
-        lines: journalForm.lines
-          .filter((l) => l.accountId)
-          .map((l) => ({
-            accountId: l.accountId,
-            debit: Number(l.debit) || 0,
-            credit: Number(l.credit) || 0,
-          })),
-      }),
-    });
-    setJournalForm({ description: "", lines: [{ accountId: "", debit: "", credit: "" }] });
-    journalsQuery.reload();
-    setTab("journals");
+    setJournalError(null);
+    const lines = journalForm.lines
+      .filter((l) => l.accountId)
+      .map((l) => ({
+        accountId: l.accountId,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0,
+      }));
+
+    const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+    if (lines.length < 2) {
+      setJournalError("At least two lines with accounts are required.");
+      return;
+    }
+    if (totalDebit !== totalCredit) {
+      setJournalError(`Entry not balanced: debits ${totalDebit} ≠ credits ${totalCredit}`);
+      return;
+    }
+
+    try {
+      await apiFetch("/accounting/journals", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({
+          description: journalForm.description || undefined,
+          lines,
+        }),
+      });
+      setJournalForm({ description: "", lines: [{ accountId: "", debit: "", credit: "" }] });
+      journalsQuery.reload();
+      setTab("journals");
+    } catch (e) {
+      setJournalError(e instanceof Error ? e.message : "Failed to post journal");
+    }
   };
 
   const handleCreateAccount = async () => {
@@ -94,6 +113,16 @@ export default function AccountingPage() {
 
   const accounts = accountsQuery.data ?? [];
   const journals = journalsQuery.data ?? [];
+
+  const journalTotals = journalForm.lines.reduce(
+    (acc, l) => ({
+      debit: acc.debit + (Number(l.debit) || 0),
+      credit: acc.credit + (Number(l.credit) || 0),
+    }),
+    { debit: 0, credit: 0 },
+  );
+  const journalBalanced =
+    journalTotals.debit === journalTotals.credit && journalTotals.debit > 0;
 
   return (
     <DashboardShell title="Accounting">
@@ -210,6 +239,11 @@ export default function AccountingPage() {
         <Tabs.Content value="new-journal" pt={4}>
           <Box bg="white" borderRadius="md" p={4}>
             <Stack gap={3}>
+              {journalError && (
+                <Text color="red.500" fontSize="sm">
+                  {journalError}
+                </Text>
+              )}
               <Input
                 placeholder="Description"
                 value={journalForm.description}
@@ -248,6 +282,17 @@ export default function AccountingPage() {
                   />
                 </Flex>
               ))}
+              <Flex gap={4} align="center" wrap="wrap" fontSize="sm">
+                <Text>
+                  Debits: <strong>{journalTotals.debit.toFixed(2)}</strong>
+                </Text>
+                <Text>
+                  Credits: <strong>{journalTotals.credit.toFixed(2)}</strong>
+                </Text>
+                <Text color={journalBalanced ? "green.600" : "orange.600"}>
+                  {journalBalanced ? "Balanced ✓" : "Not balanced"}
+                </Text>
+              </Flex>
               <Flex gap={2}>
                 <Button size="sm" variant="outline" onClick={addJournalLine}>
                   + Line

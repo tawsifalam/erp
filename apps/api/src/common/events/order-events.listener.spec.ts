@@ -32,11 +32,11 @@ describe("OrderEventsListener", () => {
     mockRecipes.deductForOrder.mockResolvedValue(180);
 
     await listener.handleOrderCompleted(
-      new OrderCompletedEvent("ord-1", "br-1", "org-1", 690),
+      new OrderCompletedEvent("ord-1", "br-1", "org-1", 690, 690),
     );
 
     expect(mockRecipes.deductForOrder).toHaveBeenCalledWith("ord-1", "br-1");
-    expect(mockAccounting.postFoodSale).toHaveBeenCalledWith("org-1", "ord-1", 690);
+    expect(mockAccounting.postFoodSale).toHaveBeenCalledWith("org-1", "ord-1", 690, 690);
     expect(mockAccounting.postCogs).toHaveBeenCalledWith("org-1", "ord-1", 180);
   });
 
@@ -44,7 +44,7 @@ describe("OrderEventsListener", () => {
     mockRecipes.deductForOrder.mockResolvedValue(0);
 
     await listener.handleOrderCompleted(
-      new OrderCompletedEvent("ord-1", "br-1", "org-1", 100),
+      new OrderCompletedEvent("ord-1", "br-1", "org-1", 100, 100),
     );
 
     expect(mockAccounting.postFoodSale).toHaveBeenCalled();

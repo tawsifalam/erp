@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
+import { AccountType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { roundMoney, generatePrefixedId } from "@erp/utils";
 
@@ -14,12 +15,19 @@ export class AccountingService {
     organizationId: string,
     data: { code: string; name: string; type: string },
   ) {
+    if (!data.code?.trim()) throw new BadRequestException("Account code is required");
+    if (!data.name?.trim()) throw new BadRequestException("Account name is required");
+    const validTypes = Object.values(AccountType);
+    if (!validTypes.includes(data.type as AccountType)) {
+      throw new BadRequestException(`type must be one of: ${validTypes.join(", ")}`);
+    }
+
     return this.prisma.account.create({
       data: {
         organizationId,
-        code: data.code,
-        name: data.name,
-        type: data.type as never,
+        code: data.code.trim(),
+        name: data.name.trim(),
+        type: data.type as AccountType,
       },
     });
   }

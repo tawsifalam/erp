@@ -275,7 +275,7 @@ export class PosService {
 
     this.events.emit(
       "order.completed",
-      new OrderCompletedEvent(orderId, branchId, organizationId, total),
+      new OrderCompletedEvent(orderId, branchId, organizationId, total, paid),
     );
     this.realtime.emitOrderUpdate(branchId, updated);
     return updated;

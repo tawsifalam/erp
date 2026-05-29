@@ -169,7 +169,7 @@ describe("PosService", () => {
 
       expect(mockEvents.emit).toHaveBeenCalledWith(
         "order.completed",
-        expect.objectContaining({ orderId: "order-1", totalAmount: 100 }),
+        expect.objectContaining({ orderId: "order-1", totalAmount: 100, paidAmount: 100 }),
       );
     });
 
@@ -192,7 +192,10 @@ describe("PosService", () => {
 
       await service.completeOrder("order-1", "branch-1", "org-1", 50);
 
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        "order.completed",
+        expect.objectContaining({ totalAmount: 100, paidAmount: 50 }),
+      );
     });
   });
 

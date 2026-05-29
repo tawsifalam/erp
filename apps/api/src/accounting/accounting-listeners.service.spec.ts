@@ -93,7 +93,7 @@ describe("AccountingListenersService — POS folio", () => {
       return null;
     });
 
-    await service.postFoodSale("org-1", "ord-1", 860);
+    await service.postFoodSale("org-1", "ord-1", 860, 860);
 
     expect(mockAccounting.createJournalEntry).toHaveBeenCalledWith({
       organizationId: "org-1",
@@ -105,6 +105,37 @@ describe("AccountingListenersService — POS folio", () => {
         { accountId: "acc-fb-rev", debit: 0, credit: 860 },
       ],
     });
+  });
+
+  it("postFoodSale posts cash + AR + revenue for partial payment", async () => {
+    mockAccounting.getAccountByCode.mockImplementation((_org: string, code: string) => {
+      if (code === "1000") return { id: "acc-cash" };
+      if (code === "1300") return { id: "acc-ar" };
+      if (code === "4100") return { id: "acc-fb-rev" };
+      return null;
+    });
+
+    await service.postFoodSale("org-1", "ord-1", 640, 300);
+
+    expect(mockAccounting.createJournalEntry).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      referenceType: "Order",
+      referenceId: "ord-1",
+      description: "F&B sale (partial payment)",
+      lines: [
+        { accountId: "acc-cash", debit: 300, credit: 0 },
+        { accountId: "acc-ar", debit: 340, credit: 0 },
+        { accountId: "acc-fb-rev", debit: 0, credit: 640 },
+      ],
+    });
+  });
+
+  it("postFoodSale skips when required accounts missing", async () => {
+    mockAccounting.getAccountByCode.mockResolvedValue(null);
+
+    await service.postFoodSale("org-1", "ord-1", 100, 100);
+
+    expect(mockAccounting.createJournalEntry).not.toHaveBeenCalled();
   });
 
   it("postCogs creates COGS/inventory journal", async () => {
@@ -126,5 +157,13 @@ describe("AccountingListenersService — POS folio", () => {
         { accountId: "acc-inv", debit: 0, credit: 180 },
       ],
     });
+  });
+
+  it("postCogs skips when accounts missing", async () => {
+    mockAccounting.getAccountByCode.mockResolvedValue(null);
+
+    await service.postCogs("org-1", "ord-1", 50);
+
+    expect(mockAccounting.createJournalEntry).not.toHaveBeenCalled();
   });
 });

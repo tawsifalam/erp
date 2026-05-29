@@ -174,7 +174,7 @@ socket.on("order.updated", () => { /* refresh queue */ });
 When an order is **completed**, `order.completed` triggers:
 
 1. **Recipe deduction** — `InventoryRecipesService.deductForOrder` posts SALE movements per BOM
-2. **Revenue journal** — Debit Cash (`1000`) / Credit F&B Revenue (`4100`)
+2. **Revenue journal** — Full pay: Cash (`1000`) / F&B Revenue (`4100`). Partial: Cash + AR (`1300`) / F&B Revenue. See [accounting-module.md](./accounting-module.md).
 3. **COGS journal** (if recipes exist) — Debit COGS (`5000`) / Credit Inventory (`1200`)
 
 Requires chart of accounts from seed. If accounts are missing, completion still succeeds; journals are skipped.
@@ -185,7 +185,7 @@ COGS estimate uses recipe quantities × line qty (unit cost placeholder in phase
 
 | Event | When | Payload |
 |-------|------|---------|
-| `order.completed` | After complete | `{ orderId, branchId, organizationId, totalAmount }` |
+| `order.completed` | After complete | `{ orderId, branchId, organizationId, totalAmount, paidAmount }` |
 
 ## Permissions
 

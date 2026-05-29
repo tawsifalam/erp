@@ -24,6 +24,12 @@ import {
   handleInventoryMovementMutation,
   resetInventoryState,
 } from "./inventory-state";
+import {
+  getAccountingAccounts,
+  getAccountingJournals,
+  handleAccountingMutation,
+  resetAccountingState,
+} from "./accounting-state";
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -189,22 +195,9 @@ export const MOCK_ROOMS = [
 
 /** Seed data: menu categories — use getPosCategories() from pos-state */
 
-export const MOCK_ACCOUNTS = [
-  { id: "acc_1000", code: "1000", name: "Cash", type: "ASSET" },
-  { id: "acc_4000", code: "4000", name: "Room Revenue", type: "REVENUE" },
-];
+export const MOCK_ACCOUNTS = getAccountingAccounts();
 
-export const MOCK_JOURNALS = [
-  {
-    id: "je_001",
-    description: "Room payment",
-    createdAt: "2026-05-28T10:00:00Z",
-    lines: [
-      { account: { name: "Cash" }, debit: "7000", credit: "0" },
-      { account: { name: "Room Revenue" }, debit: "0", credit: "7000" },
-    ],
-  },
-];
+export const MOCK_JOURNALS = getAccountingJournals();
 
 export const MOCK_EMPLOYEES = [
   { id: "emp_001", name: "Karim Hossain", designation: "Head Chef", salary: "45000" },
@@ -255,6 +248,7 @@ export async function mockApiRoutes(page: Page) {
   resetPosState();
   resetRecipeState();
   resetInventoryState();
+  resetAccountingState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -449,14 +443,19 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, {});
   });
 
-  await page.route("**/localhost:3001/api/accounting/journals**", (route) => {
-    if (route.request().method() !== "GET") return fulfillJson(route, {});
-    return fulfillJson(route, MOCK_JOURNALS);
-  });
-
-  await page.route("**/localhost:3001/api/accounting/accounts**", (route) => {
-    if (route.request().method() !== "GET") return fulfillJson(route, {});
-    return fulfillJson(route, MOCK_ACCOUNTS);
+  await page.route("**/localhost:3001/api/accounting/**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleAccountingMutation(method, url, body);
+    if (result && typeof result === "object" && "status" in result && result.status === 400) {
+      return route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: (result as { message: string }).message }),
+      });
+    }
+    return fulfillJson(route, result);
   });
 
   await page.route("**/localhost:3001/api/hr/employees**", (route) => {

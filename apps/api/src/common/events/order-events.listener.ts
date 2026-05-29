@@ -14,7 +14,12 @@ export class OrderEventsListener {
   @OnEvent("order.completed")
   async handleOrderCompleted(event: OrderCompletedEvent) {
     const cogs = await this.recipes.deductForOrder(event.orderId, event.branchId);
-    await this.accounting.postFoodSale(event.organizationId, event.orderId, event.totalAmount);
+    await this.accounting.postFoodSale(
+      event.organizationId,
+      event.orderId,
+      event.totalAmount,
+      event.paidAmount,
+    );
     if (cogs > 0) {
       await this.accounting.postCogs(event.organizationId, event.orderId, cogs);
     }

@@ -1056,6 +1056,18 @@ curl -s "$BASE/inventory/items/$ITEM_ID/movements?branchId=$BRANCH_ID" \
 
 The accounting module implements strict **double-entry bookkeeping**. Every journal entry must have `total debits == total credits`.
 
+> **Full reference:** [docs/accounting-module.md](accounting-module.md) — API tables, Web UI, automated postings, permissions, and testing.
+
+### Web UI
+
+| Route | Purpose |
+|-------|---------|
+| **`/accounting` → Journal entries** | List recent journals with debit/credit lines |
+| **`/accounting` → Chart of accounts** | List accounts; add new account (code, name, type) |
+| **`/accounting` → New journal** | Manual multi-line entry with running balance check |
+
+Accounting is **organization-scoped** (not branch). POS links here via “View journals →”.
+
 ### Step 1: List Chart of Accounts
 
 ```bash
@@ -1148,6 +1160,10 @@ This records: `Utilities Expense Dr 12,000 / Bank Account Cr 12,000`.
 - `total debits` must equal `total credits` — otherwise returns `400 Bad Request`
 - At least 2 journal lines are required
 
+### Auto-Posting on PMS Folio
+
+See [PMS module — Accounting integration](pms-module.md#accounting-integration-folio). On payment delta: Cash / Room Revenue. On check-out with balance due: AR / Room Revenue.
+
 ### Double-Entry Rule
 
 Every financial transaction is recorded with equal debits and credits:
@@ -1158,15 +1174,17 @@ Every financial transaction is recorded with equal debits and credits:
 
 ### Auto-Posting on Order Completion
 
-When `order.completed` fires, the `OrderEventsListener` triggers two automatic journal entries:
+When `order.completed` fires, the `OrderEventsListener` triggers inventory deduction plus up to two journal entries:
 
-**Entry 1: Revenue Recognition**
-```
-  Cash (1000)          Dr  <order.totalAmount>
-  F&B Revenue (4100)       Cr  <order.totalAmount>
-```
+**Entry 1: Revenue Recognition** (uses `paidAmount` and `totalAmount`)
 
-**Entry 2: COGS / Inventory Consumption**
+| Payment | Lines |
+|---------|-------|
+| Full pay | Cash Dr `total` / F&B Revenue Cr `total` |
+| Partial | Cash Dr `paid` + AR Dr `(total − paid)` / F&B Revenue Cr `total` |
+| Unpaid | AR Dr `total` / F&B Revenue Cr `total` |
+
+**Entry 2: COGS / Inventory Consumption** (when recipes exist)
 ```
   Cost of Goods Sold (5000)  Dr  <estimated COGS>
   Inventory (1200)               Cr  <estimated COGS>
@@ -1595,6 +1613,7 @@ cd apps/web && pnpm test:e2e
 pnpm --filter @erp/web test:e2e pos      # orders, menu, lifecycle
 pnpm --filter @erp/web test:e2e kitchen  # kitchen display, prep → ready, cancel queue
 pnpm --filter @erp/web test:e2e inventory
+pnpm --filter @erp/web test:e2e accounting
 ```
 
 ### Test Coverage
@@ -1611,7 +1630,7 @@ pnpm test -- --coverage
 | Integration   | Jest + Prisma   | Database operations, transactions        |
 | E2E           | Playwright      | Full user workflows via the browser      |
 
-Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`.
+Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`.
 
 ---
 
@@ -1683,6 +1702,8 @@ See [inventory-module.md](inventory-module.md) for curl examples.
 | GET    | `/inventory/recipes/:menuItemId`     | INVENTORY_READ | Get recipe             |
 
 ### Accounting Endpoints
+
+See [accounting-module.md](accounting-module.md) for curl examples.
 
 | Method | Path                                | Permission        | Description            |
 |--------|--------------------------------------|-------------------|------------------------|

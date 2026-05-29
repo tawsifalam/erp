@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 
 jest.mock("@erp/utils", () => ({
   roundMoney: (v: number) => Math.round(v * 100) / 100,
+  generatePrefixedId: () => "jl_test",
 }));
 
 const mockPrisma = {
@@ -91,8 +92,8 @@ describe("AccountingService", () => {
           referenceId: undefined,
           lines: {
             create: [
-              { accountId: "acc-1", debit: 100, credit: 0 },
-              { accountId: "acc-2", debit: 0, credit: 100 },
+              { id: "jl_test", accountId: "acc-1", debit: 100, credit: 0 },
+              { id: "jl_test", accountId: "acc-2", debit: 0, credit: 100 },
             ],
           },
         },
@@ -154,6 +155,18 @@ describe("AccountingService", () => {
   });
 
   describe("createAccount", () => {
+    it("throws when code is empty", () => {
+      expect(() =>
+        service.createAccount("org-1", { code: "  ", name: "Cash", type: "ASSET" }),
+      ).toThrow(BadRequestException);
+    });
+
+    it("throws when type is invalid", () => {
+      expect(() =>
+        service.createAccount("org-1", { code: "9999", name: "Bad", type: "INVALID" }),
+      ).toThrow(BadRequestException);
+    });
+
     it("creates account with correct data", async () => {
       const account = { id: "a1", code: "1000", name: "Cash", type: "ASSET" };
       mockPrisma.account.create.mockResolvedValue(account);

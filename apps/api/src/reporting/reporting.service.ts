@@ -13,12 +13,21 @@ export class ReportingService {
   ) {}
 
   async dashboard(organizationId: string, branchId: string) {
-    const [rooms, reservations, orders, items] = await Promise.all([
+    const [rooms, occupiedRooms, activeReservations, orders, items] = await Promise.all([
       this.prisma.room.count({ where: { branchId } }),
+      this.prisma.room.count({
+        where: { branchId, status: "OCCUPIED" },
+      }),
       this.prisma.reservation.count({
         where: {
           branchId,
-          status: { in: [ReservationStatus.CHECKED_IN, ReservationStatus.CONFIRMED] },
+          status: {
+            in: [
+              ReservationStatus.INQUIRY,
+              ReservationStatus.CONFIRMED,
+              ReservationStatus.CHECKED_IN,
+            ],
+          },
         },
       }),
       this.prisma.order.aggregate({
@@ -39,8 +48,8 @@ export class ReportingService {
     );
 
     return {
-      occupancyPct: rooms > 0 ? Math.round((reservations / rooms) * 100) : 0,
-      activeReservations: reservations,
+      occupancyPct: rooms > 0 ? Math.round((occupiedRooms / rooms) * 100) : 0,
+      activeReservations,
       revenueToday: Number(orders._sum.totalAmount ?? 0),
       lowStockAlerts: lowStock.length,
       lowStockItems: lowStock,

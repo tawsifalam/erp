@@ -17,13 +17,26 @@ export class AvailabilityService {
     checkIn: Date;
     checkOut: Date;
     roomTypeId?: string;
+    excludeReservationId?: string;
   }) {
     const rooms = await this.prisma.room.findMany({
       where: {
         branchId: params.branchId,
+        status: { not: "MAINTENANCE" },
         ...(params.roomTypeId ? { roomTypeId: params.roomTypeId } : {}),
       },
-      include: { roomType: true, reservations: { where: { status: { in: BLOCKING } } } },
+      include: {
+        roomType: true,
+        reservations: {
+          where: {
+            status: { in: BLOCKING },
+            ...(params.excludeReservationId
+              ? { id: { not: params.excludeReservationId } }
+              : {}),
+          },
+        },
+      },
+      orderBy: { roomNumber: "asc" },
     });
 
     return rooms.filter((room) => {

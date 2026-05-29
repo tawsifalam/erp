@@ -114,5 +114,6 @@ pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 - [Local Setup](docs/local-setup.md) — full environment configuration
 - [PropelAuth](docs/propelauth.md) — authentication integration
 - [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with examples ([§1b org & branch management](docs/app-workflow-guide.md#1b-organization--branch-management))
+- [PMS Module](docs/pms-module.md) — property management (rooms, reservations, housekeeping)
 - [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture and Settings API surface
 - [Deployment](docs/deployment.md) — production deployment

@@ -126,6 +126,8 @@ export const MOCK_RESERVATIONS = [
     status: "CHECKED_IN",
     checkIn: "2026-05-28T14:00:00Z",
     checkOut: "2026-05-31T11:00:00Z",
+    totalAmount: "10500",
+    paidAmount: "10500",
     guest: { fullName: "Rahim Ahmed" },
     room: { roomNumber: "101" },
   },
@@ -134,9 +136,16 @@ export const MOCK_RESERVATIONS = [
     status: "CONFIRMED",
     checkIn: "2026-05-30T14:00:00Z",
     checkOut: "2026-06-02T11:00:00Z",
+    totalAmount: "16500",
+    paidAmount: "5000",
     guest: { fullName: "Fatima Khan" },
     room: { roomNumber: "204" },
   },
+];
+
+export const MOCK_ROOM_TYPES = [
+  { id: "rt_001", name: "Standard Double", maxAdults: 2, maxChildren: 1 },
+  { id: "rt_002", name: "Deluxe Suite", maxAdults: 3, maxChildren: 2 },
 ];
 
 /** Seed data: POS orders */
@@ -317,18 +326,43 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route("**/localhost:3001/api/pms/reservations**", (route) => {
-    if (route.request().method() !== "GET") return fulfillJson(route, {});
-    return fulfillJson(route, MOCK_RESERVATIONS);
+    const method = route.request().method();
+    if (method === "GET") return fulfillJson(route, MOCK_RESERVATIONS);
+    if (method === "POST") {
+      return fulfillJson(route, {
+        id: "res-new",
+        status: "CONFIRMED",
+        ...MOCK_RESERVATIONS[0],
+      });
+    }
+    return fulfillJson(route, { ...MOCK_RESERVATIONS[0], status: "CHECKED_IN" });
   });
 
   await page.route("**/localhost:3001/api/pms/guests**", (route) => {
-    if (route.request().method() !== "GET") return fulfillJson(route, {});
-    return fulfillJson(route, MOCK_GUESTS);
+    const method = route.request().method();
+    if (method === "GET") return fulfillJson(route, MOCK_GUESTS);
+    if (method === "POST") {
+      return fulfillJson(route, { id: "gst-new", fullName: "New Guest" });
+    }
+    return fulfillJson(route, MOCK_GUESTS[0]);
   });
 
-  await page.route("**/localhost:3001/api/pms/rooms**", (route) =>
-    fulfillJson(route, MOCK_ROOMS),
+  await page.route("**/localhost:3001/api/pms/room-types**", (route) => {
+    if (route.request().method() === "GET") return fulfillJson(route, MOCK_ROOM_TYPES);
+    return fulfillJson(route, MOCK_ROOM_TYPES[0]);
+  });
+
+  await page.route("**/localhost:3001/api/pms/availability**", (route) =>
+    fulfillJson(route, MOCK_ROOMS.filter((r) => r.status === "VACANT")),
   );
+
+  await page.route("**/localhost:3001/api/pms/rooms**", (route) => {
+    if (route.request().url().includes("/status")) {
+      return fulfillJson(route, { ...MOCK_ROOMS[0], status: "VACANT" });
+    }
+    if (route.request().method() === "GET") return fulfillJson(route, MOCK_ROOMS);
+    return fulfillJson(route, MOCK_ROOMS[0]);
+  });
 
   await page.route("**/localhost:3001/api/pos/orders**", (route) => {
     if (route.request().method() !== "GET") return fulfillJson(route, {});

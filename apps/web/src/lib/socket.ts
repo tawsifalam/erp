@@ -17,3 +17,8 @@ export function joinKitchen(branchId: string) {
   const s = getSocket();
   s?.emit("join", `kitchen:${branchId}`);
 }
+
+export function joinBranch(branchId: string) {
+  const s = getSocket();
+  s?.emit("join", `branch:${branchId}`);
+}

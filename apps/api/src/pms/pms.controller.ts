@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -15,6 +16,7 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
+import { ReservationStatus, RoomStatus } from "@prisma/client";
 import { PmsService } from "./pms.service";
 import { AvailabilityService } from "./availability.service";
 
@@ -25,6 +27,10 @@ export class PmsController {
     private readonly pms: PmsService,
     private readonly availability: AvailabilityService,
   ) {}
+
+  private branchId(t: TenantContext, query?: string) {
+    return query || t.branchId!;
+  }
 
   @Get("branches")
   @RequirePermission(Permission.PMS_READ)
@@ -56,10 +62,30 @@ export class PmsController {
     return this.pms.createRoomType(t.organizationId, body);
   }
 
+  @Patch("room-types/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  updateRoomType(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body() body: { name?: string; maxAdults?: number; maxChildren?: number },
+  ) {
+    return this.pms.updateRoomType(t.organizationId, id, body);
+  }
+
   @Get("rooms")
   @RequirePermission(Permission.PMS_READ)
   rooms(@Tenant() t: TenantContext, @Query("branchId") branchId: string) {
-    return this.pms.listRooms(branchId || t.branchId!);
+    return this.pms.listRooms(this.branchId(t, branchId));
+  }
+
+  @Get("rooms/:id")
+  @RequirePermission(Permission.PMS_READ)
+  getRoom(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+  ) {
+    return this.pms.getRoom(this.branchId(t, branchId), id);
   }
 
   @Post("rooms")
@@ -77,10 +103,43 @@ export class PmsController {
     return this.pms.createRoom(body.branchId || t.branchId!, body);
   }
 
+  @Patch("rooms/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  updateRoom(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Body()
+    body: {
+      roomTypeId?: string;
+      roomNumber?: string;
+      basePrice?: number;
+    },
+  ) {
+    return this.pms.updateRoom(this.branchId(t, branchId), id, body);
+  }
+
+  @Patch("rooms/:id/status")
+  @RequirePermission(Permission.PMS_WRITE)
+  updateRoomStatus(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Body() body: { status: RoomStatus },
+  ) {
+    return this.pms.updateRoomStatus(this.branchId(t, branchId), id, body.status);
+  }
+
   @Get("guests")
   @RequirePermission(Permission.PMS_READ)
   guests(@Tenant() t: TenantContext) {
     return this.pms.listGuests(t.organizationId);
+  }
+
+  @Get("guests/:id")
+  @RequirePermission(Permission.PMS_READ)
+  getGuest(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.pms.getGuest(t.organizationId, id);
   }
 
   @Post("guests")
@@ -92,10 +151,36 @@ export class PmsController {
     return this.pms.createGuest(t.organizationId, body);
   }
 
+  @Patch("guests/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  updateGuest(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body() body: { fullName?: string; phone?: string; email?: string },
+  ) {
+    return this.pms.updateGuest(t.organizationId, id, body);
+  }
+
+  @Delete("guests/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  deleteGuest(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.pms.deleteGuest(t.organizationId, id);
+  }
+
   @Get("reservations")
   @RequirePermission(Permission.PMS_READ)
   reservations(@Query("branchId") branchId: string, @Tenant() t: TenantContext) {
-    return this.pms.listReservations(branchId || t.branchId!);
+    return this.pms.listReservations(this.branchId(t, branchId));
+  }
+
+  @Get("reservations/:id")
+  @RequirePermission(Permission.PMS_READ)
+  getReservation(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+  ) {
+    return this.pms.getReservation(this.branchId(t, branchId), id);
   }
 
   @Post("reservations")
@@ -110,13 +195,63 @@ export class PmsController {
       checkIn: string;
       checkOut: string;
       totalAmount: number;
+      paidAmount?: number;
+      status?: ReservationStatus;
     },
   ) {
     return this.pms.createReservation(body.branchId || t.branchId!, {
-      ...body,
+      guestId: body.guestId,
+      roomId: body.roomId,
       checkIn: new Date(body.checkIn),
       checkOut: new Date(body.checkOut),
+      totalAmount: body.totalAmount,
+      paidAmount: body.paidAmount,
+      status: body.status,
     });
+  }
+
+  @Patch("reservations/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  updateReservation(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+    @Body()
+    body: {
+      guestId?: string;
+      roomId?: string;
+      checkIn?: string;
+      checkOut?: string;
+      totalAmount?: number;
+      paidAmount?: number;
+    },
+  ) {
+    return this.pms.updateReservation(this.branchId(t, branchId), id, {
+      ...body,
+      checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
+      checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
+    });
+  }
+
+  @Patch("reservations/:id/confirm")
+  @RequirePermission(Permission.PMS_WRITE)
+  confirmReservation(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+  ) {
+    return this.pms.confirmReservation(this.branchId(t, branchId), id);
+  }
+
+  @Patch("reservations/:id/payment")
+  @RequirePermission(Permission.PMS_WRITE)
+  recordPayment(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+    @Body() body: { paidAmount: number },
+  ) {
+    return this.pms.recordPayment(this.branchId(t, branchId), id, body.paidAmount);
   }
 
   @Get("availability")
@@ -126,31 +261,45 @@ export class PmsController {
     @Query("checkIn") checkIn: string,
     @Query("checkOut") checkOut: string,
     @Query("roomTypeId") roomTypeId: string | undefined,
+    @Query("excludeReservationId") excludeReservationId: string | undefined,
     @Tenant() t: TenantContext,
   ) {
     return this.availability.findAvailableRooms({
-      branchId: branchId || t.branchId!,
+      branchId: this.branchId(t, branchId),
       checkIn: new Date(checkIn),
       checkOut: new Date(checkOut),
       roomTypeId,
+      excludeReservationId,
     });
   }
 
   @Patch("reservations/:id/check-in")
   @RequirePermission(Permission.PMS_WRITE)
-  checkIn(@Param("id") id: string, @Query("branchId") branchId: string, @Tenant() t: TenantContext) {
-    return this.pms.checkIn(id, branchId || t.branchId!);
+  checkIn(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+  ) {
+    return this.pms.checkIn(id, this.branchId(t, branchId));
   }
 
   @Patch("reservations/:id/check-out")
   @RequirePermission(Permission.PMS_WRITE)
-  checkOut(@Param("id") id: string, @Query("branchId") branchId: string, @Tenant() t: TenantContext) {
-    return this.pms.checkOut(id, branchId || t.branchId!);
+  checkOut(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+  ) {
+    return this.pms.checkOut(id, this.branchId(t, branchId));
   }
 
   @Patch("reservations/:id/cancel")
   @RequirePermission(Permission.PMS_WRITE)
-  cancel(@Param("id") id: string, @Query("branchId") branchId: string, @Tenant() t: TenantContext) {
-    return this.pms.cancelReservation(id, branchId || t.branchId!);
+  cancel(
+    @Param("id") id: string,
+    @Query("branchId") branchId: string,
+    @Tenant() t: TenantContext,
+  ) {
+    return this.pms.cancelReservation(id, this.branchId(t, branchId));
   }
 }

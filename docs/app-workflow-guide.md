@@ -289,7 +289,22 @@ curl -s -X POST "$BASE/tenants/organizations" \
 
 ## 2. Property Management System (PMS)
 
-The PMS module handles branches, rooms, room types, guests, and the full reservation lifecycle.
+The PMS module handles room types, rooms, guests, reservations, availability, housekeeping, and realtime room status per branch.
+
+> **Full reference:** [docs/pms-module.md](pms-module.md) — API tables, Web UI tabs, state machines, payments, and testing.
+
+### Web UI (`/pms`)
+
+After selecting **organization** and **branch** in the header, open **PMS** in the sidebar:
+
+| Tab | Purpose |
+|-----|---------|
+| Reservations | Create CONFIRMED/INQUIRY stays, confirm inquiries, check-in/out, cancel, record payments |
+| Rooms | Add rooms, view status, housekeeping (DIRTY→VACANT, VACANT↔MAINTENANCE), live Socket.IO updates |
+| Room types | Define capacity categories used when creating rooms |
+| Guests | CRUD guest profiles (org-wide) |
+
+Branch creation is under **Settings** (`/tenants/branches`). Use `POST /pms/branches` only for API/scripts.
 
 ### Step 1: List Branches
 
@@ -317,12 +332,18 @@ curl -s "$BASE/pms/branches" \
 ]
 ```
 
-### Step 2: List Room Types
+### Step 2: Room Types (list and create)
 
 ```bash
 curl -s "$BASE/pms/room-types" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/pms/room-types" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Standard Double","maxAdults":2,"maxChildren":1}' | jq
 ```
 
 **Expected response:**
@@ -345,13 +366,27 @@ curl -s "$BASE/pms/room-types" \
 ]
 ```
 
-### Step 3: List Rooms for a Branch
+### Step 3: Rooms (list, create, housekeeping)
 
 ```bash
 curl -s "$BASE/pms/rooms?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "X-Branch-Id: $BRANCH_ID" | jq
+
+curl -s -X POST "$BASE/pms/rooms" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d "{\"branchId\":\"$BRANCH_ID\",\"roomTypeId\":\"$ROOM_TYPE_ID\",\"roomNumber\":\"105\",\"basePrice\":3500}" | jq
+
+# Mark room clean after housekeeping
+curl -s -X PATCH "$BASE/pms/rooms/$ROOM_ID/status?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"VACANT"}' | jq
 ```
 
 **Expected response (abridged):**
@@ -409,8 +444,10 @@ curl -s -X POST "$BASE/pms/guests" \
 
 ### Step 5: Check Room Availability
 
+Optional: `roomTypeId`, `excludeReservationId` (when changing dates on an existing booking).
+
 ```bash
-curl -s "$BASE/pms/availability?branchId=$BRANCH_ID&checkIn=2026-06-01&checkOut=2026-06-03" \
+curl -s "$BASE/pms/availability?branchId=$BRANCH_ID&checkIn=2026-06-01T14:00:00Z&checkOut=2026-06-03T11:00:00Z" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "X-Branch-Id: $BRANCH_ID" | jq
@@ -515,7 +552,23 @@ curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/cancel" \
   -H "X-Branch-Id: $BRANCH_ID" | jq
 ```
 
-**What happens:** Reservation status changes to `CANCELLED`.
+**What happens:** Reservation status changes to `CANCELLED` (only from `INQUIRY` or `CONFIRMED`).
+
+### Step 10: Confirm inquiry and record payment
+
+```bash
+curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/confirm?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/payment?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"paidAmount":7000}' | jq
+```
+
+Create inquiries with `"status":"INQUIRY"` on `POST /pms/reservations` — they do not block availability until confirmed.
 
 ### Room Status State Machine
 
@@ -531,7 +584,9 @@ curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/cancel" \
       └─────────────────────────────────────────────────────┘
 ```
 
-**Reservation statuses:** `INQUIRY` → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT` (or `CANCELLED` at any point)
+**Reservation statuses:** `INQUIRY` → (confirm) → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT`; cancel from `INQUIRY` or `CONFIRMED` only.
+
+**IDs:** Seed and runtime records use prefixed IDs (`br_…`, `rm_…`, `res_…`, etc.) — see [pms-module.md](pms-module.md).
 
 ---
 
@@ -1384,22 +1439,28 @@ pnpm test -- --coverage
 
 ### PMS Endpoints
 
-| Method | Path                               | Permission  | Description            |
-|--------|-------------------------------------|------------|------------------------|
-| GET    | `/pms/branches`                     | PMS_READ   | List branches          |
-| POST   | `/pms/branches`                     | PMS_WRITE  | Create branch          |
-| GET    | `/pms/room-types`                   | PMS_READ   | List room types        |
-| POST   | `/pms/room-types`                   | PMS_WRITE  | Create room type       |
-| GET    | `/pms/rooms?branchId=`              | PMS_READ   | List rooms             |
-| POST   | `/pms/rooms`                        | PMS_WRITE  | Create room            |
-| GET    | `/pms/guests`                       | PMS_READ   | List guests            |
-| POST   | `/pms/guests`                       | PMS_WRITE  | Create guest           |
-| GET    | `/pms/reservations?branchId=`       | PMS_READ   | List reservations      |
-| POST   | `/pms/reservations`                 | PMS_WRITE  | Create reservation     |
-| GET    | `/pms/availability?branchId=&checkIn=&checkOut=` | PMS_READ | Check availability |
-| PATCH  | `/pms/reservations/:id/check-in`    | PMS_WRITE  | Check-in guest         |
-| PATCH  | `/pms/reservations/:id/check-out`   | PMS_WRITE  | Check-out guest        |
-| PATCH  | `/pms/reservations/:id/cancel`      | PMS_WRITE  | Cancel reservation     |
+See [pms-module.md](pms-module.md) for curl examples.
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET/POST | `/pms/branches` | PMS_READ/WRITE | List/create branches |
+| GET/POST | `/pms/room-types` | PMS_READ/WRITE | List/create room types |
+| PATCH | `/pms/room-types/:id` | PMS_WRITE | Update room type |
+| GET | `/pms/rooms?branchId=` | PMS_READ | List rooms |
+| GET | `/pms/rooms/:id` | PMS_READ | Get room |
+| POST | `/pms/rooms` | PMS_WRITE | Create room |
+| PATCH | `/pms/rooms/:id` | PMS_WRITE | Update room |
+| PATCH | `/pms/rooms/:id/status` | PMS_WRITE | Housekeeping status |
+| GET/POST | `/pms/guests` | PMS_READ/WRITE | List/create guests |
+| GET/PATCH/DELETE | `/pms/guests/:id` | PMS_READ/WRITE | Guest CRUD |
+| GET/POST | `/pms/reservations?branchId=` | PMS_READ/WRITE | List/create reservations |
+| GET/PATCH | `/pms/reservations/:id` | PMS_READ/WRITE | Get/update reservation |
+| PATCH | `/pms/reservations/:id/confirm` | PMS_WRITE | INQUIRY → CONFIRMED |
+| PATCH | `/pms/reservations/:id/payment` | PMS_WRITE | Set paidAmount |
+| GET | `/pms/availability` | PMS_READ | Available rooms for dates |
+| PATCH | `/pms/reservations/:id/check-in` | PMS_WRITE | Check-in |
+| PATCH | `/pms/reservations/:id/check-out` | PMS_WRITE | Check-out |
+| PATCH | `/pms/reservations/:id/cancel` | PMS_WRITE | Cancel |
 
 ### POS Endpoints
 

@@ -1,0 +1,34 @@
+{
+  "name": "@erp/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start",
+    "lint": "echo ok",
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@chakra-ui/react": "^3.19.1",
+    "@emotion/react": "^11.14.0",
+    "@erp/config": "workspace:*",
+    "@erp/types": "workspace:*",
+    "@erp/ui": "workspace:*",
+    "next": "^15.3.3",
+    "next-themes": "^0.4.6",
+    "@propelauth/nextjs": "^0.3.16",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "hospitality-erp",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @erp/api db:generate",
+    "db:migrate": "pnpm --filter @erp/api db:migrate",
+    "db:seed": "pnpm --filter @erp/api db:seed",
+    "db:push": "pnpm --filter @erp/api db:push"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

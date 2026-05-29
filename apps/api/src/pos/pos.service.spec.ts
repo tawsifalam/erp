@@ -258,6 +258,27 @@ describe("PosService", () => {
       );
       expect(result.status).toBe(OrderStatus.PREPARING);
     });
+
+    it("allows PREPARING to READY", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        ...draftOrder,
+        status: OrderStatus.PREPARING,
+      });
+      const updated = { id: "order-1", status: OrderStatus.READY };
+      mockPrisma.$transaction.mockImplementation(async (fn: Function) =>
+        fn({
+          order: { update: jest.fn().mockResolvedValue(updated) },
+          kitchenTicket: { updateMany: jest.fn() },
+        }),
+      );
+
+      const result = await service.updateOrderStatus(
+        "order-1",
+        "branch-1",
+        OrderStatus.READY,
+      );
+      expect(result.status).toBe(OrderStatus.READY);
+    });
   });
 
   describe("deleteCategory", () => {

@@ -27,4 +27,18 @@ test.describe("Kitchen display", () => {
     await expect(card.getByText("READY")).toBeVisible({ timeout: 5000 });
     await expect(card.getByText(/complete payment on POS/i)).toBeVisible();
   });
+
+  test("cancelled order disappears from kitchen queue", async ({ page }) => {
+    await page.goto("/pos/kitchen");
+    await expect(page.getByText(/Chicken Biryani/i)).toBeVisible();
+
+    await page.goto("/pos");
+    const row = page.getByRole("row").filter({ hasText: "T-3" });
+    await row.getByRole("button", { name: "Cancel" }).click();
+    await expect(row.getByText("CANCELLED")).toBeVisible({ timeout: 5000 });
+
+    await page.goto("/pos/kitchen");
+    await expect(page.getByText(/Chicken Biryani/i)).not.toBeVisible();
+    await expect(page.getByText(/No active kitchen tickets/i)).toBeVisible();
+  });
 });

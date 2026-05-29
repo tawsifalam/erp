@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Button, Flex, Heading, Link, Stack, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { getSocket, joinKitchen } from "@/lib/socket";
-import { useTenantHeaders } from "@/lib/tenant-context";
+import { useTenant, useTenantHeaders } from "@/lib/tenant-context";
+import { getBranchesForOrg } from "@/lib/tenant";
 import { apiFetch } from "@/lib/api-client";
 import { erpTheme, EmptyState } from "@erp/ui";
+import { TenantSelector } from "@/components/tenant-selector";
 import { shortId } from "@/lib/format";
 import type { Order } from "@/lib/pos-types";
 
@@ -17,18 +19,30 @@ type KitchenCard = {
   order?: Order;
 };
 
+const ACTIVE_STATUSES = ["SUBMITTED", "PREPARING", "READY"];
+
 export default function KitchenPage() {
-  const tenant = useTenantHeaders();
+  const tenant = useTenant();
+  const headers = useTenantHeaders();
   const [cards, setCards] = useState<KitchenCard[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const branchName = useMemo(() => {
+    if (!tenant.organizationId || !tenant.branchId) return null;
+    return getBranchesForOrg(tenant.memberships, tenant.organizationId).find(
+      (b) => b.id === tenant.branchId,
+    )?.name;
+  }, [tenant.organizationId, tenant.branchId, tenant.memberships]);
+
   const loadOrders = useCallback(() => {
-    if (!tenant.branchId) return;
-    apiFetch<Order[]>(`/pos/orders?branchId=${tenant.branchId}`, { tenant })
+    if (!headers.branchId) return;
+    apiFetch<Order[]>(`/pos/orders?branchId=${headers.branchId}`, { tenant: headers })
       .then((orders) => {
-        const active = orders.filter((o) =>
-          ["SUBMITTED", "PREPARING", "READY"].includes(o.status),
-        );
+        const active = orders
+          .filter((o) => ACTIVE_STATUSES.includes(o.status))
+          .sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
         setCards(
           active.map((o) => ({
             id: o.id,
@@ -39,15 +53,15 @@ export default function KitchenPage() {
         );
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load queue"));
-  }, [tenant.branchId, tenant.organizationId]);
+  }, [headers.branchId, headers.organizationId]);
 
   useEffect(loadOrders, [loadOrders]);
 
   useEffect(() => {
-    if (!tenant.branchId) return;
+    if (!headers.branchId) return;
     const socket = getSocket();
     if (!socket) return;
-    joinKitchen(tenant.branchId);
+    joinKitchen(headers.branchId);
     const refresh = () => loadOrders();
     socket.on("kitchen.ticket", refresh);
     socket.on("order.updated", refresh);
@@ -55,13 +69,13 @@ export default function KitchenPage() {
       socket.off("kitchen.ticket", refresh);
       socket.off("order.updated", refresh);
     };
-  }, [tenant.branchId, loadOrders]);
+  }, [headers.branchId, loadOrders]);
 
   const updateStatus = async (orderId: string, status: string) => {
     try {
-      await apiFetch(`/pos/orders/${orderId}/status?branchId=${tenant.branchId}`, {
+      await apiFetch(`/pos/orders/${orderId}/status?branchId=${headers.branchId}`, {
         method: "PATCH",
-        tenant,
+        tenant: headers,
         body: JSON.stringify({ status }),
       });
       loadOrders();
@@ -72,18 +86,34 @@ export default function KitchenPage() {
 
   return (
     <Box minH="100vh" bg={erpTheme.kitchen.bg} color={erpTheme.kitchen.text} p={6}>
-      <Flex justify="space-between" align="center" mb={6}>
-        <Heading size="xl" color={erpTheme.kitchen.accent}>
-          Kitchen Display
-        </Heading>
-        <Link asChild color={erpTheme.kitchen.accent}>
-          <NextLink href="/pos">← Back to POS</NextLink>
-        </Link>
+      <Flex justify="space-between" align="flex-start" mb={6} gap={4} wrap="wrap">
+        <Box>
+          <Heading size="xl" color={erpTheme.kitchen.accent}>
+            Kitchen Display
+          </Heading>
+          {branchName && (
+            <Text fontSize="sm" color="fg.muted" mt={1}>
+              {branchName}
+            </Text>
+          )}
+        </Box>
+        <Flex gap={4} align="center" wrap="wrap">
+          <TenantSelector />
+          <Link asChild color={erpTheme.kitchen.accent}>
+            <NextLink href="/pos">← Back to POS</NextLink>
+          </Link>
+        </Flex>
       </Flex>
 
       {error && (
         <Text color="red.300" mb={3} fontSize="sm">
           {error}
+        </Text>
+      )}
+
+      {!headers.branchId && (
+        <Text color="orange.200" mb={3} fontSize="sm">
+          Select a branch above to load the kitchen queue.
         </Text>
       )}
 

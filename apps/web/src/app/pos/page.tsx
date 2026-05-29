@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Tabs } from "@chakra-ui/react";
+import { Link, Tabs } from "@chakra-ui/react";
+import NextLink from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader } from "@erp/ui";
 import { useTenantHeaders } from "@/lib/tenant-context";
@@ -17,6 +18,11 @@ export default function PosPage() {
       <PageHeader
         title="Point of Sale"
         description="Cashier orders and branch menu for the selected property"
+        actions={
+          <Link asChild colorPalette="blue">
+            <NextLink href="/pos/kitchen">Kitchen display →</NextLink>
+          </Link>
+        }
       />
       <Tabs.Root value={tab} onValueChange={(d) => setTab(d.value)} variant="enclosed">
         <Tabs.List mb={4}>

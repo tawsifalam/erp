@@ -656,9 +656,9 @@ The POS module handles menu management, order lifecycle, kitchen ticket flow, an
 |-------|---------|
 | **`/pos` → Orders tab** | List orders (filter active/all/status); new order cart (table, notes, qty); submit to kitchen; complete & pay (full/partial); cancel; **delete** (DRAFT/CANCELLED only); link to Accounting journals |
 | **`/pos` → Menu tab** | CRUD categories and menu items; **active/inactive** toggle on items |
-| **`/pos/kitchen`** | Kitchen display: SUBMITTED → PREPARING → READY; Socket.IO live queue |
+| **`/pos/kitchen`** | Kitchen display (FIFO queue): SUBMITTED → PREPARING → READY; org/branch selector; Socket.IO live queue; link back to POS |
 
-Select **organization** and **branch** in the header before using POS.
+Select **organization** and **branch** in the header before using POS or the kitchen display.
 
 ### Step 1: List Menu Categories (with Items)
 
@@ -763,7 +763,39 @@ curl -s -X POST "$BASE/pos/orders/$ORDER_ID/submit" \
 3. Socket.IO emits `kitchen.ticket` to the `kitchen:<branchId>` room (kitchen display screen)
 4. Socket.IO emits `order.updated` to the same room
 
-### Step 4: Complete the Order (with Payment)
+### Step 4: Kitchen status updates
+
+Use the kitchen display (`/pos/kitchen`) or the API after submit. Kitchen steps are optional — you can complete payment directly from `SUBMITTED` (see [Step 6](#step-6-complete-the-order-with-payment)).
+
+```bash
+# Start prep
+curl -s -X PATCH "$BASE/pos/orders/$ORDER_ID/status?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"PREPARING"}' | jq
+
+# Mark ready for pickup
+curl -s -X PATCH "$BASE/pos/orders/$ORDER_ID/status?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"READY"}' | jq
+```
+
+**Allowed transitions:** `SUBMITTED` → `PREPARING` → `READY`. Each update syncs the `KitchenTicket` and emits `order.updated` to `kitchen:<branchId>`.
+
+### Step 5: Cancel an Order
+
+```bash
+curl -s -X POST "$BASE/pos/orders/$ORDER_ID/cancel?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Only **DRAFT** or **SUBMITTED** orders can be cancelled. Cancelled orders disappear from the kitchen queue (Socket.IO `order.updated`).
+
+### Step 6: Complete the Order (with Payment)
 
 ```bash
 curl -s -X POST "$BASE/pos/orders/$ORDER_ID/complete" \
@@ -774,35 +806,15 @@ curl -s -X POST "$BASE/pos/orders/$ORDER_ID/complete" \
   -d '{ "paidAmount": 860 }' | jq
 ```
 
+Allowed from **SUBMITTED**, **PREPARING**, or **READY** (kitchen prep steps are optional).
+
 **What happens:**
-1. Order status changes: `SUBMITTED` → `COMPLETED`
+1. Order status changes to `COMPLETED`
 2. Payment status set: `PAID` (if `paidAmount >= totalAmount`), `PARTIAL`, or `UNPAID`
 3. Event `order.completed` is emitted, which triggers:
    - **Inventory deduction** — recipe/BOM ingredients are deducted (see [Section 4](#4-inventory-management))
    - **Accounting entries** — revenue journal entry + COGS entry (see [Section 5](#5-accounting))
-4. Socket.IO emits `order.updated`
-
-### Step 5: Cancel an Order
-
-```bash
-curl -s -X POST "$BASE/pos/orders/$ORDER_ID/cancel?branchId=$BRANCH_ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" | jq
-```
-
-Only **DRAFT** or **SUBMITTED** orders can be cancelled.
-
-### Step 6: Kitchen status updates
-
-```bash
-curl -s -X PATCH "$BASE/pos/orders/$ORDER_ID/status?branchId=$BRANCH_ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Organization-Id: $ORG_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"status":"PREPARING"}' | jq
-```
-
-Allowed transitions: `SUBMITTED` → `PREPARING` → `READY`. Complete payment on POS when ready.
+4. Socket.IO emits `order.updated` (order leaves the kitchen queue)
 
 ### Step 7: Delete draft or cancelled order
 
@@ -824,15 +836,20 @@ Only **DRAFT** or **CANCELLED** orders can be deleted. **COMPLETED** orders are 
 
 ### Kitchen Ticket Flow
 
-When an order is submitted, a `KitchenTicket` is created and broadcast via Socket.IO. The kitchen display (frontend) listens for `kitchen.ticket` events and renders them in real-time.
+When an order is submitted, a `KitchenTicket` is created and broadcast via Socket.IO. The kitchen display (`/pos/kitchen`) listens for `kitchen.ticket` and `order.updated` events and renders the FIFO queue in real-time.
 
 ```
 Order Submitted
   → KitchenTicket created (status: SUBMITTED)
   → Socket.IO emits to kitchen:<branchId>
-  → Kitchen screen displays new ticket
-  → Staff marks items as prepared
-  → Order completed
+  → Kitchen screen displays new ticket (oldest first)
+  → Staff: Start prep (PREPARING) → Mark ready (READY)
+  → Cashier completes payment on POS (COMPLETED)
+  → Order drops off kitchen queue
+
+Cancel (SUBMITTED only)
+  → KitchenTicket → CANCELLED
+  → order.updated → ticket removed from kitchen screen
 ```
 
 ---
@@ -1442,10 +1459,12 @@ Waiter submits to kitchen (SUBMITTED)
   └──► Socket.IO → kitchen.ticket (kitchen screen updates)
   │
   ▼
-Kitchen prepares food
+Kitchen: Start prep (PREPARING) → Mark ready (READY)
+  │
+  └──► Socket.IO → order.updated (kitchen screen updates)
   │
   ▼
-Waiter completes order (COMPLETED, paidAmount)
+Waiter completes order on POS (COMPLETED, paidAmount)
   │
   ├──► Event: order.completed
   │     │
@@ -1523,6 +1542,11 @@ pnpm test
 ```bash
 # Run E2E tests for the web app
 cd apps/web && pnpm test:e2e
+
+# Module-specific suites
+pnpm --filter @erp/web test:e2e pos      # orders, menu, lifecycle
+pnpm --filter @erp/web test:e2e kitchen  # kitchen display, prep → ready, cancel queue
+pnpm --filter @erp/web test:e2e inventory
 ```
 
 ### Test Coverage
@@ -1538,6 +1562,8 @@ pnpm test -- --coverage
 | Unit          | Jest            | Services, guards, pipes, event listeners |
 | Integration   | Jest + Prisma   | Database operations, transactions        |
 | E2E           | Playwright      | Full user workflows via the browser      |
+
+Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`.
 
 ---
 

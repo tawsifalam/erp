@@ -28,10 +28,16 @@ Select **organization** and **branch** in the header first.
 
 ### `/pos/kitchen` (Kitchen display)
 
-- Shows SUBMITTED / PREPARING / READY orders
-- **Start prep** (SUBMITTED → PREPARING), **Mark ready** (PREPARING → READY)
-- Live refresh on `kitchen.ticket` and `order.updated` via Socket.IO
-- Complete payment on POS after READY
+Full-screen kitchen queue (also linked from **POS → Kitchen display** and the sidebar **Kitchen** nav).
+
+| Feature | Detail |
+|---------|--------|
+| **Branch** | Uses the selected branch from the header tenant selector (same as POS). Change org/branch on this page without returning to POS. |
+| **Queue** | SUBMITTED / PREPARING / READY orders only; oldest first (FIFO). COMPLETED and CANCELLED orders drop off automatically. |
+| **Actions** | **Start prep** (SUBMITTED → PREPARING), **Mark ready** (PREPARING → READY) |
+| **Realtime** | Refreshes on `kitchen.ticket` and `order.updated` via Socket.IO; manual **Refresh queue** button |
+| **Payment** | Complete & pay on **POS** (`/pos`) when ready — kitchen does not take payment |
+| **Cancel** | Cashier cancels SUBMITTED orders on POS; kitchen queue updates via `order.updated` |
 
 ## Order lifecycle
 
@@ -132,6 +138,12 @@ curl -s -X PATCH "$BASE/pos/orders/$ORDER_ID/status?branchId=$BRANCH_ID" \
   -H "Content-Type: application/json" \
   -d '{"status":"PREPARING"}' | jq
 
+curl -s -X PATCH "$BASE/pos/orders/$ORDER_ID/status?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"READY"}' | jq
+
 curl -s -X POST "$BASE/pos/orders/$ORDER_ID/complete?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
@@ -193,7 +205,7 @@ pnpm --filter @erp/web test:e2e pos
 pnpm --filter @erp/web test:e2e kitchen
 ```
 
-E2E coverage includes order lifecycle, partial payment, cancel, delete, menu category create, and kitchen prep flow (`e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`).
+E2E coverage includes order lifecycle, partial payment, cancel, delete, menu category create, and kitchen prep/cancel queue flow (`e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`).
 
 Recipe/BOM editing is on **Inventory → Recipes (BOM)** tab (`/inventory`).
 

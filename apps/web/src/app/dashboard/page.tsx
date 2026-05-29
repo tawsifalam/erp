@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, SimpleGrid, Stat, Text } from "@chakra-ui/react";
+import { Box, SimpleGrid, Stack, Stat, Text } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader, LoadingState } from "@erp/ui";
@@ -14,6 +14,13 @@ type Dashboard = {
   activeReservations: number;
   revenueToday: number;
   lowStockAlerts: number;
+  lowStockItems: {
+    sku: string;
+    name: string;
+    unit: string;
+    currentStock: number;
+    lowStockThreshold: number;
+  }[];
 };
 
 export default function DashboardPage() {
@@ -32,7 +39,7 @@ export default function DashboardPage() {
   }, [authLoading, synced]);
 
   useEffect(() => {
-    if (!tenant.organizationId) return;
+    if (!tenant.organizationId || !tenant.branchId) return;
     setLoading(true);
     setError(null);
     apiFetch<Dashboard>("/reporting/dashboard", { tenant })
@@ -44,6 +51,11 @@ export default function DashboardPage() {
   return (
     <DashboardShell title="Dashboard">
       <PageHeader title="Overview" description="Today's property metrics" />
+      {!tenant.branchId && tenant.organizationId && (
+        <Text mb={3} fontSize="sm" color="orange.600">
+          Select a branch in the header to load branch metrics.
+        </Text>
+      )}
       {loading && <LoadingState />}
       {error && (
         <Text color="red.500" mb={4}>
@@ -60,14 +72,31 @@ export default function DashboardPage() {
           <Stat.ValueText>{data?.activeReservations ?? "—"}</Stat.ValueText>
         </Stat.Root>
         <Stat.Root>
-          <Stat.Label>Revenue today</Stat.Label>
-          <Stat.ValueText>${data?.revenueToday?.toFixed(2) ?? "—"}</Stat.ValueText>
+          <Stat.Label>Revenue today (POS)</Stat.Label>
+          <Stat.ValueText>{data?.revenueToday?.toFixed(2) ?? "—"}</Stat.ValueText>
         </Stat.Root>
         <Stat.Root>
           <Stat.Label>Low stock alerts</Stat.Label>
           <Stat.ValueText>{data?.lowStockAlerts ?? "—"}</Stat.ValueText>
         </Stat.Root>
       </SimpleGrid>
+
+      {data && data.lowStockItems.length > 0 && (
+        <Box mt={6} bg="white" borderRadius="md" p={4}>
+          <Text fontWeight="semibold" mb={2}>
+            Low stock items
+          </Text>
+          <Stack gap={1} fontSize="sm">
+            {data.lowStockItems.map((i) => (
+              <Text key={i.sku}>
+                {i.name} ({i.sku}): {i.currentStock.toFixed(2)} {i.unit} — threshold{" "}
+                {i.lowStockThreshold}
+              </Text>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
       {!tenant.organizationId && (
         <Text mt={4} color="fg.muted">
           Sign in and select an organization to load metrics.

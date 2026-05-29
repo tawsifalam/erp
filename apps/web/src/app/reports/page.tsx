@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { Box, Button, Flex, Table, Text } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
+import { Box, Button, Flex, NativeSelect, Table, Text } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -14,28 +14,39 @@ type ReportJob = {
   type: string;
   status: string;
   fileUrl?: string | null;
+  errorMessage?: string | null;
   createdAt: string;
   completedAt?: string | null;
 };
 
+type ReportType = {
+  code: string;
+  label: string;
+  requiresBranch: boolean;
+};
+
 export default function ReportsPage() {
   const tenant = useTenantHeaders();
+  const [exportType, setExportType] = useState("branch_summary");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const typesQuery = useAsync(
+    () => apiFetch<ReportType[]>("/reporting/types", { tenant }),
+    [tenant.organizationId],
+  );
 
   const jobsQuery = useAsync(
     () => apiFetch<ReportJob[]>("/reporting/jobs", { tenant }),
     [tenant.organizationId],
   );
 
-  const exportCsv = async () => {
-    await apiFetch<{ id: string }>("/reporting/export", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({ type: "summary" }),
-    });
-    jobsQuery.reload();
-  };
+  useEffect(() => {
+    if (typesQuery.data?.length && !typesQuery.data.find((t) => t.code === exportType)) {
+      setExportType(typesQuery.data[0].code);
+    }
+  }, [typesQuery.data, exportType]);
 
-  // Poll while any job is pending/processing
   useEffect(() => {
     const jobs = jobsQuery.data ?? [];
     const pending = jobs.some((j) => j.status === "PENDING" || j.status === "PROCESSING");
@@ -44,15 +55,56 @@ export default function ReportsPage() {
     return () => clearInterval(t);
   }, [jobsQuery.data, jobsQuery.reload]);
 
+  const exportCsv = async () => {
+    if (!tenant.branchId) {
+      setError("Select a branch in the header to export branch reports.");
+      return;
+    }
+    setError(null);
+    try {
+      await apiFetch<{ id: string }>("/reporting/export", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({ type: exportType, branchId: tenant.branchId }),
+      });
+      setMessage("Export queued — refresh or wait for completion");
+      jobsQuery.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Export failed");
+    }
+  };
+
   const jobs = jobsQuery.data ?? [];
+  const types = typesQuery.data ?? [];
 
   return (
     <DashboardShell title="Reports">
       <PageHeader title="Reports & exports" description="Async CSV exports via background jobs" />
 
-      <Flex gap={2} mb={4}>
+      {!tenant.branchId && (
+        <Text mb={3} fontSize="sm" color="orange.600">
+          Select a branch in the header to run branch-scoped exports.
+        </Text>
+      )}
+
+      {error && (
+        <Text color="red.500" mb={2} fontSize="sm">
+          {error}
+        </Text>
+      )}
+
+      <Flex gap={2} mb={4} wrap="wrap" align="center">
+        <NativeSelect.Root size="sm" w="220px">
+          <NativeSelect.Field value={exportType} onChange={(e) => setExportType(e.target.value)}>
+            {types.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.label}
+              </option>
+            ))}
+          </NativeSelect.Field>
+        </NativeSelect.Root>
         <Button size="sm" colorPalette="blue" onClick={exportCsv}>
-          Export summary CSV
+          Export CSV
         </Button>
         <Button size="sm" variant="outline" onClick={() => jobsQuery.reload()}>
           Refresh
@@ -80,7 +132,14 @@ export default function ReportsPage() {
             {jobs.map((j) => (
               <Table.Row key={j.id}>
                 <Table.Cell>{j.type}</Table.Cell>
-                <Table.Cell>{j.status}</Table.Cell>
+                <Table.Cell>
+                  {j.status}
+                  {j.status === "FAILED" && j.errorMessage && (
+                    <Text fontSize="xs" color="red.500">
+                      {j.errorMessage}
+                    </Text>
+                  )}
+                </Table.Cell>
                 <Table.Cell>{formatDateTime(j.createdAt)}</Table.Cell>
                 <Table.Cell>
                   {j.fileUrl ? (
@@ -96,9 +155,15 @@ export default function ReportsPage() {
           </Table.Body>
         </Table.Root>
         {!jobsQuery.loading && jobs.length === 0 && (
-          <EmptyState message="No report jobs yet. Export a summary to get started." />
+          <EmptyState message="No report jobs yet. Export a report to get started." />
         )}
       </Box>
+
+      {message && (
+        <Text mt={4} fontSize="sm" color="green.600">
+          {message}
+        </Text>
+      )}
     </DashboardShell>
   );
 }

@@ -2,12 +2,14 @@ import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { Job } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { ReportGeneratorsService } from "./report-generators.service";
 
 @Processor("reports")
 export class ReportsProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly generators: ReportGeneratorsService,
   ) {
     super();
   }
@@ -18,20 +20,42 @@ export class ReportsProcessor extends WorkerHost {
     });
     if (!reportJob) return;
 
-    const csv = `type,organizationId\n${reportJob.type},${reportJob.organizationId}\n`;
-    const result = await this.storage.upload(
-      `reports/${reportJob.id}.csv`,
-      Buffer.from(csv),
-      "text/csv",
-    );
-
     await this.prisma.reportJob.update({
       where: { id: reportJob.id },
-      data: {
-        status: "COMPLETED",
-        fileUrl: result.url ?? result.key,
-        completedAt: new Date(),
-      },
+      data: { status: "PROCESSING", errorMessage: null },
     });
+
+    try {
+      if (!reportJob.branchId) {
+        throw new Error("Report job missing branchId");
+      }
+
+      const csv = await this.generators.generate(reportJob.type, reportJob.branchId);
+      const result = await this.storage.upload(
+        `reports/${reportJob.id}.csv`,
+        Buffer.from(csv),
+        "text/csv",
+      );
+
+      await this.prisma.reportJob.update({
+        where: { id: reportJob.id },
+        data: {
+          status: "COMPLETED",
+          fileUrl: result.url ?? result.key,
+          completedAt: new Date(),
+          errorMessage: null,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Report generation failed";
+      await this.prisma.reportJob.update({
+        where: { id: reportJob.id },
+        data: {
+          status: "FAILED",
+          errorMessage: message,
+          completedAt: new Date(),
+        },
+      });
+    }
   }
 }

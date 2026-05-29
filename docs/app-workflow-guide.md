@@ -1432,11 +1432,20 @@ curl -s "$BASE/reporting/dashboard?branchId=$BRANCH_ID" \
 
 | Metric              | How It's Calculated                                                                 |
 |---------------------|-------------------------------------------------------------------------------------|
-| `occupancyPct`      | (reservations with status CHECKED_IN or CONFIRMED) / (total rooms) × 100           |
-| `activeReservations`| Count of reservations with status `CHECKED_IN` or `CONFIRMED`                      |
-| `revenueToday`      | Sum of `totalAmount` for COMPLETED orders created today                             |
-| `lowStockAlerts`    | Count of items where `currentStock <= lowStockThreshold`                            |
+| `occupancyPct`      | Rooms with status `OCCUPIED` ÷ total rooms in branch × 100                          |
+| `activeReservations`| Count of reservations with status `INQUIRY`, `CONFIRMED`, or `CHECKED_IN`          |
+| `revenueToday`      | Sum of `totalAmount` for COMPLETED POS orders created today                           |
+| `lowStockAlerts`    | Count of items (all pools) where `currentStock <= lowStockThreshold`                  |
 | `lowStockItems`     | Array of inventory items below their threshold                                      |
+
+> **Full reference:** [docs/reporting-module.md](reporting-module.md) — dashboard, export types, job lifecycle, and testing.
+
+### Web UI
+
+| Page | Features |
+|------|----------|
+| `/dashboard` | Branch metrics + low-stock item list |
+| `/reports` | Report type picker, async CSV export, job status table |
 
 ### Request a Report Export
 
@@ -1444,16 +1453,19 @@ curl -s "$BASE/reporting/dashboard?branchId=$BRANCH_ID" \
 curl -s -X POST "$BASE/reporting/export" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
   -H "Content-Type: application/json" \
-  -d '{ "type": "revenue_summary" }' | jq
+  -d '{ "type": "branch_summary", "branchId": "'$BRANCH_ID'" }' | jq
 ```
+
+**Report types:** `branch_summary`, `low_stock`, `revenue_today` (alias: `summary` → `branch_summary`). List via `GET /reporting/types`.
 
 **Expected response:**
 ```json
 {
   "id": "report-job-uuid",
   "organizationId": "00000000-0000-0000-0000-000000000100",
-  "type": "revenue_summary",
+  "type": "branch_summary",
   "status": "PENDING",
   "createdAt": "2026-05-29T..."
 }
@@ -1647,6 +1659,8 @@ pnpm --filter @erp/web test:e2e kitchen  # kitchen display, prep → ready, canc
 pnpm --filter @erp/web test:e2e inventory
 pnpm --filter @erp/web test:e2e accounting
 pnpm --filter @erp/web test:e2e hr
+pnpm --filter @erp/web test:e2e reports
+pnpm --filter @erp/web test:e2e dashboard
 ```
 
 ### Test Coverage
@@ -1663,7 +1677,7 @@ pnpm test -- --coverage
 | Integration   | Jest + Prisma   | Database operations, transactions        |
 | E2E           | Playwright      | Full user workflows via the browser      |
 
-Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`, `e2e/hr.spec.ts`.
+Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`, `e2e/hr.spec.ts`, `e2e/reports.spec.ts`, `e2e/dashboard.spec.ts`.
 
 ---
 
@@ -1767,5 +1781,6 @@ See [accounting-module.md](accounting-module.md) for curl examples.
 | Method | Path                                | Permission    | Description            |
 |--------|--------------------------------------|--------------|------------------------|
 | GET    | `/reporting/dashboard?branchId=`     | REPORTS_READ | Dashboard metrics      |
+| GET    | `/reporting/types`                   | REPORTS_READ | Export type catalog    |
 | POST   | `/reporting/export`                  | REPORTS_READ | Request report export  |
 | GET    | `/reporting/jobs`                    | REPORTS_READ | List report jobs       |

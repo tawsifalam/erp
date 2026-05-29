@@ -140,6 +140,7 @@ model Branch {
   employees      Employee[]
   staffMealRecipes StaffMealRecipe[]
   staffMeals     StaffMeal[]
+  reportJobs     ReportJob[]
 }
 
 model RoomType {
@@ -474,9 +475,13 @@ model AuditLog {
 model ReportJob {
   id             String   @id @default(uuid())
   organizationId String
+  branchId       String?
   type           String
   status         String   @default("PENDING")
   fileUrl        String?
+  errorMessage   String?
   createdAt      DateTime @default(now())
   completedAt    DateTime?
+
+  branch Branch? @relation(fields: [branchId], references: [id])
 }

@@ -17,7 +17,7 @@ test.describe("Dashboard", () => {
 
     await expect(page.getByText("Occupancy")).toBeVisible();
     await expect(page.getByText("Active reservations")).toBeVisible();
-    await expect(page.getByText("Revenue today")).toBeVisible();
+    await expect(page.getByText("Revenue today (POS)")).toBeVisible();
     await expect(page.getByText("Low stock alerts")).toBeVisible();
 
     await expect(page.getByText("72%")).toBeVisible();

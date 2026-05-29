@@ -36,6 +36,11 @@ import {
   handleHrMutation,
   resetHrState,
 } from "./hr-state";
+import {
+  getReportJobs,
+  handleReportingMutation,
+  resetReportingState,
+} from "./reporting-state";
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -218,16 +223,7 @@ export const MOCK_PAYROLL_RUNS = [
   },
 ];
 
-export const MOCK_REPORT_JOBS = [
-  {
-    id: "rpt_001",
-    type: "summary",
-    status: "COMPLETED",
-    fileUrl: "https://example.com/report.csv",
-    createdAt: "2026-05-28T14:00:00Z",
-    completedAt: "2026-05-28T14:01:00Z",
-  },
-];
+export const MOCK_REPORT_JOBS = getReportJobs();
 
 /** In-memory recipe store for E2E mocks */
 const mockRecipes: Record<
@@ -253,6 +249,7 @@ export async function mockApiRoutes(page: Page) {
   resetInventoryState();
   resetAccountingState();
   resetHrState();
+  resetReportingState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -493,11 +490,19 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/reporting/jobs**", (route) =>
-    fulfillJson(route, MOCK_REPORT_JOBS),
-  );
+  await page.route("**/localhost:3001/api/reporting/types**", async (route) => {
+    const result = handleReportingMutation(route.request().method(), route.request().url(), null);
+    return fulfillJson(route, result);
+  });
 
-  await page.route("**/localhost:3001/api/reporting/export**", (route) =>
-    fulfillJson(route, { id: "rpt_new" }),
-  );
+  await page.route("**/localhost:3001/api/reporting/jobs**", async (route) => {
+    const result = handleReportingMutation(route.request().method(), route.request().url(), null);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/reporting/export**", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleReportingMutation(route.request().method(), route.request().url(), body);
+    return fulfillJson(route, result);
+  });
 }

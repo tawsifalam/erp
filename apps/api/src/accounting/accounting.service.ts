@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { roundMoney } from "@erp/utils";
+import { roundMoney, generatePrefixedId } from "@erp/utils";
 
 @Injectable()
 export class AccountingService {
@@ -65,6 +65,7 @@ export class AccountingService {
         referenceId: params.referenceId,
         lines: {
           create: params.lines.map((l) => ({
+            id: generatePrefixedId("jl"),
             accountId: l.accountId,
             debit: l.debit,
             credit: l.credit,

@@ -1,0 +1,1333 @@
+# Hospitality ERP — Application Workflow Guide
+
+> A step-by-step walkthrough of every module in the Hospitality ERP, complete with curl examples using seed data.
+
+---
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [1. Authentication & Tenant Selection](#1-authentication--tenant-selection)
+- [2. Property Management System (PMS)](#2-property-management-system-pms)
+- [3. Point of Sale (POS)](#3-point-of-sale-pos)
+- [4. Inventory Management](#4-inventory-management)
+- [5. Accounting](#5-accounting)
+- [6. HR & Payroll](#6-hr--payroll)
+- [7. Reporting & Dashboard](#7-reporting--dashboard)
+- [8. Event-Driven Architecture](#8-event-driven-architecture)
+- [9. Realtime (Socket.IO)](#9-realtime-socketio)
+- [10. Testing](#10-testing)
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm 8+
+- PostgreSQL 15+
+- Redis 7+
+- Docker (optional, for infra services)
+
+### Run the Application
+
+```bash
+# 1. Install dependencies
+pnpm install
+
+# 2. Start infrastructure (Postgres + Redis)
+docker compose up -d postgres redis
+
+# 3. Run database migrations
+cd apps/api && pnpm prisma migrate dev
+
+# 4. Seed the database with demo data
+pnpm prisma db seed
+
+# 5. Start the dev servers (from repo root)
+cd ../..
+pnpm dev
+```
+
+### Default URLs
+
+| Service  | URL                     |
+|----------|-------------------------|
+| Frontend | http://localhost:3000    |
+| Backend  | http://localhost:3001    |
+| API docs | http://localhost:3001/api|
+
+### Seed Data Overview
+
+The seed script creates a fully functional demo environment:
+
+| Entity          | Count | Notes                                     |
+|-----------------|------:|-------------------------------------------|
+| Organization    |     1 | Boulevard Hospitality Group               |
+| Branches        |     2 | Main Hotel & Restaurant, Boulevard Café   |
+| Admin User      |     1 | admin@boulevard.cafe                      |
+| Room Types      |     2 | Standard Double, Deluxe Suite             |
+| Rooms           |     7 | 4 Standard (101-104), 3 Deluxe (201-203) |
+| Guests          |     5 | Rahim, Fatima, John, Maria, Chen          |
+| Reservations    |     5 | Various statuses                          |
+| Accounts (CoA)  |    14 | Full chart of accounts                    |
+| Menu Categories |     3 | Breakfast, Mains, Beverages               |
+| Menu Items      |    10 | Biryani, Fish, Tea, Coffee, etc.          |
+| Inventory Items |    12 | Rice, Chicken, Oil, Eggs, etc.            |
+| Recipes (BOM)   |     8 | Linked to menu items                      |
+| Employees       |     5 | Chef, Front Desk, Waiter, etc.            |
+
+#### Key Seed IDs
+
+```
+Organization:  00000000-0000-0000-0000-000000000100  (Boulevard Hospitality Group)
+Main Branch:   00000000-0000-0000-0000-000000000001  (Main Hotel & Restaurant)
+Café Branch:   00000000-0000-0000-0000-000000000002  (Boulevard Café)
+Admin User:    00000000-0000-0000-0000-000000000200  (admin@boulevard.cafe)
+
+Room Types:
+  Standard:    00000000-0000-0000-0000-000000000010
+  Deluxe:      00000000-0000-0000-0000-000000000011
+
+Guests:
+  Rahim Ahmed: 00000000-0000-0000-0000-000000000301
+  Fatima Khan: 00000000-0000-0000-0000-000000000302
+  John Smith:  00000000-0000-0000-0000-000000000303
+  Maria Garcia:00000000-0000-0000-0000-000000000304
+  Chen Wei:    00000000-0000-0000-0000-000000000305
+
+Employees:
+  Karim Hossain (Head Chef):           00000000-0000-0000-0000-000000000401
+  Nasreen Begum (Front Desk Manager):  00000000-0000-0000-0000-000000000402
+  Rashid Islam (Waiter):               00000000-0000-0000-0000-000000000403
+  Ayesha Rahman (Housekeeper):         00000000-0000-0000-0000-000000000404
+  Tanvir Alam (Accountant):            00000000-0000-0000-0000-000000000405
+```
+
+---
+
+## Curl Setup (Use for All Examples)
+
+Every curl example in this guide assumes these shell variables are set:
+
+```bash
+# Set these variables before running any curl commands
+TOKEN="your-propelauth-access-token"
+ORG_ID="00000000-0000-0000-0000-000000000100"
+BRANCH_ID="00000000-0000-0000-0000-000000000001"
+BASE="http://localhost:3001"
+```
+
+---
+
+## 1. Authentication & Tenant Selection
+
+### How Login Works
+
+The application uses [PropelAuth](https://www.propelauth.com/) for authentication. The flow is:
+
+```
+User clicks "Login"
+  → Redirected to PropelAuth hosted login page
+  → User enters credentials
+  → PropelAuth redirects back to /api/auth/callback
+  → Next.js stores the session
+  → User lands on /dashboard
+```
+
+**Frontend** (`apps/web`): Uses `@propelauth/nextjs` with the `AuthProvider` wrapper. Login is triggered by navigating to `/api/auth/login`.
+
+**Backend** (`apps/api`): Uses `@propelauth/node` to validate the `Authorization: Bearer <token>` header on every request via `JwtAuthGuard`.
+
+### How Tenant Context Is Set
+
+After authentication, the frontend must send two additional headers to identify which organization and branch the user is operating in:
+
+| Header              | Description                                      | Required |
+|---------------------|--------------------------------------------------|----------|
+| `Authorization`     | `Bearer <propelauth-access-token>`               | Yes      |
+| `X-Organization-Id` | The UUID of the organization                     | Yes      |
+| `X-Branch-Id`       | The UUID of the branch (optional for some calls) | No*      |
+
+*Many endpoints accept `branchId` as a query parameter instead, falling back to the header value.
+
+The `TenantGuard` in the backend:
+1. Extracts `X-Organization-Id` from the request header
+2. Looks up the user's membership in that organization
+3. If the user is a member, attaches a `TenantContext` to the request containing `organizationId`, `branchId`, `userId`, and `role`
+4. If the user is not a member, returns `403 Forbidden`
+
+### Permissions
+
+Each endpoint is protected by a `PermissionGuard` with specific permissions like `PMS_READ`, `PMS_WRITE`, `POS_READ`, etc. The OWNER role (assigned to the seed admin) has all permissions.
+
+---
+
+## 2. Property Management System (PMS)
+
+The PMS module handles branches, rooms, room types, guests, and the full reservation lifecycle.
+
+### Step 1: List Branches
+
+```bash
+curl -s "$BASE/pms/branches" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Expected response:**
+```json
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "organizationId": "00000000-0000-0000-0000-000000000100",
+    "name": "Main Hotel & Restaurant",
+    "timezone": "Asia/Dhaka"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "organizationId": "00000000-0000-0000-0000-000000000100",
+    "name": "Boulevard Café",
+    "timezone": "Asia/Dhaka"
+  }
+]
+```
+
+### Step 2: List Room Types
+
+```bash
+curl -s "$BASE/pms/room-types" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Expected response:**
+```json
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000010",
+    "organizationId": "00000000-0000-0000-0000-000000000100",
+    "name": "Standard Double",
+    "maxAdults": 2,
+    "maxChildren": 1
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000011",
+    "organizationId": "00000000-0000-0000-0000-000000000100",
+    "name": "Deluxe Suite",
+    "maxAdults": 3,
+    "maxChildren": 2
+  }
+]
+```
+
+### Step 3: List Rooms for a Branch
+
+```bash
+curl -s "$BASE/pms/rooms?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**Expected response (abridged):**
+```json
+[
+  {
+    "id": "...",
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "roomNumber": "101",
+    "status": "OCCUPIED",
+    "basePrice": "3500",
+    "roomType": { "name": "Standard Double", "maxAdults": 2, "maxChildren": 1 }
+  },
+  {
+    "id": "...",
+    "roomNumber": "102",
+    "status": "VACANT",
+    "basePrice": "3500",
+    "roomType": { "name": "Standard Double" }
+  },
+  {
+    "id": "...",
+    "roomNumber": "201",
+    "status": "VACANT",
+    "basePrice": "6000",
+    "roomType": { "name": "Deluxe Suite" }
+  }
+]
+```
+
+### Step 4: Create a Guest
+
+```bash
+curl -s -X POST "$BASE/pms/guests" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Tanvir Hasan",
+    "phone": "+8801712345678",
+    "email": "tanvir@example.com"
+  }' | jq
+```
+
+**Expected response:**
+```json
+{
+  "id": "a1b2c3d4-...",
+  "organizationId": "00000000-0000-0000-0000-000000000100",
+  "fullName": "Tanvir Hasan",
+  "phone": "+8801712345678",
+  "email": "tanvir@example.com"
+}
+```
+
+### Step 5: Check Room Availability
+
+```bash
+curl -s "$BASE/pms/availability?branchId=$BRANCH_ID&checkIn=2026-06-01&checkOut=2026-06-03" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**Expected response:** An array of available rooms for those dates.
+
+```json
+[
+  {
+    "id": "room-uuid-102",
+    "roomNumber": "102",
+    "status": "VACANT",
+    "basePrice": "3500",
+    "roomType": { "name": "Standard Double" }
+  },
+  {
+    "id": "room-uuid-201",
+    "roomNumber": "201",
+    "basePrice": "6000",
+    "roomType": { "name": "Deluxe Suite" }
+  }
+]
+```
+
+### Step 6: Create a Reservation
+
+Use the guest ID from Step 4 and a room ID from Step 5:
+
+```bash
+GUEST_ID="00000000-0000-0000-0000-000000000301"   # Rahim Ahmed (seed)
+ROOM_ID="<room-uuid-from-availability>"
+
+curl -s -X POST "$BASE/pms/reservations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"branchId\": \"$BRANCH_ID\",
+    \"guestId\": \"$GUEST_ID\",
+    \"roomId\": \"$ROOM_ID\",
+    \"checkIn\": \"2026-06-01T14:00:00Z\",
+    \"checkOut\": \"2026-06-03T11:00:00Z\",
+    \"totalAmount\": 7000
+  }" | jq
+```
+
+**Expected response:**
+```json
+{
+  "id": "new-reservation-uuid",
+  "branchId": "00000000-0000-0000-0000-000000000001",
+  "guestId": "00000000-0000-0000-0000-000000000301",
+  "roomId": "room-uuid",
+  "checkIn": "2026-06-01T14:00:00.000Z",
+  "checkOut": "2026-06-03T11:00:00.000Z",
+  "totalAmount": "7000",
+  "status": "CONFIRMED",
+  "guest": { "fullName": "Rahim Ahmed" },
+  "room": { "roomNumber": "102" }
+}
+```
+
+### Step 7: Check-In
+
+```bash
+RESERVATION_ID="<reservation-uuid>"
+
+curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/check-in" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**What happens:**
+1. Reservation status changes: `CONFIRMED` → `CHECKED_IN`
+2. Room status changes: `VACANT` → `OCCUPIED`
+3. Event `reservation.checked_in` is emitted
+4. Socket.IO broadcasts `room.status` to `branch:<branchId>` room
+
+### Step 8: Check-Out
+
+```bash
+curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/check-out" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**What happens:**
+1. Reservation status changes: `CHECKED_IN` → `CHECKED_OUT`
+2. Room status changes: `OCCUPIED` → `DIRTY`
+3. Socket.IO broadcasts `room.status` update
+
+### Step 9: Cancel a Reservation
+
+```bash
+curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID/cancel" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**What happens:** Reservation status changes to `CANCELLED`.
+
+### Room Status State Machine
+
+```
+                  ┌──────────────────┐
+                  │                  │
+                  ▼                  │
+ ┌─────────┐  check-in   ┌──────────┴──┐  check-out   ┌─────────┐
+ │  VACANT  │ ──────────► │  OCCUPIED   │ ───────────► │  DIRTY  │
+ └─────────┘              └─────────────┘              └────┬────┘
+      ▲                                                     │
+      │                  housekeeping                       │
+      └─────────────────────────────────────────────────────┘
+```
+
+**Reservation statuses:** `INQUIRY` → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT` (or `CANCELLED` at any point)
+
+---
+
+## 3. Point of Sale (POS)
+
+The POS module handles menu management, order lifecycle, kitchen ticket flow, and payment.
+
+### Step 1: List Menu Categories (with Items)
+
+```bash
+curl -s "$BASE/pos/menu/categories?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**Expected response (abridged):**
+```json
+[
+  {
+    "id": "cat-breakfast-uuid",
+    "name": "Breakfast",
+    "sortOrder": 1,
+    "items": [
+      { "id": "mi-paratha-uuid", "name": "Paratha & Egg", "price": "120" },
+      { "id": "mi-toast-uuid", "name": "Toast & Butter", "price": "80" },
+      { "id": "mi-omelette-uuid", "name": "Omelette", "price": "100" }
+    ]
+  },
+  {
+    "id": "cat-mains-uuid",
+    "name": "Mains",
+    "sortOrder": 2,
+    "items": [
+      { "id": "mi-biryani-uuid", "name": "Chicken Biryani", "price": "320" },
+      { "id": "mi-fish-uuid", "name": "Grilled Fish", "price": "450" },
+      { "id": "mi-sandwich-uuid", "name": "Club Sandwich", "price": "250" },
+      { "id": "mi-beef-uuid", "name": "Beef Curry with Rice", "price": "350" }
+    ]
+  },
+  {
+    "id": "cat-beverages-uuid",
+    "name": "Beverages",
+    "sortOrder": 3,
+    "items": [
+      { "id": "mi-juice-uuid", "name": "Fresh Juice", "price": "120" },
+      { "id": "mi-tea-uuid", "name": "Tea", "price": "50" },
+      { "id": "mi-coffee-uuid", "name": "Coffee", "price": "100" }
+    ]
+  }
+]
+```
+
+### Step 2: Create an Order
+
+Use menu item IDs from Step 1. An order starts in `DRAFT` status.
+
+```bash
+curl -s -X POST "$BASE/pos/orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "tableNumber": "T7",
+    "notes": "Guest allergic to nuts",
+    "lines": [
+      { "menuItemId": "<mi-biryani-uuid>", "quantity": 2, "unitPrice": 320 },
+      { "menuItemId": "<mi-juice-uuid>", "quantity": 1, "unitPrice": 120 },
+      { "menuItemId": "<mi-tea-uuid>", "quantity": 2, "unitPrice": 50 }
+    ]
+  }' | jq
+```
+
+**Expected response:**
+```json
+{
+  "id": "new-order-uuid",
+  "branchId": "00000000-0000-0000-0000-000000000001",
+  "tableNumber": "T7",
+  "notes": "Guest allergic to nuts",
+  "status": "DRAFT",
+  "totalAmount": "860",
+  "paidAmount": "0",
+  "lines": [
+    { "menuItemId": "...", "quantity": 2, "unitPrice": "320", "lineTotal": "640", "menuItem": { "name": "Chicken Biryani" } },
+    { "menuItemId": "...", "quantity": 1, "unitPrice": "120", "lineTotal": "120", "menuItem": { "name": "Fresh Juice" } },
+    { "menuItemId": "...", "quantity": 2, "unitPrice": "50", "lineTotal": "100", "menuItem": { "name": "Tea" } }
+  ]
+}
+```
+
+### Step 3: Submit Order to Kitchen
+
+```bash
+ORDER_ID="<new-order-uuid>"
+
+curl -s -X POST "$BASE/pos/orders/$ORDER_ID/submit" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**What happens:**
+1. Order status changes: `DRAFT` → `SUBMITTED`
+2. A `KitchenTicket` record is created with status `SUBMITTED`
+3. Socket.IO emits `kitchen.ticket` to the `kitchen:<branchId>` room (kitchen display screen)
+4. Socket.IO emits `order.updated` to the same room
+
+### Step 4: Complete the Order (with Payment)
+
+```bash
+curl -s -X POST "$BASE/pos/orders/$ORDER_ID/complete" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{ "paidAmount": 860 }' | jq
+```
+
+**What happens:**
+1. Order status changes: `SUBMITTED` → `COMPLETED`
+2. Payment status set: `PAID` (if `paidAmount >= totalAmount`), `PARTIAL`, or `UNPAID`
+3. Event `order.completed` is emitted, which triggers:
+   - **Inventory deduction** — recipe/BOM ingredients are deducted (see [Section 4](#4-inventory-management))
+   - **Accounting entries** — revenue journal entry + COGS entry (see [Section 5](#5-accounting))
+4. Socket.IO emits `order.updated`
+
+### Order Status Flow
+
+```
+  DRAFT  ──submit──►  SUBMITTED  ──complete──►  COMPLETED
+    │                                               │
+    └──────────────── cancel ───────────────►  CANCELLED
+```
+
+### Kitchen Ticket Flow
+
+When an order is submitted, a `KitchenTicket` is created and broadcast via Socket.IO. The kitchen display (frontend) listens for `kitchen.ticket` events and renders them in real-time.
+
+```
+Order Submitted
+  → KitchenTicket created (status: SUBMITTED)
+  → Socket.IO emits to kitchen:<branchId>
+  → Kitchen screen displays new ticket
+  → Staff marks items as prepared
+  → Order completed
+```
+
+---
+
+## 4. Inventory Management
+
+The inventory system uses a **ledger model** — current stock is never stored directly; it is always computed as `SUM(IN) - SUM(OUT)`.
+
+### Step 1: List Items with Current Stock
+
+```bash
+curl -s "$BASE/inventory/items?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**Expected response (abridged):**
+```json
+[
+  {
+    "id": "inv-rice-uuid",
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "name": "Rice",
+    "sku": "INV-001",
+    "unit": "kg",
+    "lowStockThreshold": 10,
+    "currentStock": 49.1
+  },
+  {
+    "id": "inv-chicken-uuid",
+    "name": "Chicken",
+    "sku": "INV-002",
+    "unit": "kg",
+    "lowStockThreshold": 5,
+    "currentStock": 19.5
+  },
+  {
+    "id": "inv-eggs-uuid",
+    "name": "Eggs",
+    "sku": "INV-004",
+    "unit": "piece",
+    "lowStockThreshold": 30,
+    "currentStock": 115
+  }
+]
+```
+
+> Stock is computed live: `50kg purchased - 0.6kg sold - 0.3kg staff meal = 49.1kg` for Rice.
+
+### Step 2: Create an Inventory Movement (Manual Purchase)
+
+```bash
+curl -s -X POST "$BASE/inventory/movements" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemId": "<inv-rice-uuid>",
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "movementType": "PURCHASE",
+    "quantity": 25
+  }' | jq
+```
+
+**Expected response:**
+```json
+{
+  "id": "movement-uuid",
+  "itemId": "inv-rice-uuid",
+  "branchId": "00000000-0000-0000-0000-000000000001",
+  "movementType": "PURCHASE",
+  "direction": "IN",
+  "quantity": "25",
+  "createdAt": "2026-05-29T..."
+}
+```
+
+### Step 3: Record a Waste Movement
+
+```bash
+curl -s -X POST "$BASE/inventory/movements" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemId": "<inv-eggs-uuid>",
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "movementType": "WASTE",
+    "quantity": 3
+  }' | jq
+```
+
+### Ledger Model Explained
+
+```
+Current Stock = SUM(all IN movements) - SUM(all OUT movements)
+```
+
+There is no `currentStock` column in the database. Every stock query aggregates movements in real-time.
+
+### Movement Types
+
+| Type          | Direction | When Used                                  |
+|---------------|-----------|--------------------------------------------|
+| `PURCHASE`    | IN        | Goods bought from supplier                 |
+| `ADJUSTMENT`  | IN or OUT | Correction (IN if positive, OUT if negative)|
+| `SALE`        | OUT       | Deducted when a POS order is completed     |
+| `WASTE`       | OUT       | Spoiled or damaged goods                   |
+| `STAFF_MEAL`  | OUT       | Employee meals (linked to HR module)       |
+
+### Recipe/BOM Auto-Deduction
+
+Each menu item can have a **Recipe** (Bill of Materials) linking it to inventory items with quantities. When an `order.completed` event fires:
+
+```
+order.completed event
+  → OrderEventsListener.handleOrderCompleted()
+    → InventoryRecipesService.deductForOrder(orderId, branchId)
+      → For each order line:
+        → Load the menu item's recipe
+        → For each recipe line:
+          → Create an inventory movement (OUT, type: SALE)
+          → quantity = recipeLine.quantity × orderLine.quantity
+      → Returns estimated COGS
+```
+
+**Example:** Completing an order with 2× Chicken Biryani:
+- Rice: 0.3 kg × 2 = 0.6 kg OUT
+- Chicken: 0.25 kg × 2 = 0.5 kg OUT
+- Cooking Oil: 0.05 L × 2 = 0.1 L OUT
+
+### View an Item's Movement History
+
+```bash
+ITEM_ID="<inv-rice-uuid>"
+
+curl -s "$BASE/inventory/items/$ITEM_ID/movements?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+---
+
+## 5. Accounting
+
+The accounting module implements strict **double-entry bookkeeping**. Every journal entry must have `total debits == total credits`.
+
+### Step 1: List Chart of Accounts
+
+```bash
+curl -s "$BASE/accounting/accounts" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Expected response (seed accounts):**
+```json
+[
+  { "id": "acc-1000-uuid", "code": "1000", "name": "Cash", "type": "ASSET" },
+  { "id": "acc-1100-uuid", "code": "1100", "name": "Bank Account", "type": "ASSET" },
+  { "id": "acc-1200-uuid", "code": "1200", "name": "Inventory", "type": "ASSET" },
+  { "id": "acc-1300-uuid", "code": "1300", "name": "Accounts Receivable", "type": "ASSET" },
+  { "id": "acc-2000-uuid", "code": "2000", "name": "Accounts Payable", "type": "LIABILITY" },
+  { "id": "acc-2100-uuid", "code": "2100", "name": "Salary Payable", "type": "LIABILITY" },
+  { "id": "acc-3000-uuid", "code": "3000", "name": "Owner Equity", "type": "EQUITY" },
+  { "id": "acc-4000-uuid", "code": "4000", "name": "Room Revenue", "type": "REVENUE" },
+  { "id": "acc-4100-uuid", "code": "4100", "name": "F&B Revenue", "type": "REVENUE" },
+  { "id": "acc-4200-uuid", "code": "4200", "name": "Other Revenue", "type": "REVENUE" },
+  { "id": "acc-5000-uuid", "code": "5000", "name": "Cost of Goods Sold", "type": "EXPENSE" },
+  { "id": "acc-5100-uuid", "code": "5100", "name": "Salary Expense", "type": "EXPENSE" },
+  { "id": "acc-5200-uuid", "code": "5200", "name": "Utilities Expense", "type": "EXPENSE" },
+  { "id": "acc-5300-uuid", "code": "5300", "name": "Maintenance Expense", "type": "EXPENSE" }
+]
+```
+
+### Step 2: List Journal Entries
+
+```bash
+curl -s "$BASE/accounting/journals" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Expected response (seed entries):**
+```json
+[
+  {
+    "id": "je-cogs-uuid",
+    "description": "COGS - Order T3 ingredients",
+    "referenceType": "Order",
+    "lines": [
+      { "accountId": "...", "debit": "180", "credit": "0", "account": { "name": "Cost of Goods Sold", "code": "5000" } },
+      { "accountId": "...", "debit": "0", "credit": "180", "account": { "name": "Inventory", "code": "1200" } }
+    ]
+  },
+  {
+    "id": "je-fb-uuid",
+    "description": "F&B Sale - Table T3",
+    "referenceType": "Order",
+    "lines": [
+      { "debit": "690", "credit": "0", "account": { "name": "Cash", "code": "1000" } },
+      { "debit": "0", "credit": "690", "account": { "name": "F&B Revenue", "code": "4100" } }
+    ]
+  },
+  {
+    "id": "je-room-uuid",
+    "description": "Room 101 advance payment - Rahim Ahmed",
+    "referenceType": "Reservation",
+    "lines": [
+      { "debit": "7000", "credit": "0", "account": { "name": "Cash", "code": "1000" } },
+      { "debit": "0", "credit": "7000", "account": { "name": "Room Revenue", "code": "4000" } }
+    ]
+  }
+]
+```
+
+### Step 3: Create a Manual Journal Entry
+
+```bash
+curl -s -X POST "$BASE/accounting/journals" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Monthly electricity bill payment",
+    "referenceType": "Expense",
+    "lines": [
+      { "accountId": "<acc-5200-uuid>", "debit": 12000, "credit": 0 },
+      { "accountId": "<acc-1100-uuid>", "debit": 0, "credit": 12000 }
+    ]
+  }' | jq
+```
+
+This records: `Utilities Expense Dr 12,000 / Bank Account Cr 12,000`.
+
+**Validation rules:**
+- `total debits` must equal `total credits` — otherwise returns `400 Bad Request`
+- At least 2 journal lines are required
+
+### Double-Entry Rule
+
+Every financial transaction is recorded with equal debits and credits:
+
+```
+  Debit   ==   Credit     (always)
+```
+
+### Auto-Posting on Order Completion
+
+When `order.completed` fires, the `OrderEventsListener` triggers two automatic journal entries:
+
+**Entry 1: Revenue Recognition**
+```
+  Cash (1000)          Dr  <order.totalAmount>
+  F&B Revenue (4100)       Cr  <order.totalAmount>
+```
+
+**Entry 2: COGS / Inventory Consumption**
+```
+  Cost of Goods Sold (5000)  Dr  <estimated COGS>
+  Inventory (1200)               Cr  <estimated COGS>
+```
+
+### Worked Example with Numbers
+
+A guest orders 2× Chicken Biryani (₹320 each) and 1× Tea (₹50). Total = ₹690.
+
+**Revenue entry (auto):**
+```
+  Cash            Dr  690
+  F&B Revenue         Cr  690
+```
+
+**Inventory deduction** (recipe-based):
+- Rice: 0.6 kg, Chicken: 0.5 kg, Oil: 0.1 L, Tea Leaves: 0.005 kg, Sugar: 0.015 kg
+- Estimated COGS = ₹180
+
+**COGS entry (auto):**
+```
+  Cost of Goods Sold  Dr  180
+  Inventory               Cr  180
+```
+
+---
+
+## 6. HR & Payroll
+
+The HR module manages employees, attendance tracking, staff meals, and payroll processing.
+
+### Step 1: List Employees
+
+```bash
+curl -s "$BASE/hr/employees" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Expected response (abridged):**
+```json
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000401",
+    "name": "Karim Hossain",
+    "designation": "Head Chef",
+    "salary": "45000",
+    "branchId": "00000000-0000-0000-0000-000000000001",
+    "branch": { "name": "Main Hotel & Restaurant" }
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000402",
+    "name": "Nasreen Begum",
+    "designation": "Front Desk Manager",
+    "salary": "35000"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000403",
+    "name": "Rashid Islam",
+    "designation": "Waiter",
+    "salary": "18000"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000404",
+    "name": "Ayesha Rahman",
+    "designation": "Housekeeper",
+    "salary": "16000"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000405",
+    "name": "Tanvir Alam",
+    "designation": "Accountant",
+    "salary": "40000"
+  }
+]
+```
+
+### Step 2: Clock Attendance
+
+```bash
+# Clock IN
+curl -s -X POST "$BASE/hr/attendance/clock" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeId": "00000000-0000-0000-0000-000000000403",
+    "type": "CLOCK_IN"
+  }' | jq
+```
+
+```bash
+# Clock OUT (at end of shift)
+curl -s -X POST "$BASE/hr/attendance/clock" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeId": "00000000-0000-0000-0000-000000000403",
+    "type": "CLOCK_OUT"
+  }' | jq
+```
+
+**Attendance types:** `CLOCK_IN`, `CLOCK_OUT`
+
+### Step 3: Record a Staff Meal
+
+Staff meals deduct from inventory and optionally from payroll.
+
+```bash
+curl -s -X POST "$BASE/hr/staff-meals" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeId": "00000000-0000-0000-0000-000000000401",
+    "inventoryItemId": "<inv-rice-uuid>",
+    "quantity": 0.3,
+    "deductFromPayroll": false
+  }' | jq
+```
+
+**What happens:**
+1. An inventory movement (OUT, type: `STAFF_MEAL`) is created
+2. A `StaffMeal` record is saved
+3. If `deductFromPayroll: true`, the cost is deducted from the employee's next payroll
+
+### Step 4: Request a Payroll Run
+
+```bash
+curl -s -X POST "$BASE/hr/payroll/runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "periodStart": "2026-05-01",
+    "periodEnd": "2026-05-31"
+  }' | jq
+```
+
+**Expected response:**
+```json
+{
+  "id": "payroll-run-uuid",
+  "organizationId": "00000000-0000-0000-0000-000000000100",
+  "periodStart": "2026-05-01T00:00:00.000Z",
+  "periodEnd": "2026-05-31T00:00:00.000Z",
+  "status": "PENDING",
+  "createdAt": "2026-05-29T..."
+}
+```
+
+**What happens:**
+1. A `PayrollRun` record is created with status `PENDING`
+2. Event `payroll.run_requested` is emitted
+3. `PayrollListener` picks it up and adds a job to the BullMQ `payroll` queue
+4. The `PayrollProcessor` (BullMQ worker) processes salary calculations for each employee in the background
+5. Payroll lines are created for each employee
+
+### Step 5: View Payroll Runs
+
+```bash
+curl -s "$BASE/payroll/runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### BullMQ Background Processing
+
+Payroll runs are processed asynchronously:
+
+```
+POST /hr/payroll/runs
+  → Create PayrollRun (PENDING)
+  → Emit "payroll.run_requested" event
+  → PayrollListener adds job to BullMQ "payroll" queue
+  → PayrollProcessor (worker) picks up job
+    → Calculate salaries for all employees
+    → Create PayrollRunLine for each employee
+    → Optionally deduct staff meal costs
+    → Update PayrollRun status → COMPLETED
+```
+
+---
+
+## 7. Reporting & Dashboard
+
+### Dashboard Endpoint
+
+```bash
+curl -s "$BASE/reporting/dashboard?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+**Expected response:**
+```json
+{
+  "occupancyPct": 14,
+  "activeReservations": 1,
+  "revenueToday": 690,
+  "lowStockAlerts": 0,
+  "lowStockItems": []
+}
+```
+
+### Dashboard Metrics Explained
+
+| Metric              | How It's Calculated                                                                 |
+|---------------------|-------------------------------------------------------------------------------------|
+| `occupancyPct`      | (reservations with status CHECKED_IN or CONFIRMED) / (total rooms) × 100           |
+| `activeReservations`| Count of reservations with status `CHECKED_IN` or `CONFIRMED`                      |
+| `revenueToday`      | Sum of `totalAmount` for COMPLETED orders created today                             |
+| `lowStockAlerts`    | Count of items where `currentStock <= lowStockThreshold`                            |
+| `lowStockItems`     | Array of inventory items below their threshold                                      |
+
+### Request a Report Export
+
+```bash
+curl -s -X POST "$BASE/reporting/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "revenue_summary" }' | jq
+```
+
+**Expected response:**
+```json
+{
+  "id": "report-job-uuid",
+  "organizationId": "00000000-0000-0000-0000-000000000100",
+  "type": "revenue_summary",
+  "status": "PENDING",
+  "createdAt": "2026-05-29T..."
+}
+```
+
+The report is generated asynchronously via BullMQ's `reports` queue.
+
+### View Report Job Status
+
+```bash
+curl -s "$BASE/reporting/jobs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+---
+
+## 8. Event-Driven Architecture
+
+The application uses `@nestjs/event-emitter` (EventEmitter2) for internal event-driven communication between modules. Events are emitted synchronously within the same process.
+
+### Event Catalog
+
+| Event                      | Emitted By           | Payload                                                |
+|----------------------------|----------------------|--------------------------------------------------------|
+| `order.completed`          | `PosService`         | `{ orderId, branchId, organizationId, totalAmount }`   |
+| `reservation.checked_in`   | `PmsService`         | `{ reservationId, roomId, branchId }`                  |
+| `payroll.run_requested`    | `HrService`          | `{ payrollRunId }`                                     |
+| `inventory.consumed`       | `InventoryRecipes`   | `{ orderId, organizationId, cogsAmount }`              |
+
+### Event Flow Diagrams
+
+#### Order Completed → Full Pipeline
+
+```
+┌──────────────────┐
+│ order.completed   │
+└────────┬─────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────┐
+│  OrderEventsListener.handleOrderCompleted() │
+│                                             │
+│  1. Inventory Deduction                     │
+│     └─ deductForOrder() → creates OUT       │
+│        movements per recipe/BOM             │
+│        └─ Returns estimated COGS            │
+│                                             │
+│  2. Revenue Journal Entry                   │
+│     └─ Cash Dr / F&B Revenue Cr             │
+│                                             │
+│  3. COGS Journal Entry (if COGS > 0)        │
+│     └─ COGS Dr / Inventory Cr              │
+└─────────────────────────────────────────────┘
+```
+
+#### Reservation Check-In
+
+```
+┌─────────────────────────┐
+│ reservation.checked_in   │
+└────────┬────────────────┘
+         │
+         ├──► Room status → OCCUPIED
+         └──► Socket.IO → room.status event
+```
+
+#### Payroll Run
+
+```
+┌──────────────────────────┐
+│ payroll.run_requested     │
+└────────┬─────────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│ PayrollListener         │
+│ → Adds to BullMQ queue │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│ PayrollProcessor        │
+│ (background worker)     │
+│ → Calculate salaries    │
+│ → Create payroll lines  │
+│ → Update run status     │
+└─────────────────────────┘
+```
+
+#### End-to-End: Guest Orders Food
+
+```
+Waiter creates order (DRAFT)
+  │
+  ▼
+Waiter submits to kitchen (SUBMITTED)
+  │
+  ├──► KitchenTicket created
+  └──► Socket.IO → kitchen.ticket (kitchen screen updates)
+  │
+  ▼
+Kitchen prepares food
+  │
+  ▼
+Waiter completes order (COMPLETED, paidAmount)
+  │
+  ├──► Event: order.completed
+  │     │
+  │     ├──► Inventory: Recipe ingredients deducted
+  │     │     Rice -0.6kg, Chicken -0.5kg, Oil -0.1L ...
+  │     │
+  │     ├──► Accounting: Cash Dr 690 / F&B Revenue Cr 690
+  │     │
+  │     └──► Accounting: COGS Dr 180 / Inventory Cr 180
+  │
+  └──► Socket.IO → order.updated
+```
+
+---
+
+## 9. Realtime (Socket.IO)
+
+The application uses Socket.IO for real-time updates. The gateway runs on the same port as the NestJS API (`:3001`).
+
+### Socket.IO Events
+
+| Event            | Room Pattern        | Payload                          | Trigger                |
+|------------------|---------------------|----------------------------------|------------------------|
+| `kitchen.ticket` | `kitchen:<branchId>`| Kitchen ticket object            | Order submitted        |
+| `order.updated`  | `kitchen:<branchId>`| Full order object                | Order status change    |
+| `room.status`    | `branch:<branchId>` | `{ roomId, status }`             | Check-in / check-out   |
+
+### Connecting from the Frontend
+
+```typescript
+import { io } from "socket.io-client";
+
+const socket = io("http://localhost:3001", {
+  transports: ["websocket"],
+});
+
+// Join a room to receive branch-specific events
+socket.emit("join", `kitchen:00000000-0000-0000-0000-000000000001`);
+socket.emit("join", `branch:00000000-0000-0000-0000-000000000001`);
+
+// Listen for kitchen tickets (new orders for the kitchen screen)
+socket.on("kitchen.ticket", (ticket) => {
+  console.log("New kitchen ticket:", ticket);
+});
+
+// Listen for order updates
+socket.on("order.updated", (order) => {
+  console.log("Order updated:", order);
+});
+
+// Listen for room status changes (housekeeping / front desk)
+socket.on("room.status", ({ roomId, status }) => {
+  console.log(`Room ${roomId} is now ${status}`);
+});
+```
+
+### Room Naming Convention
+
+- `kitchen:<branchId>` — Kitchen display screens and POS terminals subscribe here
+- `branch:<branchId>` — Front desk and housekeeping screens subscribe here
+
+---
+
+## 10. Testing
+
+### Unit Tests
+
+```bash
+# Run all unit tests from the repo root
+pnpm test
+```
+
+### End-to-End Tests
+
+```bash
+# Run E2E tests for the web app
+cd apps/web && pnpm test:e2e
+```
+
+### Test Coverage
+
+```bash
+pnpm test -- --coverage
+```
+
+### Test Strategy
+
+| Layer         | Tool            | What's Tested                            |
+|---------------|-----------------|------------------------------------------|
+| Unit          | Jest            | Services, guards, pipes, event listeners |
+| Integration   | Jest + Prisma   | Database operations, transactions        |
+| E2E           | Playwright      | Full user workflows via the browser      |
+
+---
+
+## Appendix: API Quick Reference
+
+### PMS Endpoints
+
+| Method | Path                               | Permission  | Description            |
+|--------|-------------------------------------|------------|------------------------|
+| GET    | `/pms/branches`                     | PMS_READ   | List branches          |
+| POST   | `/pms/branches`                     | PMS_WRITE  | Create branch          |
+| GET    | `/pms/room-types`                   | PMS_READ   | List room types        |
+| POST   | `/pms/room-types`                   | PMS_WRITE  | Create room type       |
+| GET    | `/pms/rooms?branchId=`              | PMS_READ   | List rooms             |
+| POST   | `/pms/rooms`                        | PMS_WRITE  | Create room            |
+| GET    | `/pms/guests`                       | PMS_READ   | List guests            |
+| POST   | `/pms/guests`                       | PMS_WRITE  | Create guest           |
+| GET    | `/pms/reservations?branchId=`       | PMS_READ   | List reservations      |
+| POST   | `/pms/reservations`                 | PMS_WRITE  | Create reservation     |
+| GET    | `/pms/availability?branchId=&checkIn=&checkOut=` | PMS_READ | Check availability |
+| PATCH  | `/pms/reservations/:id/check-in`    | PMS_WRITE  | Check-in guest         |
+| PATCH  | `/pms/reservations/:id/check-out`   | PMS_WRITE  | Check-out guest        |
+| PATCH  | `/pms/reservations/:id/cancel`      | PMS_WRITE  | Cancel reservation     |
+
+### POS Endpoints
+
+| Method | Path                               | Permission  | Description            |
+|--------|-------------------------------------|------------|------------------------|
+| GET    | `/pos/menu/categories?branchId=`    | POS_READ   | List menu categories   |
+| POST   | `/pos/menu/categories`              | POS_WRITE  | Create category        |
+| POST   | `/pos/menu/items`                   | POS_WRITE  | Create menu item       |
+| GET    | `/pos/orders?branchId=`             | POS_READ   | List orders            |
+| POST   | `/pos/orders`                       | POS_WRITE  | Create order           |
+| POST   | `/pos/orders/:id/submit`            | POS_WRITE  | Submit to kitchen      |
+| POST   | `/pos/orders/:id/complete`          | POS_WRITE  | Complete + pay         |
+| PATCH  | `/pos/orders/:id/status`            | POS_WRITE  | Update status          |
+
+### Inventory Endpoints
+
+| Method | Path                                | Permission      | Description            |
+|--------|--------------------------------------|----------------|------------------------|
+| GET    | `/inventory/items?branchId=`         | INVENTORY_READ | List items + stock     |
+| POST   | `/inventory/items`                   | INVENTORY_WRITE| Create item            |
+| GET    | `/inventory/items/:id/stock`         | INVENTORY_READ | Get current stock      |
+| POST   | `/inventory/movements`               | INVENTORY_WRITE| Create movement        |
+| GET    | `/inventory/items/:id/movements`     | INVENTORY_READ | Movement history       |
+| POST   | `/inventory/recipes`                 | INVENTORY_WRITE| Upsert recipe/BOM      |
+| GET    | `/inventory/recipes/:menuItemId`     | INVENTORY_READ | Get recipe             |
+
+### Accounting Endpoints
+
+| Method | Path                                | Permission        | Description            |
+|--------|--------------------------------------|-------------------|------------------------|
+| GET    | `/accounting/accounts`               | ACCOUNTING_READ  | List chart of accounts |
+| POST   | `/accounting/accounts`               | ACCOUNTING_WRITE | Create account         |
+| GET    | `/accounting/journals`               | ACCOUNTING_READ  | List journal entries   |
+| POST   | `/accounting/journals`               | ACCOUNTING_WRITE | Create journal entry   |
+
+### HR & Payroll Endpoints
+
+| Method | Path                                | Permission  | Description            |
+|--------|--------------------------------------|------------|------------------------|
+| GET    | `/hr/employees`                      | HR_READ    | List employees         |
+| POST   | `/hr/employees`                      | HR_WRITE   | Create employee        |
+| POST   | `/hr/attendance/clock`               | HR_WRITE   | Clock in/out           |
+| POST   | `/hr/staff-meals`                    | HR_WRITE   | Record staff meal      |
+| POST   | `/hr/payroll/runs`                   | HR_WRITE   | Request payroll run    |
+| GET    | `/payroll/runs`                      | HR_READ    | List payroll runs      |
+| GET    | `/payroll/runs/:id`                  | HR_READ    | Get payroll run        |
+
+### Reporting Endpoints
+
+| Method | Path                                | Permission    | Description            |
+|--------|--------------------------------------|--------------|------------------------|
+| GET    | `/reporting/dashboard?branchId=`     | REPORTS_READ | Dashboard metrics      |
+| POST   | `/reporting/export`                  | REPORTS_READ | Request report export  |
+| GET    | `/reporting/jobs`                    | REPORTS_READ | List report jobs       |

@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { MovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "./inventory.service";
-import { toNumber } from "@erp/utils";
+import { toNumber, generatePrefixedId } from "@erp/utils";
 
 @Injectable()
 export class InventoryRecipesService {
@@ -18,6 +18,7 @@ export class InventoryRecipesService {
         lines: {
           deleteMany: {},
           create: lines.map((l) => ({
+            id: generatePrefixedId("rl"),
             inventoryItemId: l.inventoryItemId,
             quantity: l.quantity,
           })),
@@ -27,6 +28,7 @@ export class InventoryRecipesService {
         menuItemId,
         lines: {
           create: lines.map((l) => ({
+            id: generatePrefixedId("rl"),
             inventoryItemId: l.inventoryItemId,
             quantity: l.quantity,
           })),

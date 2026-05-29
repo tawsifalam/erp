@@ -74,12 +74,44 @@ sudo systemctl start redis-server
 ### Finish setup (both options)
 
 ```bash
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+pnpm db:migrate    # Creates all tables
+pnpm db:seed       # Loads demo data (see below)
+pnpm dev           # Starts API (3001) + Web (3000)
 ```
 
 - Web: http://localhost:3000
 - API: http://localhost:3001
 
-See [docs/local-setup.md](docs/local-setup.md) and [docs/propelauth.md](docs/propelauth.md) for full setup.
+## Seed data overview
+
+The seed creates a realistic working dataset:
+
+| Entity | Data |
+|--------|------|
+| Organization | Boulevard Hospitality Group |
+| Branches | Main Hotel & Restaurant, Boulevard Café |
+| Rooms | 7 rooms (4 Standard @ ৳3,500, 3 Deluxe @ ৳6,000–7,500) |
+| Guests | 5 guests (Rahim, Fatima, John, Maria, Chen) |
+| Reservations | 5 bookings (1 checked-in, 3 confirmed, 1 inquiry) |
+| Menu | 10 items across Breakfast, Mains, Beverages |
+| Inventory | 12 items with initial stock (rice, chicken, eggs, etc.) |
+| Recipes | 8 BOM recipes linking menu items to ingredients |
+| Orders | 3 orders (1 completed, 1 in-kitchen, 1 draft) |
+| Employees | 5 staff (chef, front desk, waiter, housekeeper, accountant) |
+| Accounts | 14 chart-of-accounts entries |
+| Journal entries | 3 sample entries (room payment, F&B sale, COGS) |
+
+## Testing
+
+```bash
+pnpm test           # Unit tests (Jest)
+cd apps/web && pnpm test:e2e  # E2E tests (Playwright)
+```
+
+## Documentation
+
+- [Local Setup](docs/local-setup.md) — full environment configuration
+- [PropelAuth](docs/propelauth.md) — authentication integration
+- [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with examples
+- [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
+- [Deployment](docs/deployment.md) — production deployment

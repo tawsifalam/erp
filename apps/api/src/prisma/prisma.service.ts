@@ -1,13 +1,117 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { generateId, getModelPrefix } from "@erp/utils";
+
+function assignIdIfNeeded(model: string, data: Record<string, unknown>): void {
+  if (!data || data.id) return;
+  const prefix = getModelPrefix(model);
+  if (prefix) {
+    data.id = generateId(model);
+  }
+}
+
+function withIdGeneration(client: PrismaClient) {
+  return client.$extends({
+    query: {
+      $allModels: {
+        async create({ model, args, query }) {
+          assignIdIfNeeded(model, args.data as Record<string, unknown>);
+          return query(args);
+        },
+        async createMany({ model, args, query }) {
+          if (Array.isArray(args.data)) {
+            for (const item of args.data) {
+              assignIdIfNeeded(model, item as Record<string, unknown>);
+            }
+          }
+          return query(args);
+        },
+        async createManyAndReturn({ model, args, query }) {
+          if (Array.isArray(args.data)) {
+            for (const item of args.data) {
+              assignIdIfNeeded(model, item as Record<string, unknown>);
+            }
+          }
+          return query(args);
+        },
+        async upsert({ model, args, query }) {
+          assignIdIfNeeded(model, args.create as Record<string, unknown>);
+          return query(args);
+        },
+      },
+    },
+  });
+}
+
+type ExtendedPrismaClient = ReturnType<typeof withIdGeneration>;
+
+/** Transaction client type for interactive transactions */
+export type TransactionClient = Prisma.TransactionClient;
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  async onModuleInit() {
-    await this.$connect();
+export class PrismaService implements OnModuleInit, OnModuleDestroy {
+  private readonly _client: ExtendedPrismaClient;
+
+  constructor() {
+    this._client = withIdGeneration(new PrismaClient());
   }
 
-  async onModuleDestroy() {
-    await this.$disconnect();
+  async onModuleInit(): Promise<void> {
+    await this._client.$connect();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this._client.$disconnect();
+  }
+
+  // ─── Model Delegates ────────────────────────────────────────────────────────
+  get user() { return this._client.user; }
+  get organization() { return this._client.organization; }
+  get userOrganization() { return this._client.userOrganization; }
+  get branch() { return this._client.branch; }
+  get roomType() { return this._client.roomType; }
+  get room() { return this._client.room; }
+  get guest() { return this._client.guest; }
+  get reservation() { return this._client.reservation; }
+  get menuCategory() { return this._client.menuCategory; }
+  get menuItem() { return this._client.menuItem; }
+  get order() { return this._client.order; }
+  get orderLine() { return this._client.orderLine; }
+  get kitchenTicket() { return this._client.kitchenTicket; }
+  get inventoryItem() { return this._client.inventoryItem; }
+  get inventoryMovement() { return this._client.inventoryMovement; }
+  get recipe() { return this._client.recipe; }
+  get recipeLine() { return this._client.recipeLine; }
+  get account() { return this._client.account; }
+  get journalEntry() { return this._client.journalEntry; }
+  get journalLine() { return this._client.journalLine; }
+  get employee() { return this._client.employee; }
+  get attendanceRecord() { return this._client.attendanceRecord; }
+  get payrollRun() { return this._client.payrollRun; }
+  get payrollLine() { return this._client.payrollLine; }
+  get staffMeal() { return this._client.staffMeal; }
+  get auditLog() { return this._client.auditLog; }
+  get reportJob() { return this._client.reportJob; }
+
+  // ─── Client Methods ─────────────────────────────────────────────────────────
+  $transaction<P extends Prisma.PrismaPromise<unknown>[]>(
+    arg: [...P],
+    options?: { isolationLevel?: Prisma.TransactionIsolationLevel },
+  ): Promise<{ [K in keyof P]: Awaited<P[K]> }>;
+  $transaction<R>(
+    fn: (prisma: TransactionClient) => Promise<R>,
+    options?: { maxWait?: number; timeout?: number; isolationLevel?: Prisma.TransactionIsolationLevel },
+  ): Promise<R>;
+  $transaction(...args: unknown[]): Promise<unknown> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this._client.$transaction as (...a: unknown[]) => Promise<unknown>)(...args);
+  }
+
+  $connect(): Promise<void> {
+    return this._client.$connect();
+  }
+
+  $disconnect(): Promise<void> {
+    return this._client.$disconnect();
   }
 }

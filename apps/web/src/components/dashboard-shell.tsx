@@ -24,13 +24,11 @@ export function DashboardShell({
   title?: string;
 }) {
   const tenant = useTenant();
-  const currentOrg = tenant.memberships.find(
-    (m) => m.organizationId === tenant.organizationId,
-  );
+  const currentOrg = tenant.memberships.find((m) => m.organizationId === tenant.organizationId);
 
   return (
     <Flex minH="100vh">
-      <Box as="nav" w="220px" bg="gray.900" color="white" p={4}>
+      <Box as="nav" w="220px" p={4}>
         <Text fontWeight="bold" mb={4}>
           Hospitality ERP
         </Text>

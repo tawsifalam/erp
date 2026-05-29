@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { OrderStatus, PaymentStatus } from "@prisma/client";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService, TransactionClient } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { OrderCompletedEvent } from "../common/events/order-completed.event";
-import { toNumber } from "@erp/utils";
+import { toNumber, generatePrefixedId } from "@erp/utils";
 
 @Injectable()
 export class PosService {
@@ -69,6 +69,7 @@ export class PosService {
         status: OrderStatus.DRAFT,
         lines: {
           create: data.lines.map((l) => ({
+            id: generatePrefixedId("ol"),
             menuItemId: l.menuItemId,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
@@ -89,14 +90,14 @@ export class PosService {
     });
     if (!order) throw new NotFoundException("Order not found");
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx: TransactionClient) => {
       const o = await tx.order.update({
         where: { id: orderId },
         data: { status: OrderStatus.SUBMITTED },
         include: { lines: { include: { menuItem: true } } },
       });
       const ticket = await tx.kitchenTicket.create({
-        data: { orderId, status: OrderStatus.SUBMITTED },
+        data: { id: generatePrefixedId("kt"), orderId, status: OrderStatus.SUBMITTED },
       });
       return { order: o, ticket };
     });

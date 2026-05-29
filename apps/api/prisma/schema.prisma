@@ -81,7 +81,7 @@ enum AttendanceType {
 }
 
 model User {
-  id            String   @id @default(uuid())
+  id            String   @id
   propelAuthUserId String   @unique
   email         String   @unique
   name          String?
@@ -94,7 +94,7 @@ model User {
 }
 
 model Organization {
-  id           String   @id @default(uuid())
+  id           String   @id
   propelAuthOrgId String   @unique
   name         String
   createdAt    DateTime @default(now())
@@ -110,7 +110,7 @@ model Organization {
 }
 
 model UserOrganization {
-  id             String   @id @default(uuid())
+  id             String   @id
   userId         String
   organizationId String
   role           Role
@@ -123,7 +123,7 @@ model UserOrganization {
 }
 
 model Branch {
-  id             String   @id @default(uuid())
+  id             String   @id
   organizationId String
   name           String
   timezone       String
@@ -140,7 +140,7 @@ model Branch {
 }
 
 model RoomType {
-  id             String @id @default(uuid())
+  id             String @id
   organizationId String
   name           String
   maxAdults      Int
@@ -151,7 +151,7 @@ model RoomType {
 }
 
 model Room {
-  id         String     @id @default(uuid())
+  id         String     @id
   branchId   String
   roomTypeId String
   roomNumber String
@@ -166,7 +166,7 @@ model Room {
 }
 
 model Guest {
-  id             String  @id @default(uuid())
+  id             String  @id
   organizationId String
   fullName       String
   phone          String?
@@ -178,7 +178,7 @@ model Guest {
 }
 
 model Reservation {
-  id          String            @id @default(uuid())
+  id          String            @id
   branchId    String
   guestId     String
   roomId      String
@@ -199,7 +199,7 @@ model Reservation {
 }
 
 model MenuCategory {
-  id             String @id @default(uuid())
+  id             String @id
   organizationId String
   branchId       String
   name           String
@@ -211,7 +211,7 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id         String  @id @default(uuid())
+  id         String  @id
   categoryId String
   name       String
   price      Decimal @db.Decimal(12, 2)
@@ -223,7 +223,7 @@ model MenuItem {
 }
 
 model Order {
-  id            String        @id @default(uuid())
+  id            String        @id
   branchId      String
   status        OrderStatus   @default(DRAFT)
   paymentStatus PaymentStatus @default(UNPAID)
@@ -240,7 +240,7 @@ model Order {
 }
 
 model OrderLine {
-  id         String  @id @default(uuid())
+  id         String  @id
   orderId    String
   menuItemId String
   quantity   Int
@@ -252,7 +252,7 @@ model OrderLine {
 }
 
 model KitchenTicket {
-  id        String      @id @default(uuid())
+  id        String      @id
   orderId   String
   status    OrderStatus @default(SUBMITTED)
   createdAt DateTime    @default(now())
@@ -262,7 +262,7 @@ model KitchenTicket {
 }
 
 model InventoryItem {
-  id                String  @id @default(uuid())
+  id                String  @id
   branchId          String
   name              String
   sku               String
@@ -277,7 +277,7 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id            String            @id @default(uuid())
+  id            String            @id
   itemId        String
   branchId      String
   direction     MovementDirection
@@ -294,7 +294,7 @@ model InventoryMovement {
 }
 
 model Recipe {
-  id         String @id @default(uuid())
+  id         String @id
   menuItemId String @unique
 
   menuItem MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
@@ -302,7 +302,7 @@ model Recipe {
 }
 
 model RecipeLine {
-  id              String  @id @default(uuid())
+  id              String  @id
   recipeId        String
   inventoryItemId String
   quantity        Decimal @db.Decimal(12, 4)
@@ -312,7 +312,7 @@ model RecipeLine {
 }
 
 model Account {
-  id             String      @id @default(uuid())
+  id             String      @id
   organizationId String
   code           String
   name           String
@@ -325,7 +325,7 @@ model Account {
 }
 
 model JournalEntry {
-  id             String   @id @default(uuid())
+  id             String   @id
   organizationId String
   description    String?
   referenceType  String?
@@ -336,7 +336,7 @@ model JournalEntry {
 }
 
 model JournalLine {
-  id             String  @id @default(uuid())
+  id             String  @id
   journalEntryId String
   accountId      String
   debit          Decimal @default(0) @db.Decimal(12, 2)
@@ -347,7 +347,7 @@ model JournalLine {
 }
 
 model Employee {
-  id             String  @id @default(uuid())
+  id             String  @id
   organizationId String
   branchId       String?
   userId         String? @unique
@@ -365,7 +365,7 @@ model Employee {
 }
 
 model AttendanceRecord {
-  id         String         @id @default(uuid())
+  id         String         @id
   employeeId String
   branchId   String
   type       AttendanceType
@@ -375,7 +375,7 @@ model AttendanceRecord {
 }
 
 model PayrollRun {
-  id             String           @id @default(uuid())
+  id             String           @id
   organizationId String
   periodStart    DateTime
   periodEnd      DateTime
@@ -387,7 +387,7 @@ model PayrollRun {
 }
 
 model PayrollLine {
-  id           String  @id @default(uuid())
+  id           String  @id
   payrollRunId String
   employeeId   String
   grossPay     Decimal @db.Decimal(12, 2)
@@ -399,7 +399,7 @@ model PayrollLine {
 }
 
 model StaffMeal {
-  id                 String  @id @default(uuid())
+  id                 String  @id
   employeeId         String
   inventoryItemId    String
   quantity           Decimal @db.Decimal(12, 4)
@@ -410,7 +410,7 @@ model StaffMeal {
 }
 
 model AuditLog {
-  id             String   @id @default(uuid())
+  id             String   @id
   organizationId String
   userId         String?
   action         String
@@ -423,7 +423,7 @@ model AuditLog {
 }
 
 model ReportJob {
-  id             String   @id @default(uuid())
+  id             String   @id
   organizationId String
   type           String
   status         String   @default("PENDING")

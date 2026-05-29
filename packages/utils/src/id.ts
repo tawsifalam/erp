@@ -19,6 +19,7 @@ const MODEL_PREFIXES: Record<string, string> = {
   OrderLine: "ol",
   KitchenTicket: "kt",
   InventoryItem: "inv",
+  InventoryPool: "ivp",
   InventoryMovement: "im",
   Recipe: "rcp",
   RecipeLine: "rl",
@@ -30,6 +31,8 @@ const MODEL_PREFIXES: Record<string, string> = {
   PayrollRun: "pr",
   PayrollLine: "pl",
   StaffMeal: "sm",
+  StaffMealRecipe: "smr",
+  StaffMealRecipeLine: "sml",
   AuditLog: "aud",
   ReportJob: "rpt",
 };

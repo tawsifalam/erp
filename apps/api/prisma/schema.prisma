@@ -107,6 +107,7 @@ model Organization {
   accounts     Account[]
   employees    Employee[]
   menuCategories MenuCategory[]
+  inventoryPools InventoryPool[]
 }
 
 model UserOrganization {
@@ -137,6 +138,8 @@ model Branch {
   orders         Order[]
   menuCategories MenuCategory[]
   employees      Employee[]
+  staffMealRecipes StaffMealRecipe[]
+  staffMeals     StaffMeal[]
 }
 
 model RoomType {
@@ -261,17 +264,36 @@ model KitchenTicket {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
+model InventoryPool {
+  id             String   @id @default(uuid())
+  organizationId String
+  code           String
+  name           String
+  isActive       Boolean  @default(true)
+  isSystem       Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items        InventoryItem[]
+
+  @@unique([organizationId, code])
+}
+
 model InventoryItem {
   id                String  @id @default(uuid())
   branchId          String
+  poolId            String
   name              String
   sku               String
   unit              String
   lowStockThreshold Decimal? @db.Decimal(12, 4)
 
   branch    Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  pool      InventoryPool       @relation(fields: [poolId], references: [id], onDelete: Restrict)
   movements InventoryMovement[]
   recipeLines RecipeLine[]
+  staffMealRecipeLines StaffMealRecipeLine[]
 
   @@unique([branchId, sku])
 }
@@ -398,15 +420,42 @@ model PayrollLine {
   employee   Employee   @relation(fields: [employeeId], references: [id])
 }
 
+model StaffMealRecipe {
+  id       String @id @default(uuid())
+  branchId String
+  name     String
+
+  branch       Branch                @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  lines        StaffMealRecipeLine[]
+  consumptions StaffMeal[]
+
+  @@unique([branchId, name])
+}
+
+model StaffMealRecipeLine {
+  id              String  @id @default(uuid())
+  recipeId        String
+  inventoryItemId String
+  quantity        Decimal @db.Decimal(12, 4)
+
+  recipe        StaffMealRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem   @relation(fields: [inventoryItemId], references: [id])
+}
+
 model StaffMeal {
-  id                 String  @id @default(uuid())
+  id                 String   @id @default(uuid())
   employeeId         String
-  inventoryItemId    String
-  quantity           Decimal @db.Decimal(12, 4)
-  deductFromPayroll  Boolean @default(false)
+  branchId           String
+  staffMealRecipeId  String
+  mealCount          Int
+  unitCostPerMeal    Decimal  @db.Decimal(12, 2)
+  deductFromPayroll  Boolean  @default(false)
+  payrollDeducted    Boolean  @default(false)
   createdAt          DateTime @default(now())
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  branch   Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  recipe   StaffMealRecipe @relation(fields: [staffMealRecipeId], references: [id])
 }
 
 model AuditLog {

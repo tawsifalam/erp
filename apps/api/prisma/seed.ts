@@ -253,6 +253,21 @@ async function main() {
     createdMenuItems[item.name] = mi.id;
   }
 
+  // ─── Inventory Pools ───────────────────────────────────────────────────────
+  const poolDefs = [
+    { code: "guest", name: "Guest / Kitchen", isSystem: true, sortOrder: 0 },
+    { code: "staff", name: "Staff pantry", isSystem: true, sortOrder: 1 },
+  ];
+  const poolIds: Record<string, string> = {};
+  for (const p of poolDefs) {
+    const pool = await prisma.inventoryPool.upsert({
+      where: { organizationId_code: { organizationId: org.id, code: p.code } },
+      update: {},
+      create: { id: sid("ivp"), organizationId: org.id, ...p },
+    });
+    poolIds[p.code] = pool.id;
+  }
+
   // ─── Inventory Items ────────────────────────────────────────────────────────
   const invItems = [
     { name: "Rice", sku: "INV-001", unit: "kg", lowStockThreshold: 10 },
@@ -274,9 +289,35 @@ async function main() {
     const inv = await prisma.inventoryItem.upsert({
       where: { branchId_sku: { branchId: mainBranch.id, sku: item.sku } },
       update: {},
-      create: { id: sid("inv"), branchId: mainBranch.id, ...item },
+      create: { id: sid("inv"), branchId: mainBranch.id, poolId: poolIds.guest, ...item },
     });
     inventoryIds[item.name] = inv.id;
+  }
+
+  const staffInvItems = [
+    { name: "Staff Rice", sku: "STAFF-001", unit: "kg", lowStockThreshold: 5 },
+    { name: "Staff Chicken", sku: "STAFF-002", unit: "kg", lowStockThreshold: 3 },
+    { name: "Staff Cooking Oil", sku: "STAFF-003", unit: "liter", lowStockThreshold: 2 },
+  ];
+  const staffInventoryIds: Record<string, string> = {};
+  for (const item of staffInvItems) {
+    const inv = await prisma.inventoryItem.upsert({
+      where: { branchId_sku: { branchId: mainBranch.id, sku: item.sku } },
+      update: {},
+      create: { id: sid("inv"), branchId: mainBranch.id, poolId: poolIds.staff, ...item },
+    });
+    staffInventoryIds[item.name] = inv.id;
+    await prisma.inventoryMovement.create({
+      data: {
+        id: sid("im"),
+        itemId: inv.id,
+        branchId: mainBranch.id,
+        direction: MovementDirection.IN,
+        movementType: MovementType.PURCHASE,
+        quantity: 20,
+        notes: "Initial staff pantry stock",
+      },
+    });
   }
 
   // ─── Initial Stock (Purchase movements) ────────────────────────────────────
@@ -534,30 +575,52 @@ async function main() {
     });
   }
 
-  // ─── Staff Meal ─────────────────────────────────────────────────────────────
-  await prisma.staffMeal.create({
+  // ─── Staff Meal Recipe & Consumption ───────────────────────────────────────
+  const staffLunchRecipe = await prisma.staffMealRecipe.create({
+    data: {
+      id: sid("smr"),
+      branchId: mainBranch.id,
+      name: "Staff Lunch",
+      lines: {
+        create: [
+          { id: sid("sml"), inventoryItemId: staffInventoryIds["Staff Rice"], quantity: 0.3 },
+          { id: sid("sml"), inventoryItemId: staffInventoryIds["Staff Chicken"], quantity: 0.15 },
+          { id: sid("sml"), inventoryItemId: staffInventoryIds["Staff Cooking Oil"], quantity: 0.02 },
+        ],
+      },
+    },
+  });
+
+  const staffMealRecord = await prisma.staffMeal.create({
     data: {
       id: sid("sm"),
       employeeId: employees[0].id,
-      inventoryItemId: inventoryIds["Rice"],
-      quantity: 0.3,
+      branchId: mainBranch.id,
+      staffMealRecipeId: staffLunchRecipe.id,
+      mealCount: 1,
+      unitCostPerMeal: 0.47,
       deductFromPayroll: false,
     },
   });
 
-  // Staff meal inventory movement
-  await prisma.inventoryMovement.create({
-    data: {
-      id: sid("im"),
-      itemId: inventoryIds["Rice"],
-      branchId: mainBranch.id,
-      direction: MovementDirection.OUT,
-      movementType: MovementType.STAFF_MEAL,
-      quantity: 0.3,
-      referenceType: "StaffMeal",
-      referenceId: employees[0].id,
-    },
-  });
+  for (const line of [
+    { item: staffInventoryIds["Staff Rice"], qty: 0.3 },
+    { item: staffInventoryIds["Staff Chicken"], qty: 0.15 },
+    { item: staffInventoryIds["Staff Cooking Oil"], qty: 0.02 },
+  ]) {
+    await prisma.inventoryMovement.create({
+      data: {
+        id: sid("im"),
+        itemId: line.item,
+        branchId: mainBranch.id,
+        direction: MovementDirection.OUT,
+        movementType: MovementType.STAFF_MEAL,
+        quantity: line.qty,
+        referenceType: "StaffMeal",
+        referenceId: staffMealRecord.id,
+      },
+    });
+  }
 
   // ─── Waste Record ──────────────────────────────────────────────────────────
   await prisma.inventoryMovement.create({

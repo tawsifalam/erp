@@ -1,3 +1,12 @@
+type MockPool = {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  isSystem: boolean;
+  sortOrder: number;
+};
+
 type MockInventoryItem = {
   id: string;
   name: string;
@@ -5,6 +14,7 @@ type MockInventoryItem = {
   unit: string;
   lowStockThreshold?: number | null;
   currentStock: number;
+  pool: { id: string; code: string; name: string };
 };
 
 type MockMovement = {
@@ -17,6 +27,28 @@ type MockMovement = {
   createdAt: string;
 };
 
+const INITIAL_POOLS: MockPool[] = [
+  {
+    id: "ivp-guest",
+    code: "guest",
+    name: "Guest / Kitchen",
+    isActive: true,
+    isSystem: true,
+    sortOrder: 0,
+  },
+  {
+    id: "ivp-staff",
+    code: "staff",
+    name: "Staff pantry",
+    isActive: true,
+    isSystem: true,
+    sortOrder: 1,
+  },
+];
+
+const guestPool = { id: "ivp-guest", code: "guest", name: "Guest / Kitchen" };
+const staffPool = { id: "ivp-staff", code: "staff", name: "Staff pantry" };
+
 const INITIAL_ITEMS: MockInventoryItem[] = [
   {
     id: "inv-001",
@@ -25,6 +57,7 @@ const INITIAL_ITEMS: MockInventoryItem[] = [
     unit: "kg",
     lowStockThreshold: 50,
     currentStock: 120,
+    pool: guestPool,
   },
   {
     id: "inv-002",
@@ -33,6 +66,7 @@ const INITIAL_ITEMS: MockInventoryItem[] = [
     unit: "litre",
     lowStockThreshold: 10,
     currentStock: 34,
+    pool: guestPool,
   },
   {
     id: "inv-003",
@@ -41,19 +75,77 @@ const INITIAL_ITEMS: MockInventoryItem[] = [
     unit: "kg",
     lowStockThreshold: 20,
     currentStock: 45,
+    pool: guestPool,
+  },
+  {
+    id: "inv-staff-001",
+    name: "Staff Lunch Rice",
+    sku: "STAFF-RICE",
+    unit: "kg",
+    lowStockThreshold: 5,
+    currentStock: 20,
+    pool: staffPool,
   },
 ];
 
+let pools = structuredClone(INITIAL_POOLS) as MockPool[];
 let items = structuredClone(INITIAL_ITEMS) as MockInventoryItem[];
 const movements: MockMovement[] = [];
 
 export function resetInventoryState() {
+  pools = structuredClone(INITIAL_POOLS) as MockPool[];
   items = structuredClone(INITIAL_ITEMS) as MockInventoryItem[];
   movements.length = 0;
 }
 
 export function getInventoryItems() {
   return items.map((i) => ({ ...i }));
+}
+
+export function getInventoryPools() {
+  return pools.map((p) => ({ ...p }));
+}
+
+function poolFromUrl(url: string) {
+  try {
+    const q = new URL(url).searchParams.get("pool");
+    return q || "";
+  } catch {
+    return "";
+  }
+}
+
+export function handleInventoryPoolMutation(
+  method: string,
+  url: string,
+  body: Record<string, unknown> | null,
+): unknown {
+  if (method === "GET") {
+    const activeOnly = url.includes("activeOnly=true");
+    return getInventoryPools().filter((p) => !activeOnly || p.isActive);
+  }
+  if (method === "POST") {
+    const pool: MockPool = {
+      id: `ivp_${pools.length + 1}`,
+      code: String(body?.code ?? "custom").toLowerCase(),
+      name: String(body?.name ?? "Custom pool"),
+      isActive: true,
+      isSystem: false,
+      sortOrder: pools.length,
+    };
+    pools.push(pool);
+    return pool;
+  }
+  const idMatch = url.match(/\/pools\/([^/?]+)/);
+  const id = idMatch?.[1];
+  if (method === "PATCH" && id) {
+    const pool = pools.find((p) => p.id === id);
+    if (!pool) return {};
+    if (body?.name) pool.name = String(body.name);
+    if (body?.isActive !== undefined) pool.isActive = Boolean(body.isActive);
+    return pool;
+  }
+  return {};
 }
 
 export function handleInventoryItemMutation(
@@ -65,10 +157,14 @@ export function handleInventoryItemMutation(
   const id = idMatch?.[1];
 
   if (method === "GET" && !id) {
-    return getInventoryItems();
+    const poolCode = poolFromUrl(url);
+    const all = getInventoryItems();
+    return poolCode ? all.filter((i) => i.pool.code === poolCode) : all;
   }
 
   if (method === "POST" && !id) {
+    const poolId = String(body?.poolId ?? guestPool.id);
+    const pool = pools.find((p) => p.id === poolId) ?? guestPool;
     const item: MockInventoryItem = {
       id: "inv_new",
       name: String(body?.name ?? "New Item"),
@@ -77,6 +173,7 @@ export function handleInventoryItemMutation(
       lowStockThreshold:
         body?.lowStockThreshold != null ? Number(body.lowStockThreshold) : null,
       currentStock: 0,
+      pool: { id: pool.id, code: pool.code, name: pool.name },
     };
     items.push(item);
     return item;

@@ -119,5 +119,6 @@ pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 - [POS Module](docs/pos-module.md) — point of sale (menu, orders, kitchen, payments)
 - [Inventory Module](docs/inventory-module.md) — stock ledger, movements, recipes/BOM
 - [Accounting Module](docs/accounting-module.md) — chart of accounts, journals, automated postings
+- [HR Module](docs/hr-module.md) — employees, attendance, staff meals, payroll
 - [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture and Settings API surface
 - [Deployment](docs/deployment.md) — production deployment

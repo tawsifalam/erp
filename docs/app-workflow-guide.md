@@ -1216,6 +1216,19 @@ A guest orders 2× Chicken Biryani (₹320 each) and 1× Tea (₹50). Total = �
 
 The HR module manages employees, attendance tracking, staff meals, and payroll processing.
 
+> **Full reference:** [docs/hr-module.md](hr-module.md) — API tables, Web UI tabs, staff meal deductions, payroll worker, and testing.
+
+### Web UI (`/hr`)
+
+Select **organization** and **branch** in the header (branch required for attendance and staff meals).
+
+| Tab | Features |
+|-----|----------|
+| **Employees** | List staff; add employee (name, designation, salary) |
+| **Attendance** | Clock in/out; recent attendance list for current branch |
+| **Staff meals** | Define **meal recipes** (ingredients per meal); record consumption (employee + recipe + meal count); optional payroll deduction |
+| **Payroll** | Run payroll for current month; view runs with gross / deductions / net |
+
 ### Step 1: List Employees
 
 ```bash
@@ -1292,9 +1305,28 @@ curl -s -X POST "$BASE/hr/attendance/clock" \
 
 **Attendance types:** `CLOCK_IN`, `CLOCK_OUT`
 
-### Step 3: Record a Staff Meal
+### Step 3: Define a Staff Meal Recipe
 
-Staff meals deduct from inventory and optionally from payroll.
+Staff meals are recipes (BOM). Each recipe defines ingredients per **one meal**.
+
+```bash
+curl -s -X POST "$BASE/hr/staff-meal-recipes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Staff Lunch",
+    "lines": [
+      { "inventoryItemId": "<inv-rice-uuid>", "quantity": 0.3 },
+      { "inventoryItemId": "<inv-chicken-uuid>", "quantity": 0.15 }
+    ]
+  }' | jq
+```
+
+### Step 4: Record Staff Meal Consumption
+
+Record how many meals an employee consumed. Inventory ingredients are auto-deducted from the recipe.
 
 ```bash
 curl -s -X POST "$BASE/hr/staff-meals" \
@@ -1304,18 +1336,18 @@ curl -s -X POST "$BASE/hr/staff-meals" \
   -H "Content-Type: application/json" \
   -d '{
     "employeeId": "00000000-0000-0000-0000-000000000401",
-    "inventoryItemId": "<inv-rice-uuid>",
-    "quantity": 0.3,
+    "staffMealRecipeId": "<staff-meal-recipe-uuid>",
+    "mealCount": 1,
     "deductFromPayroll": false
   }' | jq
 ```
 
 **What happens:**
-1. An inventory movement (OUT, type: `STAFF_MEAL`) is created
-2. A `StaffMeal` record is saved
-3. If `deductFromPayroll: true`, the cost is deducted from the employee's next payroll
+1. For each recipe line: inventory movement (OUT, type: `STAFF_MEAL`) with `line.quantity × mealCount`
+2. A `StaffMeal` consumption record is saved with `mealCount`
+3. If `deductFromPayroll: true`, `mealCount × unitCostPerMeal` is deducted on the employee's next payroll run (meals marked `payrollDeducted` after processing)
 
-### Step 4: Request a Payroll Run
+### Step 5: Request a Payroll Run
 
 ```bash
 curl -s -X POST "$BASE/hr/payroll/runs" \
@@ -1348,7 +1380,7 @@ curl -s -X POST "$BASE/hr/payroll/runs" \
 4. The `PayrollProcessor` (BullMQ worker) processes salary calculations for each employee in the background
 5. Payroll lines are created for each employee
 
-### Step 5: View Payroll Runs
+### Step 6: View Payroll Runs
 
 ```bash
 curl -s "$BASE/payroll/runs" \
@@ -1366,9 +1398,9 @@ POST /hr/payroll/runs
   → Emit "payroll.run_requested" event
   → PayrollListener adds job to BullMQ "payroll" queue
   → PayrollProcessor (worker) picks up job
-    → Calculate salaries for all employees
-    → Create PayrollRunLine for each employee
-    → Optionally deduct staff meal costs
+    → Sum pending staff meals (deductFromPayroll, not yet payrollDeducted)
+    → Create PayrollLine for each employee (gross, deductions, net)
+    → Mark staff meals payrollDeducted
     → Update PayrollRun status → COMPLETED
 ```
 
@@ -1614,6 +1646,7 @@ pnpm --filter @erp/web test:e2e pos      # orders, menu, lifecycle
 pnpm --filter @erp/web test:e2e kitchen  # kitchen display, prep → ready, cancel queue
 pnpm --filter @erp/web test:e2e inventory
 pnpm --filter @erp/web test:e2e accounting
+pnpm --filter @erp/web test:e2e hr
 ```
 
 ### Test Coverage
@@ -1630,7 +1663,7 @@ pnpm test -- --coverage
 | Integration   | Jest + Prisma   | Database operations, transactions        |
 | E2E           | Playwright      | Full user workflows via the browser      |
 
-Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`.
+Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`, `e2e/hr.spec.ts`.
 
 ---
 
@@ -1718,8 +1751,13 @@ See [accounting-module.md](accounting-module.md) for curl examples.
 |--------|--------------------------------------|------------|------------------------|
 | GET    | `/hr/employees`                      | HR_READ    | List employees         |
 | POST   | `/hr/employees`                      | HR_WRITE   | Create employee        |
+| GET    | `/hr/attendance`                     | HR_READ    | List attendance (branch) |
 | POST   | `/hr/attendance/clock`               | HR_WRITE   | Clock in/out           |
-| POST   | `/hr/staff-meals`                    | HR_WRITE   | Record staff meal      |
+| GET    | `/hr/staff-meal-recipes`             | HR_READ    | List staff meal recipes |
+| POST   | `/hr/staff-meal-recipes`             | HR_WRITE   | Create staff meal recipe |
+| PUT    | `/hr/staff-meal-recipes/:id`         | HR_WRITE   | Update staff meal recipe |
+| GET    | `/hr/staff-meals`                    | HR_READ    | List meal consumption  |
+| POST   | `/hr/staff-meals`                    | HR_WRITE   | Record meals consumed  |
 | POST   | `/hr/payroll/runs`                   | HR_WRITE   | Request payroll run    |
 | GET    | `/payroll/runs`                      | HR_READ    | List payroll runs      |
 | GET    | `/payroll/runs/:id`                  | HR_READ    | Get payroll run        |

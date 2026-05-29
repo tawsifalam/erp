@@ -2,10 +2,14 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { Role } from "@prisma/client";
 import { generatePrefixedId } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
+import { InventoryPoolsService } from "../inventory/inventory-pools.service";
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryPools: InventoryPoolsService,
+  ) {}
 
   listOrganizations(userId: string) {
     return this.prisma.userOrganization.findMany({
@@ -61,6 +65,9 @@ export class TenantsService {
       });
 
       return { organization: { ...org, branches: [branch] }, branch };
+    }).then(async (result) => {
+      await this.inventoryPools.seedDefaultPools(result.organization.id);
+      return result;
     });
   }
 

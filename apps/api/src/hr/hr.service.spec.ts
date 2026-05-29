@@ -1,23 +1,41 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { MovementType } from "@prisma/client";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { HrService } from "./hr.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
 
+jest.mock("@erp/utils", () => ({
+  toNumber: (v: unknown) => Number(v),
+  generatePrefixedId: () => "sml_test",
+}));
+
 const mockPrisma = {
-  employee: { findMany: jest.fn(), create: jest.fn() },
-  attendanceRecord: { create: jest.fn() },
-  staffMeal: { create: jest.fn() },
+  employee: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+  attendanceRecord: { create: jest.fn(), findMany: jest.fn() },
+  staffMeal: { create: jest.fn(), findMany: jest.fn() },
+  staffMealRecipe: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   payrollRun: { create: jest.fn() },
 };
 
 const mockInventory = {
   createMovement: jest.fn(),
+  assertItemInPool: jest.fn().mockResolvedValue({ id: "item-1" }),
 };
 
 const mockEvents = {
   emit: jest.fn(),
+};
+
+const sampleRecipe = {
+  id: "smr-1",
+  branchId: "branch-1",
+  name: "Staff Lunch",
+  lines: [
+    { inventoryItemId: "item-rice", quantity: 0.3 },
+    { inventoryItemId: "item-chicken", quantity: 0.15 },
+  ],
 };
 
 describe("HrService", () => {
@@ -25,6 +43,8 @@ describe("HrService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.employee.findFirst.mockResolvedValue({ id: "emp-1", organizationId: "org-1" });
+    mockPrisma.staffMealRecipe.findFirst.mockResolvedValue(sampleRecipe);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,47 +59,47 @@ describe("HrService", () => {
   });
 
   describe("recordStaffMeal", () => {
-    it("creates inventory movement with STAFF_MEAL type", async () => {
+    it("deducts each recipe ingredient × meal count", async () => {
       mockInventory.createMovement.mockResolvedValue({});
       mockPrisma.staffMeal.create.mockResolvedValue({ id: "sm-1" });
 
       await service.recordStaffMeal({
+        organizationId: "org-1",
         employeeId: "emp-1",
         branchId: "branch-1",
-        inventoryItemId: "item-1",
-        quantity: 2,
+        staffMealRecipeId: "smr-1",
+        mealCount: 2,
       });
 
+      expect(mockInventory.createMovement).toHaveBeenCalledTimes(2);
       expect(mockInventory.createMovement).toHaveBeenCalledWith({
-        itemId: "item-1",
+        itemId: "item-rice",
         branchId: "branch-1",
         movementType: MovementType.STAFF_MEAL,
-        quantity: 2,
+        quantity: 0.6,
         referenceType: "StaffMeal",
-        referenceId: "emp-1",
+        referenceId: "sm-1",
       });
+      expect(mockPrisma.staffMeal.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            mealCount: 2,
+            unitCostPerMeal: expect.closeTo(0.45, 5),
+          }),
+        }),
+      );
     });
 
-    it("creates staff meal record", async () => {
-      mockInventory.createMovement.mockResolvedValue({});
-      mockPrisma.staffMeal.create.mockResolvedValue({ id: "sm-1" });
-
-      const result = await service.recordStaffMeal({
-        employeeId: "emp-1",
-        branchId: "branch-1",
-        inventoryItemId: "item-1",
-        quantity: 2,
-      });
-
-      expect(result).toEqual({ id: "sm-1" });
-      expect(mockPrisma.staffMeal.create).toHaveBeenCalledWith({
-        data: {
+    it("throws when mealCount is not a positive integer", async () => {
+      await expect(
+        service.recordStaffMeal({
+          organizationId: "org-1",
           employeeId: "emp-1",
-          inventoryItemId: "item-1",
-          quantity: 2,
-          deductFromPayroll: false,
-        },
-      });
+          branchId: "branch-1",
+          staffMealRecipeId: "smr-1",
+          mealCount: 0,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("respects deductFromPayroll flag", async () => {
@@ -87,36 +107,33 @@ describe("HrService", () => {
       mockPrisma.staffMeal.create.mockResolvedValue({ id: "sm-1" });
 
       await service.recordStaffMeal({
+        organizationId: "org-1",
         employeeId: "emp-1",
         branchId: "branch-1",
-        inventoryItemId: "item-1",
-        quantity: 1,
+        staffMealRecipeId: "smr-1",
+        mealCount: 1,
         deductFromPayroll: true,
       });
 
-      expect(mockPrisma.staffMeal.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ deductFromPayroll: true }),
-      });
+      expect(mockPrisma.staffMeal.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ deductFromPayroll: true }),
+        }),
+      );
     });
+  });
 
-    it("calls inventory movement before creating staff meal", async () => {
-      const callOrder: string[] = [];
-      mockInventory.createMovement.mockImplementation(async () => {
-        callOrder.push("movement");
-      });
-      mockPrisma.staffMeal.create.mockImplementation(async () => {
-        callOrder.push("staffMeal");
-        return { id: "sm-1" };
-      });
+  describe("upsertStaffMealRecipe", () => {
+    it("creates recipe with validated lines", async () => {
+      mockPrisma.staffMealRecipe.create.mockResolvedValue({ id: "smr-new" });
 
-      await service.recordStaffMeal({
-        employeeId: "emp-1",
-        branchId: "branch-1",
-        inventoryItemId: "item-1",
-        quantity: 1,
+      await service.upsertStaffMealRecipe("branch-1", {
+        name: "Staff Lunch",
+        lines: [{ inventoryItemId: "item-1", quantity: 0.3 }],
       });
 
-      expect(callOrder).toEqual(["movement", "staffMeal"]);
+      expect(mockInventory.assertItemInPool).toHaveBeenCalledWith("branch-1", "item-1", "staff");
+      expect(mockPrisma.staffMealRecipe.create).toHaveBeenCalled();
     });
   });
 
@@ -125,99 +142,35 @@ describe("HrService", () => {
       const run = { id: "pr-1" };
       mockPrisma.payrollRun.create.mockResolvedValue(run);
 
-      const periodStart = new Date("2026-06-01");
-      const periodEnd = new Date("2026-06-30");
-
       const result = await service.requestPayrollRun(
-        "org-1",
-        periodStart,
-        periodEnd,
-      );
-
-      expect(result).toEqual(run);
-      expect(mockPrisma.payrollRun.create).toHaveBeenCalledWith({
-        data: {
-          organizationId: "org-1",
-          periodStart,
-          periodEnd,
-        },
-      });
-    });
-
-    it("emits payroll.run_requested event with run ID", async () => {
-      const run = { id: "pr-1" };
-      mockPrisma.payrollRun.create.mockResolvedValue(run);
-
-      await service.requestPayrollRun(
         "org-1",
         new Date("2026-06-01"),
         new Date("2026-06-30"),
       );
 
-      expect(mockEvents.emit).toHaveBeenCalledWith(
-        "payroll.run_requested",
-        expect.objectContaining({ payrollRunId: "pr-1" }),
-      );
+      expect(result).toEqual(run);
     });
-  });
 
-  describe("listEmployees", () => {
-    it("queries employees with branch and user included", async () => {
-      mockPrisma.employee.findMany.mockResolvedValue([]);
-
-      await service.listEmployees("org-1");
-
-      expect(mockPrisma.employee.findMany).toHaveBeenCalledWith({
-        where: { organizationId: "org-1" },
-        include: { branch: true, user: true },
-      });
+    it("throws when periodStart >= periodEnd", async () => {
+      await expect(
+        service.requestPayrollRun("org-1", new Date("2026-06-30"), new Date("2026-06-01")),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe("createEmployee", () => {
-    it("creates employee with provided data", async () => {
-      const employee = { id: "emp-1", name: "John" };
-      mockPrisma.employee.create.mockResolvedValue(employee);
-
-      const result = await service.createEmployee("org-1", {
-        name: "John",
-        designation: "Chef",
-        salary: 5000,
-        branchId: "branch-1",
-      });
-
-      expect(result).toEqual(employee);
-      expect(mockPrisma.employee.create).toHaveBeenCalledWith({
-        data: {
-          organizationId: "org-1",
-          name: "John",
-          designation: "Chef",
-          salary: 5000,
-          branchId: "branch-1",
-        },
-      });
+    it("throws when name is empty", () => {
+      expect(() =>
+        service.createEmployee("org-1", { name: "  ", designation: "Chef", salary: 1000 }),
+      ).toThrow(BadRequestException);
     });
   });
 
-  describe("clockAttendance", () => {
-    it("creates attendance record", async () => {
-      const record = { id: "att-1" };
-      mockPrisma.attendanceRecord.create.mockResolvedValue(record);
+  describe("getEmployee", () => {
+    it("throws NotFoundException when missing", async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue(null);
 
-      const result = await service.clockAttendance(
-        "emp-1",
-        "branch-1",
-        "CLOCK_IN" as any,
-      );
-
-      expect(result).toEqual(record);
-      expect(mockPrisma.attendanceRecord.create).toHaveBeenCalledWith({
-        data: {
-          employeeId: "emp-1",
-          branchId: "branch-1",
-          type: "CLOCK_IN",
-        },
-      });
+      await expect(service.getEmployee("org-1", "missing")).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Box,
   Button,
@@ -26,7 +26,35 @@ type PayrollRun = {
   periodStart: string;
   periodEnd: string;
   createdAt: string;
-  lines: { employee: { name: string }; grossPay: string; netPay: string }[];
+  lines: {
+    employee: { name: string };
+    grossPay: string;
+    deductions: string;
+    netPay: string;
+  }[];
+};
+type AttendanceRecord = {
+  id: string;
+  type: string;
+  recordedAt: string;
+  employee: { name: string };
+};
+type InvItem = { id: string; name: string; unit: string };
+type StaffMealRecipe = {
+  id: string;
+  name: string;
+  lines: {
+    inventoryItemId: string;
+    quantity: string;
+    inventoryItem: InvItem;
+  }[];
+};
+type StaffMealRecord = {
+  id: string;
+  mealCount: number;
+  createdAt: string;
+  employee: { name: string };
+  recipe: { name: string };
 };
 
 export default function HrPage() {
@@ -35,7 +63,18 @@ export default function HrPage() {
   const [empForm, setEmpForm] = useState({ name: "", designation: "", salary: "" });
   const [clockEmployeeId, setClockEmployeeId] = useState("");
   const [clockType, setClockType] = useState<"CLOCK_IN" | "CLOCK_OUT">("CLOCK_IN");
+  const [mealForm, setMealForm] = useState({
+    employeeId: "",
+    staffMealRecipeId: "",
+    mealCount: "1",
+    deductFromPayroll: false,
+  });
+  const [recipeForm, setRecipeForm] = useState({
+    name: "",
+    lines: [{ inventoryItemId: "", quantity: "" }],
+  });
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const employeesQuery = useAsync(
     () => apiFetch<Employee[]>("/hr/employees", { tenant }),
@@ -47,57 +86,180 @@ export default function HrPage() {
     [tenant.organizationId],
   );
 
+  const attendanceQuery = useAsync(
+    () =>
+      tenant.branchId
+        ? apiFetch<AttendanceRecord[]>(
+            `/hr/attendance?branchId=${tenant.branchId}`,
+            { tenant },
+          )
+        : Promise.resolve([]),
+    [tenant.organizationId, tenant.branchId],
+  );
+
+  const mealRecipesQuery = useAsync(
+    () =>
+      tenant.branchId
+        ? apiFetch<StaffMealRecipe[]>(
+            `/hr/staff-meal-recipes?branchId=${tenant.branchId}`,
+            { tenant },
+          )
+        : Promise.resolve([]),
+    [tenant.branchId, tenant.organizationId],
+  );
+
+  const staffMealsQuery = useAsync(
+    () =>
+      tenant.branchId
+        ? apiFetch<StaffMealRecord[]>(`/hr/staff-meals?branchId=${tenant.branchId}`, { tenant })
+        : Promise.resolve([]),
+    [tenant.branchId, tenant.organizationId],
+  );
+
+  const inventoryQuery = useAsync(
+    () =>
+      tenant.branchId
+        ? apiFetch<InvItem[]>(
+            `/inventory/items?branchId=${tenant.branchId}&pool=staff`,
+            { tenant },
+          )
+        : Promise.resolve([]),
+    [tenant.branchId, tenant.organizationId],
+  );
+
+  const reloadAttendance = useCallback(() => attendanceQuery.reload(), [attendanceQuery]);
+
   const employees = employeesQuery.data ?? [];
   const payrollRuns = payrollQuery.data ?? [];
+  const attendance = attendanceQuery.data ?? [];
+  const mealRecipes = mealRecipesQuery.data ?? [];
+  const staffMeals = staffMealsQuery.data ?? [];
+  const inventoryItems = inventoryQuery.data ?? [];
 
   const handleAddEmployee = async () => {
-    await apiFetch("/hr/employees", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({
-        name: empForm.name,
-        designation: empForm.designation,
-        salary: Number(empForm.salary),
-        branchId: tenant.branchId,
-      }),
-    });
-    setEmpForm({ name: "", designation: "", salary: "" });
-    employeesQuery.reload();
+    setError(null);
+    try {
+      await apiFetch("/hr/employees", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({
+          name: empForm.name,
+          designation: empForm.designation,
+          salary: Number(empForm.salary),
+          branchId: tenant.branchId,
+        }),
+      });
+      setEmpForm({ name: "", designation: "", salary: "" });
+      employeesQuery.reload();
+      setMessage("Employee added");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add employee");
+    }
   };
 
   const handleClock = async () => {
-    if (!clockEmployeeId) return;
-    await apiFetch("/hr/attendance/clock", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({ employeeId: clockEmployeeId, type: clockType }),
-    });
-    setMessage(`${clockType === "CLOCK_IN" ? "Clocked in" : "Clocked out"} successfully`);
+    if (!clockEmployeeId || !tenant.branchId) return;
+    setError(null);
+    try {
+      await apiFetch("/hr/attendance/clock", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({ employeeId: clockEmployeeId, type: clockType }),
+      });
+      setMessage(`${clockType === "CLOCK_IN" ? "Clocked in" : "Clocked out"} successfully`);
+      reloadAttendance();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record attendance");
+    }
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!tenant.branchId) return;
+    setError(null);
+    try {
+      await apiFetch("/hr/staff-meal-recipes", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({
+          name: recipeForm.name,
+          lines: recipeForm.lines
+            .filter((l) => l.inventoryItemId && Number(l.quantity) > 0)
+            .map((l) => ({
+              inventoryItemId: l.inventoryItemId,
+              quantity: Number(l.quantity),
+            })),
+        }),
+      });
+      setRecipeForm({ name: "", lines: [{ inventoryItemId: "", quantity: "" }] });
+      mealRecipesQuery.reload();
+      setMessage("Staff meal recipe saved");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save recipe");
+    }
+  };
+
+  const handleStaffMeal = async () => {
+    if (!tenant.branchId) return;
+    setError(null);
+    try {
+      await apiFetch("/hr/staff-meals", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({
+          employeeId: mealForm.employeeId,
+          staffMealRecipeId: mealForm.staffMealRecipeId,
+          mealCount: Number(mealForm.mealCount),
+          deductFromPayroll: mealForm.deductFromPayroll,
+        }),
+      });
+      setMealForm({
+        employeeId: "",
+        staffMealRecipeId: "",
+        mealCount: "1",
+        deductFromPayroll: false,
+      });
+      staffMealsQuery.reload();
+      setMessage("Staff meal recorded (recipe ingredients deducted)");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to record staff meal");
+    }
   };
 
   const runPayroll = async () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const job = await apiFetch<{ id: string }>("/hr/payroll/runs", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify({
-        periodStart: start.toISOString(),
-        periodEnd: now.toISOString(),
-      }),
-    });
-    setMessage(`Payroll run queued: ${job.id}`);
-    payrollQuery.reload();
+    setError(null);
+    try {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const job = await apiFetch<{ id: string }>("/hr/payroll/runs", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({
+          periodStart: start.toISOString(),
+          periodEnd: now.toISOString(),
+        }),
+      });
+      setMessage(`Payroll run queued: ${job.id}`);
+      payrollQuery.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to queue payroll run");
+    }
   };
 
   return (
     <DashboardShell title="HR">
-      <PageHeader title="Human Resources" description="Employees, attendance, and payroll" />
+      <PageHeader title="Human Resources" description="Employees, attendance, staff meals, and payroll" />
+
+      {error && (
+        <Text color="red.500" mb={3} fontSize="sm">
+          {error}
+        </Text>
+      )}
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
         <Tabs.List>
           <Tabs.Trigger value="employees">Employees</Tabs.Trigger>
           <Tabs.Trigger value="attendance">Attendance</Tabs.Trigger>
+          <Tabs.Trigger value="meals">Staff meals</Tabs.Trigger>
           <Tabs.Trigger value="payroll">Payroll</Tabs.Trigger>
         </Tabs.List>
 
@@ -163,7 +325,12 @@ export default function HrPage() {
         </Tabs.Content>
 
         <Tabs.Content value="attendance" pt={4}>
-          <Box bg="white" borderRadius="md" p={4} maxW="480px">
+          {!tenant.branchId && (
+            <Text mb={3} fontSize="sm" color="orange.600">
+              Select a branch in the header to record attendance.
+            </Text>
+          )}
+          <Box bg="white" borderRadius="md" p={4} maxW="480px" mb={4}>
             <Stack gap={3}>
               <NativeSelect.Root size="sm">
                 <NativeSelect.Field
@@ -192,6 +359,201 @@ export default function HrPage() {
               </Button>
             </Stack>
           </Box>
+          <Box bg="white" borderRadius="md" p={4}>
+            <Text fontWeight="semibold" mb={2}>
+              Recent attendance
+            </Text>
+            {attendanceQuery.loading && <LoadingState label="Loading attendance…" />}
+            {attendance.length === 0 && !attendanceQuery.loading && (
+              <EmptyState message="No attendance records yet." />
+            )}
+            <Stack gap={1}>
+              {attendance.map((a) => (
+                <Flex key={a.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
+                  <Text>
+                    {a.employee.name} — {a.type.replace("_", " ")}
+                  </Text>
+                  <Text color="fg.muted">{formatDateTime(a.recordedAt)}</Text>
+                </Flex>
+              ))}
+            </Stack>
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="meals" pt={4}>
+          {!tenant.branchId && (
+            <Text mb={3} fontSize="sm" color="orange.600">
+              Select a branch in the header to manage staff meals.
+            </Text>
+          )}
+
+          <Box bg="white" borderRadius="md" p={4} mb={4}>
+            <Text fontWeight="semibold" mb={2}>
+              Meal recipes
+            </Text>
+            <Text fontSize="sm" color="fg.muted" mb={3}>
+              Define each staff meal as a recipe (ingredients per 1 meal). Consumption auto-deducts inventory.
+            </Text>
+            {mealRecipesQuery.loading && <LoadingState label="Loading recipes…" />}
+            {mealRecipes.length > 0 && (
+              <Stack gap={2} mb={4}>
+                {mealRecipes.map((r) => (
+                  <Box key={r.id} borderWidth="1px" borderRadius="md" p={3}>
+                    <Text fontWeight="medium">{r.name}</Text>
+                    <Text fontSize="sm" color="fg.muted">
+                      {r.lines
+                        .map((l) => `${l.inventoryItem.name} ${l.quantity}${l.inventoryItem.unit}`)
+                        .join(" · ")}
+                    </Text>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+            <Stack gap={2} maxW="640px">
+              <Input
+                size="sm"
+                placeholder="Recipe name (e.g. Staff Lunch)"
+                value={recipeForm.name}
+                onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
+              />
+              {recipeForm.lines.map((line, idx) => (
+                <Flex key={idx} gap={2}>
+                  <NativeSelect.Root size="sm" flex={1}>
+                    <NativeSelect.Field
+                      value={line.inventoryItemId}
+                      onChange={(e) => {
+                        const lines = [...recipeForm.lines];
+                        lines[idx] = { ...lines[idx], inventoryItemId: e.target.value };
+                        setRecipeForm({ ...recipeForm, lines });
+                      }}
+                    >
+                      <option value="">Ingredient</option>
+                      {inventoryItems.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.name} ({i.unit})
+                        </option>
+                      ))}
+                    </NativeSelect.Field>
+                  </NativeSelect.Root>
+                  <Input
+                    size="sm"
+                    w="120px"
+                    type="number"
+                    step="0.001"
+                    placeholder="Qty / meal"
+                    value={line.quantity}
+                    onChange={(e) => {
+                      const lines = [...recipeForm.lines];
+                      lines[idx] = { ...lines[idx], quantity: e.target.value };
+                      setRecipeForm({ ...recipeForm, lines });
+                    }}
+                  />
+                </Flex>
+              ))}
+              <Flex gap={2}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setRecipeForm({
+                      ...recipeForm,
+                      lines: [...recipeForm.lines, { inventoryItemId: "", quantity: "" }],
+                    })
+                  }
+                >
+                  Add ingredient
+                </Button>
+                <Button size="sm" colorPalette="blue" onClick={handleSaveRecipe}>
+                  Save recipe
+                </Button>
+              </Flex>
+            </Stack>
+          </Box>
+
+          <Box bg="white" borderRadius="md" p={4} maxW="560px" mb={4}>
+            <Text fontWeight="semibold" mb={2}>
+              Record consumption
+            </Text>
+            <Text fontSize="sm" color="fg.muted" mb={3}>
+              Select employee and meal recipe. Enter how many meals consumed.
+            </Text>
+            <Stack gap={3}>
+              <NativeSelect.Root size="sm">
+                <NativeSelect.Field
+                  value={mealForm.employeeId}
+                  onChange={(e) => setMealForm({ ...mealForm, employeeId: e.target.value })}
+                >
+                  <option value="">Employee</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+              </NativeSelect.Root>
+              <NativeSelect.Root size="sm">
+                <NativeSelect.Field
+                  value={mealForm.staffMealRecipeId}
+                  onChange={(e) =>
+                    setMealForm({ ...mealForm, staffMealRecipeId: e.target.value })
+                  }
+                >
+                  <option value="">Meal recipe</option>
+                  {mealRecipes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+              </NativeSelect.Root>
+              <Input
+                size="sm"
+                type="number"
+                min={1}
+                step={1}
+                placeholder="Meals consumed"
+                value={mealForm.mealCount}
+                onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
+              />
+              <NativeSelect.Root size="sm">
+                <NativeSelect.Field
+                  value={mealForm.deductFromPayroll ? "yes" : "no"}
+                  onChange={(e) =>
+                    setMealForm({
+                      ...mealForm,
+                      deductFromPayroll: e.target.value === "yes",
+                    })
+                  }
+                >
+                  <option value="no">Do not deduct from payroll</option>
+                  <option value="yes">Deduct from next payroll</option>
+                </NativeSelect.Field>
+              </NativeSelect.Root>
+              <Button size="sm" colorPalette="green" w="fit-content" onClick={handleStaffMeal}>
+                Record meal
+              </Button>
+            </Stack>
+          </Box>
+
+          <Box bg="white" borderRadius="md" p={4}>
+            <Text fontWeight="semibold" mb={2}>
+              Recent consumption
+            </Text>
+            {staffMealsQuery.loading && <LoadingState label="Loading…" />}
+            {staffMeals.length === 0 && !staffMealsQuery.loading && (
+              <EmptyState message="No staff meals recorded yet." />
+            )}
+            <Stack gap={1}>
+              {staffMeals.map((m) => (
+                <Flex key={m.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
+                  <Text>
+                    {m.employee.name} — {m.mealCount}× {m.recipe.name}
+                  </Text>
+                  <Text color="fg.muted">{formatDateTime(m.createdAt)}</Text>
+                </Flex>
+              ))}
+            </Stack>
+          </Box>
         </Tabs.Content>
 
         <Tabs.Content value="payroll" pt={4}>
@@ -210,10 +572,24 @@ export default function HrPage() {
                 </Text>
               </Flex>
               <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Employee</Table.ColumnHeader>
+                    <Table.ColumnHeader>Gross</Table.ColumnHeader>
+                    <Table.ColumnHeader>Deductions</Table.ColumnHeader>
+                    <Table.ColumnHeader>Net</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
                 <Table.Body>
                   {run.lines.map((l, i) => (
                     <Table.Row key={i}>
                       <Table.Cell>{l.employee.name}</Table.Cell>
+                      <Table.Cell>
+                        <MoneyText amount={Number(l.grossPay)} />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <MoneyText amount={Number(l.deductions)} />
+                      </Table.Cell>
                       <Table.Cell>
                         <MoneyText amount={Number(l.netPay)} />
                       </Table.Cell>

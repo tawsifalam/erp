@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { MovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "./inventory.service";
 import { toNumber, generatePrefixedId } from "@erp/utils";
+import { POOL_CODE_GUEST } from "./inventory.constants";
 
 @Injectable()
 export class InventoryRecipesService {
@@ -11,13 +12,32 @@ export class InventoryRecipesService {
     private readonly inventory: InventoryService,
   ) {}
 
-  upsertRecipe(menuItemId: string, lines: { inventoryItemId: string; quantity: number }[]) {
+  async upsertRecipe(
+    menuItemId: string,
+    lines: { inventoryItemId: string; quantity: number }[],
+  ) {
+    const menuItem = await this.prisma.menuItem.findUnique({
+      where: { id: menuItemId },
+      include: { category: true },
+    });
+    if (!menuItem) throw new BadRequestException("Menu item not found");
+
+    const branchId = menuItem.category.branchId;
+    const validLines = lines.filter((l) => l.inventoryItemId && l.quantity > 0);
+    for (const line of validLines) {
+      await this.inventory.assertItemInPool(
+        branchId,
+        line.inventoryItemId,
+        POOL_CODE_GUEST,
+      );
+    }
+
     return this.prisma.recipe.upsert({
       where: { menuItemId },
       update: {
         lines: {
           deleteMany: {},
-          create: lines.map((l) => ({
+          create: validLines.map((l) => ({
             id: generatePrefixedId("rl"),
             inventoryItemId: l.inventoryItemId,
             quantity: l.quantity,
@@ -27,7 +47,7 @@ export class InventoryRecipesService {
       create: {
         menuItemId,
         lines: {
-          create: lines.map((l) => ({
+          create: validLines.map((l) => ({
             id: generatePrefixedId("rl"),
             inventoryItemId: l.inventoryItemId,
             quantity: l.quantity,
@@ -41,7 +61,13 @@ export class InventoryRecipesService {
   getRecipe(menuItemId: string) {
     return this.prisma.recipe.findUnique({
       where: { menuItemId },
-      include: { lines: { include: { inventoryItem: true } } },
+      include: {
+        lines: {
+          include: {
+            inventoryItem: { include: { pool: { select: { code: true, name: true } } } },
+          },
+        },
+      },
     });
   }
 

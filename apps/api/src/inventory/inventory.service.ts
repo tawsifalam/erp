@@ -6,6 +6,7 @@ import {
 import { MovementDirection, MovementType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { toNumber } from "@erp/utils";
+import { InventoryPoolsService } from "./inventory-pools.service";
 
 function directionFor(
   type: MovementType,
@@ -28,11 +29,30 @@ function directionFor(
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pools: InventoryPoolsService,
+  ) {}
 
-  listItems(branchId: string) {
+  private async branchOrganizationId(branchId: string): Promise<string> {
+    const branch = await this.prisma.branch.findUnique({ where: { id: branchId } });
+    if (!branch) throw new NotFoundException("Branch not found");
+    return branch.organizationId;
+  }
+
+  listItems(
+    branchId: string,
+    filter?: { poolId?: string; poolCode?: string },
+  ) {
+    const poolWhere = filter?.poolId
+      ? { poolId: filter.poolId }
+      : filter?.poolCode
+        ? { pool: { code: filter.poolCode } }
+        : {};
+
     return this.prisma.inventoryItem.findMany({
-      where: { branchId },
+      where: { branchId, ...poolWhere },
+      include: { pool: { select: { id: true, code: true, name: true } } },
       orderBy: { name: "asc" },
     });
   }
@@ -40,14 +60,31 @@ export class InventoryService {
   async getItem(branchId: string, itemId: string) {
     const item = await this.prisma.inventoryItem.findFirst({
       where: { id: itemId, branchId },
+      include: { pool: { select: { id: true, code: true, name: true } } },
     });
     if (!item) throw new NotFoundException("Inventory item not found");
     return item;
   }
 
-  createItem(
+  async assertItemInPool(branchId: string, itemId: string, poolCode: string) {
+    const item = await this.getItem(branchId, itemId);
+    if (item.pool.code !== poolCode) {
+      throw new BadRequestException(
+        `Item must belong to the "${poolCode}" inventory pool`,
+      );
+    }
+    return item;
+  }
+
+  async createItem(
     branchId: string,
-    data: { name: string; sku: string; unit: string; lowStockThreshold?: number },
+    data: {
+      name: string;
+      sku: string;
+      unit: string;
+      lowStockThreshold?: number;
+      poolId?: string;
+    },
   ) {
     if (!data.name?.trim()) throw new BadRequestException("Item name is required");
     if (!data.sku?.trim()) throw new BadRequestException("SKU is required");
@@ -56,14 +93,21 @@ export class InventoryService {
       throw new BadRequestException("lowStockThreshold cannot be negative");
     }
 
+    const organizationId = await this.branchOrganizationId(branchId);
+    const poolId =
+      data.poolId ?? (await this.pools.defaultGuestPoolId(organizationId));
+    await this.pools.getPool(organizationId, poolId);
+
     return this.prisma.inventoryItem.create({
       data: {
         branchId,
+        poolId,
         name: data.name.trim(),
         sku: data.sku.trim(),
         unit: data.unit.trim(),
         lowStockThreshold: data.lowStockThreshold,
       },
+      include: { pool: { select: { id: true, code: true, name: true } } },
     });
   }
 
@@ -92,6 +136,7 @@ export class InventoryService {
           ? { lowStockThreshold: data.lowStockThreshold }
           : {}),
       },
+      include: { pool: { select: { id: true, code: true, name: true } } },
     });
   }
 
@@ -108,8 +153,11 @@ export class InventoryService {
     return stock;
   }
 
-  async listItemsWithStock(branchId: string) {
-    const items = await this.listItems(branchId);
+  async listItemsWithStock(
+    branchId: string,
+    filter?: { poolId?: string; poolCode?: string },
+  ) {
+    const items = await this.listItems(branchId, filter);
     return Promise.all(
       items.map(async (item) => ({
         ...item,

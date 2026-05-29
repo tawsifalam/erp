@@ -13,12 +13,16 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
+const mockInventoryPools = {
+  seedDefaultPools: jest.fn().mockResolvedValue(undefined),
+};
+
 describe("TenantsService", () => {
   let service: TenantsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TenantsService(mockPrisma as never);
+    service = new TenantsService(mockPrisma as never, mockInventoryPools as never);
   });
 
   it("listBranches returns branches for organization", async () => {

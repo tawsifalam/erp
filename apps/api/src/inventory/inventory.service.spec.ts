@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { MovementDirection, MovementType } from "@prisma/client";
 import { InventoryService } from "./inventory.service";
+import { InventoryPoolsService } from "./inventory-pools.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 jest.mock("@erp/utils", () => ({
@@ -9,6 +10,7 @@ jest.mock("@erp/utils", () => ({
 }));
 
 const mockPrisma = {
+  branch: { findUnique: jest.fn().mockResolvedValue({ organizationId: "org-1" }) },
   inventoryItem: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -21,6 +23,11 @@ const mockPrisma = {
   },
 };
 
+const mockPools = {
+  getPool: jest.fn().mockResolvedValue({ id: "pool-guest", code: "guest" }),
+  defaultGuestPoolId: jest.fn().mockResolvedValue("pool-guest"),
+};
+
 describe("InventoryService", () => {
   let service: InventoryService;
 
@@ -31,6 +38,7 @@ describe("InventoryService", () => {
       providers: [
         InventoryService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: InventoryPoolsService, useValue: mockPools },
       ],
     }).compile();
 
@@ -252,6 +260,7 @@ describe("InventoryService", () => {
       expect(result).toEqual(items);
       expect(mockPrisma.inventoryItem.findMany).toHaveBeenCalledWith({
         where: { branchId: "branch-1" },
+        include: { pool: { select: { id: true, code: true, name: true } } },
         orderBy: { name: "asc" },
       });
     });
@@ -291,13 +300,13 @@ describe("InventoryService", () => {
   });
 
   describe("createItem", () => {
-    it("throws when name is empty", () => {
-      expect(() =>
+    it("throws when name is empty", async () => {
+      await expect(
         service.createItem("branch-1", { name: "  ", sku: "SKU-1", unit: "kg" }),
-      ).toThrow(BadRequestException);
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it("creates item with trimmed fields", async () => {
+    it("creates item with trimmed fields and default guest pool", async () => {
       mockPrisma.inventoryItem.create.mockResolvedValue({ id: "inv-1" });
 
       await service.createItem("branch-1", {
@@ -310,11 +319,13 @@ describe("InventoryService", () => {
       expect(mockPrisma.inventoryItem.create).toHaveBeenCalledWith({
         data: {
           branchId: "branch-1",
+          poolId: "pool-guest",
           name: "Rice",
           sku: "RICE-1",
           unit: "kg",
           lowStockThreshold: 10,
         },
+        include: { pool: { select: { id: true, code: true, name: true } } },
       });
     });
   });
@@ -329,7 +340,7 @@ describe("InventoryService", () => {
     });
 
     it("updates name and low stock threshold", async () => {
-      mockPrisma.inventoryItem.findFirst.mockResolvedValue({ id: "inv-1" });
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({ id: "inv-1", pool: { code: "guest" } });
       mockPrisma.inventoryItem.update.mockResolvedValue({ id: "inv-1", name: "Basmati" });
 
       await service.updateItem("branch-1", "inv-1", {
@@ -340,6 +351,7 @@ describe("InventoryService", () => {
       expect(mockPrisma.inventoryItem.update).toHaveBeenCalledWith({
         where: { id: "inv-1" },
         data: { name: "Basmati", lowStockThreshold: 5 },
+        include: { pool: { select: { id: true, code: true, name: true } } },
       });
     });
   });

@@ -49,7 +49,7 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
     try {
       const [menu, items] = await Promise.all([
         apiFetch<MenuCategory[]>(`/pos/menu/categories?branchId=${branchId}`, { tenant }),
-        apiFetch<InvItem[]>(`/inventory/items?branchId=${branchId}`, { tenant }),
+        apiFetch<InvItem[]>(`/inventory/items?branchId=${branchId}&pool=guest`, { tenant }),
       ]);
       setCategories(menu);
       setInvItems(items);

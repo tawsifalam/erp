@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { AttendanceType } from "@prisma/client";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
@@ -29,13 +29,59 @@ export class HrController {
     return this.hr.createEmployee(t.organizationId, body);
   }
 
+  @Get("attendance")
+  @RequirePermission(Permission.HR_READ)
+  attendance(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    return this.hr.listAttendance(branchId || t.branchId!);
+  }
+
   @Post("attendance/clock")
   @RequirePermission(Permission.HR_WRITE)
-  clock(
+  async clock(
     @Tenant() t: TenantContext,
     @Body() body: { employeeId: string; type: AttendanceType },
   ) {
+    await this.hr.getEmployee(t.organizationId, body.employeeId);
     return this.hr.clockAttendance(body.employeeId, t.branchId!, body.type);
+  }
+
+  @Get("staff-meal-recipes")
+  @RequirePermission(Permission.HR_READ)
+  staffMealRecipes(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    return this.hr.listStaffMealRecipes(branchId || t.branchId!);
+  }
+
+  @Post("staff-meal-recipes")
+  @RequirePermission(Permission.HR_WRITE)
+  createStaffMealRecipe(
+    @Tenant() t: TenantContext,
+    @Body()
+    body: {
+      name: string;
+      lines: { inventoryItemId: string; quantity: number }[];
+    },
+  ) {
+    return this.hr.upsertStaffMealRecipe(t.branchId!, body);
+  }
+
+  @Put("staff-meal-recipes/:id")
+  @RequirePermission(Permission.HR_WRITE)
+  updateStaffMealRecipe(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body()
+    body: {
+      name: string;
+      lines: { inventoryItemId: string; quantity: number }[];
+    },
+  ) {
+    return this.hr.upsertStaffMealRecipe(t.branchId!, { id, ...body });
+  }
+
+  @Get("staff-meals")
+  @RequirePermission(Permission.HR_READ)
+  staffMeals(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    return this.hr.listStaffMeals(branchId || t.branchId!);
   }
 
   @Post("staff-meals")
@@ -45,12 +91,16 @@ export class HrController {
     @Body()
     body: {
       employeeId: string;
-      inventoryItemId: string;
-      quantity: number;
+      staffMealRecipeId: string;
+      mealCount: number;
       deductFromPayroll?: boolean;
     },
   ) {
-    return this.hr.recordStaffMeal({ ...body, branchId: t.branchId! });
+    return this.hr.recordStaffMeal({
+      organizationId: t.organizationId,
+      ...body,
+      branchId: t.branchId!,
+    });
   }
 
   @Post("payroll/runs")

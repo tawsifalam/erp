@@ -5,6 +5,16 @@ import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { toNumber } from "@erp/utils";
 
+export function computePayrollLine(
+  grossSalary: number,
+  pendingMealDeduction: number,
+): { grossPay: number; deductions: number; netPay: number } {
+  const grossPay = grossSalary;
+  const deductions = Math.min(pendingMealDeduction, grossPay);
+  const netPay = grossPay - deductions;
+  return { grossPay, deductions, netPay };
+}
+
 @Processor("payroll")
 export class PayrollProcessor extends WorkerHost {
   constructor(
@@ -31,18 +41,38 @@ export class PayrollProcessor extends WorkerHost {
     });
 
     for (const emp of employees) {
-      const gross = toNumber(emp.salary);
-      const deductions = 0;
-      const net = gross - deductions;
+      const pendingMeals = await this.prisma.staffMeal.findMany({
+        where: {
+          employeeId: emp.id,
+          deductFromPayroll: true,
+          payrollDeducted: false,
+        },
+      });
+      const mealDeduction = pendingMeals.reduce(
+        (sum, m) => sum + m.mealCount * toNumber(m.unitCostPerMeal),
+        0,
+      );
+      const { grossPay, deductions, netPay } = computePayrollLine(
+        toNumber(emp.salary),
+        mealDeduction,
+      );
+
       await this.prisma.payrollLine.create({
         data: {
           payrollRunId,
           employeeId: emp.id,
-          grossPay: gross,
+          grossPay,
           deductions,
-          netPay: net,
+          netPay,
         },
       });
+
+      if (pendingMeals.length > 0) {
+        await this.prisma.staffMeal.updateMany({
+          where: { id: { in: pendingMeals.map((m) => m.id) } },
+          data: { payrollDeducted: true },
+        });
+      }
     }
 
     const pdfKey = `payroll/${payrollRunId}.txt`;

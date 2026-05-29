@@ -22,7 +22,9 @@ type Item = {
   unit: string;
   currentStock: number;
   lowStockThreshold?: string | null;
+  pool?: { id: string; code: string; name: string };
 };
+type InventoryPool = { id: string; code: string; name: string };
 type Movement = {
   id: string;
   direction: string;
@@ -36,6 +38,8 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
   const [items, setItems] = useState<Item[]>([]);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [pools, setPools] = useState<InventoryPool[]>([]);
+  const [poolFilter, setPoolFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -44,6 +48,7 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
     sku: "",
     unit: "",
     lowStockThreshold: "",
+    poolId: "",
   });
   const [editForm, setEditForm] = useState({
     name: "",
@@ -61,10 +66,17 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
 
   const load = useCallback(() => {
     if (!tenant.branchId) return;
-    apiFetch<Item[]>(`/inventory/items?branchId=${tenant.branchId}`, { tenant })
+    const poolQuery = poolFilter ? `&pool=${poolFilter}` : "";
+    apiFetch<Item[]>(`/inventory/items?branchId=${tenant.branchId}${poolQuery}`, { tenant })
       .then(setItems)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load items"));
-  }, [tenant.branchId, tenant.organizationId]);
+    apiFetch<InventoryPool[]>("/inventory/pools?activeOnly=true", { tenant })
+      .then((data) => {
+        setPools(data);
+        setItemForm((f) => (f.poolId ? f : { ...f, poolId: data.find((p) => p.code === "guest")?.id ?? data[0]?.id ?? "" }));
+      })
+      .catch(() => {});
+  }, [tenant.branchId, tenant.organizationId, poolFilter]);
 
   useEffect(load, [load]);
 
@@ -94,6 +106,7 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         tenant,
         body: JSON.stringify({
           branchId: tenant.branchId,
+          poolId: itemForm.poolId || undefined,
           name: itemForm.name,
           sku: itemForm.sku,
           unit: itemForm.unit,
@@ -102,7 +115,13 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
             : undefined,
         }),
       });
-      setItemForm({ name: "", sku: "", unit: "", lowStockThreshold: "" });
+      setItemForm({
+        name: "",
+        sku: "",
+        unit: "",
+        lowStockThreshold: "",
+        poolId: pools.find((p) => p.code === "guest")?.id ?? pools[0]?.id ?? "",
+      });
       setShowItemForm(false);
       load();
     } catch (e) {
@@ -182,10 +201,23 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         </Text>
       )}
 
-      <Flex gap={2} mb={4}>
+      <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>
           Refresh
         </Button>
+        <NativeSelect.Root size="sm" w="200px">
+          <NativeSelect.Field
+            value={poolFilter}
+            onChange={(e) => setPoolFilter(e.target.value)}
+          >
+            <option value="">All pools</option>
+            {pools.map((p) => (
+              <option key={p.id} value={p.code}>
+                {p.name}
+              </option>
+            ))}
+          </NativeSelect.Field>
+        </NativeSelect.Root>
         <Button size="sm" variant="outline" onClick={() => setShowItemForm(!showItemForm)}>
           {showItemForm ? "Cancel" : "+ New Item"}
         </Button>
@@ -229,6 +261,18 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
                   setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
                 }
               />
+              <NativeSelect.Root size="sm" w="180px">
+                <NativeSelect.Field
+                  value={itemForm.poolId}
+                  onChange={(e) => setItemForm({ ...itemForm, poolId: e.target.value })}
+                >
+                  {pools.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </NativeSelect.Field>
+              </NativeSelect.Root>
             </Flex>
             <Button size="sm" colorPalette="green" w="fit-content" onClick={handleCreateItem}>
               Create Item
@@ -309,6 +353,7 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
               <Table.Row>
                 <Table.ColumnHeader>SKU</Table.ColumnHeader>
                 <Table.ColumnHeader>Name</Table.ColumnHeader>
+                <Table.ColumnHeader>Pool</Table.ColumnHeader>
                 <Table.ColumnHeader>On Hand</Table.ColumnHeader>
                 <Table.ColumnHeader>Unit</Table.ColumnHeader>
                 <Table.ColumnHeader>Status</Table.ColumnHeader>
@@ -331,6 +376,9 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
                       {i.sku}
                     </Table.Cell>
                     <Table.Cell>{i.name}</Table.Cell>
+                    <Table.Cell fontSize="xs" color="fg.muted">
+                      {i.pool?.name ?? "—"}
+                    </Table.Cell>
                     <Table.Cell fontWeight="bold" color={isLow ? "red.500" : undefined}>
                       {i.currentStock.toFixed(2)}
                     </Table.Cell>

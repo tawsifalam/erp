@@ -9,6 +9,7 @@ import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
 import { InventoryService } from "./inventory.service";
 import { InventoryRecipesService } from "./inventory-recipes.service";
+import { InventoryPoolsService } from "./inventory-pools.service";
 
 @Controller("inventory")
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
@@ -16,12 +17,46 @@ export class InventoryController {
   constructor(
     private readonly inventory: InventoryService,
     private readonly recipes: InventoryRecipesService,
+    private readonly inventoryPools: InventoryPoolsService,
   ) {}
+
+  @Get("pools")
+  @RequirePermission(Permission.INVENTORY_READ)
+  listPools(@Tenant() t: TenantContext, @Query("activeOnly") activeOnly?: string) {
+    return this.inventoryPools.listPools(t.organizationId, activeOnly === "true");
+  }
+
+  @Post("pools")
+  @RequirePermission(Permission.INVENTORY_WRITE)
+  createPool(
+    @Tenant() t: TenantContext,
+    @Body() body: { code: string; name: string; sortOrder?: number },
+  ) {
+    return this.inventoryPools.createPool(t.organizationId, body);
+  }
+
+  @Patch("pools/:id")
+  @RequirePermission(Permission.INVENTORY_WRITE)
+  updatePool(
+    @Param("id") id: string,
+    @Tenant() t: TenantContext,
+    @Body() body: { name?: string; isActive?: boolean; sortOrder?: number },
+  ) {
+    return this.inventoryPools.updatePool(t.organizationId, id, body);
+  }
 
   @Get("items")
   @RequirePermission(Permission.INVENTORY_READ)
-  items(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
-    return this.inventory.listItemsWithStock(branchId || t.branchId!);
+  items(
+    @Tenant() t: TenantContext,
+    @Query("branchId") branchId?: string,
+    @Query("poolId") poolId?: string,
+    @Query("pool") pool?: string,
+  ) {
+    return this.inventory.listItemsWithStock(branchId || t.branchId!, {
+      poolId,
+      poolCode: pool,
+    });
   }
 
   @Post("items")
@@ -31,6 +66,7 @@ export class InventoryController {
     @Body()
     body: {
       branchId?: string;
+      poolId?: string;
       name: string;
       sku: string;
       unit: string;

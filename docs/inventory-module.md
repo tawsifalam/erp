@@ -1,20 +1,35 @@
 # Inventory module reference
 
-Branch-scoped stock ledger, manual movements, recipe/BOM auto-deduction on POS order completion, and low-stock alerts.
+Branch-scoped stock ledger with **organization-defined inventory pools**, manual movements, recipe/BOM auto-deduction on POS order completion, and low-stock alerts.
 
 ## Scope and tenancy
 
 | Entity            | Scoped by | Notes |
 |-------------------|-----------|-------|
-| Inventory items   | Branch    | SKU unique per branch |
+| Inventory pools   | Organization | Text `code` slug (e.g. `guest`, `staff`); managed in **Settings** |
+| Inventory items   | Branch    | Belongs to one pool; SKU unique per branch |
 | Movements         | Branch    | Ledger entries (IN/OUT) |
-| Recipes (BOM)     | Menu item | Links menu item → inventory lines |
+| Recipes (BOM)     | Menu item | Guest-pool items only; POS auto-deduction |
 
 All inventory routes require `Authorization`, `X-Organization-Id`, and usually `X-Branch-Id` (or `branchId` query param).
 
-Stock is **never** stored as a column — `currentStock` is computed as `SUM(IN) − SUM(OUT)`.
+Stock is **never** stored as a column — `currentStock` is computed as `SUM(IN) − SUM(OUT)` per item (pools are logical groupings, not separate ledgers).
 
-IDs use prefixes from seed/runtime: `inv_`, `mov_`, `rl_`.
+IDs use prefixes from seed/runtime: `ivp_`, `inv_`, `mov_`, `rl_`.
+
+## Inventory pools
+
+Pools separate stock for different purposes without duplicating the movement engine.
+
+| Default pool | Code | Used by |
+|--------------|------|---------|
+| Guest / Kitchen | `guest` | POS menu recipes, manual kitchen movements |
+| Staff pantry | `staff` | HR staff meal recipes |
+
+- **Settings → Inventory pools** — list, rename, add custom pools (e.g. `minibar`), activate/deactivate custom pools
+- System pools (`guest`, `staff`) cannot be deleted or deactivated
+- Pool `code` is plain text (lowercase slug), not a Postgres enum — add new pools without schema migrations
+- New organizations get default pools automatically
 
 ## Web UI (`/inventory`)
 
@@ -22,8 +37,8 @@ Select **organization** and **branch** in the header first.
 
 | Tab | Features |
 |-----|----------|
-| **Items & movements** | List items with on-hand stock and **LOW/OK** status; **create** item; **edit** name, unit, low-stock threshold (click row); **record movement** (purchase, waste, staff meal, sale, adjustment IN/OUT); view movement history |
-| **Recipes (BOM)** | Select menu item; edit ingredient lines; save recipe — POS order completion deducts automatically |
+| **Items & movements** | Filter by pool; list on-hand stock; **create** item (choose pool); edit item; record movements |
+| **Recipes (BOM)** | Guest-pool ingredients only; POS order completion deducts automatically |
 
 ## Ledger formula
 
@@ -112,6 +127,32 @@ curl -s "$BASE/inventory/items/$ITEM_ID/movements?branchId=$BRANCH_ID" \
   -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
+### Inventory pools
+
+```bash
+curl -s "$BASE/inventory/pools" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/inventory/pools" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"minibar","name":"Room minibar"}' | jq
+
+curl -s -X PATCH "$BASE/inventory/pools/$POOL_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"In-room minibar"}' | jq
+```
+
+### Items
+
+List/filter by pool: `GET /inventory/items?branchId=$BRANCH_ID&pool=guest`
+
+Create with pool: include `"poolId": "<pool-uuid>"` (defaults to `guest` if omitted).
+
 ### Recipes (BOM)
 
 ```bash
@@ -128,7 +169,7 @@ curl -s "$BASE/inventory/recipes/$MENU_ITEM_ID" \
 
 ## HR integration
 
-`POST /hr/staff-meals` records a staff meal and creates a `STAFF_MEAL` OUT movement for the selected inventory item.
+Menu recipes accept **guest pool** items only. Staff meal recipes accept **staff pool** items only.
 
 ## Accounting integration
 

@@ -80,6 +80,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get order() { return this._client.order; }
   get orderLine() { return this._client.orderLine; }
   get kitchenTicket() { return this._client.kitchenTicket; }
+  get inventoryPool() { return this._client.inventoryPool; }
   get inventoryItem() { return this._client.inventoryItem; }
   get inventoryMovement() { return this._client.inventoryMovement; }
   get recipe() { return this._client.recipe; }
@@ -92,6 +93,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get payrollRun() { return this._client.payrollRun; }
   get payrollLine() { return this._client.payrollLine; }
   get staffMeal() { return this._client.staffMeal; }
+  get staffMealRecipe() { return this._client.staffMealRecipe; }
+  get staffMealRecipeLine() { return this._client.staffMealRecipeLine; }
   get auditLog() { return this._client.auditLog; }
   get reportJob() { return this._client.reportJob; }
 

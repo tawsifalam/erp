@@ -12,10 +12,12 @@ jest.mock("@erp/utils", () => ({
 const mockPrisma = {
   recipe: { upsert: jest.fn(), findUnique: jest.fn() },
   order: { findUnique: jest.fn() },
+  menuItem: { findUnique: jest.fn() },
 };
 
 const mockInventory = {
   createMovement: jest.fn(),
+  assertItemInPool: jest.fn().mockResolvedValue({ id: "inv-1" }),
 };
 
 describe("InventoryRecipesService", () => {
@@ -34,12 +36,17 @@ describe("InventoryRecipesService", () => {
   });
 
   it("upsertRecipe replaces lines", async () => {
+    mockPrisma.menuItem.findUnique.mockResolvedValue({
+      id: "mi-1",
+      category: { branchId: "br-1" },
+    });
     mockPrisma.recipe.upsert.mockResolvedValue({ menuItemId: "mi-1", lines: [] });
 
     await service.upsertRecipe("mi-1", [
       { inventoryItemId: "inv-1", quantity: 0.5 },
     ]);
 
+    expect(mockInventory.assertItemInPool).toHaveBeenCalledWith("br-1", "inv-1", "guest");
     expect(mockPrisma.recipe.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { menuItemId: "mi-1" },

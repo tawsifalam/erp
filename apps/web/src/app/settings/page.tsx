@@ -16,6 +16,7 @@ import { apiFetch } from "@/lib/api-client";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
 import { shortId } from "@/lib/format";
+import { InventoryPoolsSection } from "./inventory-pools-section";
 
 type Branch = {
   id: string;
@@ -146,7 +147,7 @@ export default function SettingsPage() {
     <DashboardShell title="Settings">
       <PageHeader
         title="Organization & branches"
-        description="Manage properties, branches, and how data is scoped across modules"
+        description="Manage properties, branches, inventory pools, and how data is scoped across modules"
       />
 
       {!isAdmin && (
@@ -276,6 +277,11 @@ export default function SettingsPage() {
               <EmptyState message="No branches yet. Add one to use PMS, POS, and inventory." />
             )}
           </Box>
+
+          <InventoryPoolsSection
+            tenant={tenantHeadersFor(tenant.organizationId, tenant.branchId)}
+            onMessage={setMessage}
+          />
         </>
       )}
 

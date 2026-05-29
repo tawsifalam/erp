@@ -110,18 +110,94 @@ export const MOCK_RESERVATIONS = [
 /** Seed data: POS orders */
 export const MOCK_ORDERS = [
   {
-    id: "ord-001",
-    status: "OPEN",
+    id: "ord_001",
+    status: "SUBMITTED",
     paymentStatus: "UNPAID",
     totalAmount: "2350.00",
     tableNumber: "T-3",
+    lines: [{ quantity: 2, menuItem: { name: "Chicken Biryani" } }],
   },
   {
-    id: "ord-002",
-    status: "CLOSED",
+    id: "ord_002",
+    status: "COMPLETED",
     paymentStatus: "PAID",
     totalAmount: "870.00",
     tableNumber: "T-7",
+    lines: [{ quantity: 1, menuItem: { name: "Tea" } }],
+  },
+];
+
+export const MOCK_GUESTS = [
+  { id: "gst_001", fullName: "Rahim Ahmed", phone: "+8801711000001" },
+  { id: "gst_002", fullName: "Fatima Khan", phone: "+8801711000002" },
+];
+
+export const MOCK_ROOMS = [
+  {
+    id: "rm_101",
+    roomNumber: "101",
+    status: "VACANT",
+    basePrice: "3500",
+    roomType: { name: "Standard Double" },
+  },
+  {
+    id: "rm_204",
+    roomNumber: "204",
+    status: "OCCUPIED",
+    basePrice: "5500",
+    roomType: { name: "Deluxe Suite" },
+  },
+];
+
+export const MOCK_MENU_CATEGORIES = [
+  {
+    id: "mc_001",
+    name: "Mains",
+    items: [{ id: "mi_001", name: "Chicken Biryani", price: "320" }],
+  },
+];
+
+export const MOCK_ACCOUNTS = [
+  { id: "acc_1000", code: "1000", name: "Cash", type: "ASSET" },
+  { id: "acc_4000", code: "4000", name: "Room Revenue", type: "REVENUE" },
+];
+
+export const MOCK_JOURNALS = [
+  {
+    id: "je_001",
+    description: "Room payment",
+    createdAt: "2026-05-28T10:00:00Z",
+    lines: [
+      { account: { name: "Cash" }, debit: "7000", credit: "0" },
+      { account: { name: "Room Revenue" }, debit: "0", credit: "7000" },
+    ],
+  },
+];
+
+export const MOCK_EMPLOYEES = [
+  { id: "emp_001", name: "Karim Hossain", designation: "Head Chef", salary: "45000" },
+  { id: "emp_002", name: "Nasreen Begum", designation: "Front Desk", salary: "35000" },
+];
+
+export const MOCK_PAYROLL_RUNS = [
+  {
+    id: "pr_001",
+    status: "COMPLETED",
+    periodStart: "2026-05-01T00:00:00Z",
+    periodEnd: "2026-05-31T00:00:00Z",
+    createdAt: "2026-05-28T12:00:00Z",
+    lines: [{ employee: { name: "Karim Hossain" }, grossPay: "45000", netPay: "45000" }],
+  },
+];
+
+export const MOCK_REPORT_JOBS = [
+  {
+    id: "rpt_001",
+    type: "summary",
+    status: "COMPLETED",
+    fileUrl: "https://example.com/report.csv",
+    createdAt: "2026-05-28T14:00:00Z",
+    completedAt: "2026-05-28T14:01:00Z",
   },
 ];
 
@@ -153,27 +229,65 @@ export async function mockApiRoutes(page: Page) {
     }),
   );
 
-  await page.route("**/localhost:3001/api/pms/reservations**", (route) =>
+  const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(MOCK_RESERVATIONS),
-    }),
+      body: JSON.stringify(body),
+    });
+
+  await page.route("**/localhost:3001/api/pms/reservations**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_RESERVATIONS);
+  });
+
+  await page.route("**/localhost:3001/api/pms/guests**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_GUESTS);
+  });
+
+  await page.route("**/localhost:3001/api/pms/rooms**", (route) =>
+    fulfillJson(route, MOCK_ROOMS),
   );
 
-  await page.route("**/localhost:3001/api/pos/orders**", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(MOCK_ORDERS),
-    }),
+  await page.route("**/localhost:3001/api/pos/orders**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_ORDERS);
+  });
+
+  await page.route("**/localhost:3001/api/pos/menu/categories**", (route) =>
+    fulfillJson(route, MOCK_MENU_CATEGORIES),
   );
 
-  await page.route("**/localhost:3001/api/inventory/items**", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(MOCK_INVENTORY),
-    }),
+  await page.route("**/localhost:3001/api/inventory/items**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_INVENTORY);
+  });
+
+  await page.route("**/localhost:3001/api/accounting/journals**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_JOURNALS);
+  });
+
+  await page.route("**/localhost:3001/api/accounting/accounts**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_ACCOUNTS);
+  });
+
+  await page.route("**/localhost:3001/api/hr/employees**", (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, MOCK_EMPLOYEES);
+  });
+
+  await page.route("**/localhost:3001/api/payroll/runs**", (route) =>
+    fulfillJson(route, MOCK_PAYROLL_RUNS),
+  );
+
+  await page.route("**/localhost:3001/api/reporting/jobs**", (route) =>
+    fulfillJson(route, MOCK_REPORT_JOBS),
+  );
+
+  await page.route("**/localhost:3001/api/reporting/export**", (route) =>
+    fulfillJson(route, { id: "rpt_new" }),
   );
 }

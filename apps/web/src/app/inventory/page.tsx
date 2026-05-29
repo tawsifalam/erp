@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Box, Button, Table, Text, Input, Flex, NativeSelect, Stack } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader } from "@erp/ui";
+import { PageHeader, EmptyState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 
@@ -16,6 +16,8 @@ export default function InventoryPage() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [showItemForm, setShowItemForm] = useState(false);
+  const [itemForm, setItemForm] = useState({ name: "", sku: "", unit: "", lowStockThreshold: "" });
   const [movForm, setMovForm] = useState({ itemId: "", movementType: "PURCHASE", quantity: "", notes: "" });
 
   const load = useCallback(() => {
@@ -29,6 +31,25 @@ export default function InventoryPage() {
     setSelectedItem(itemId);
     const data = await apiFetch<Movement[]>(`/inventory/items/${itemId}/movements?branchId=${tenant.branchId}`, { tenant });
     setMovements(data);
+  };
+
+  const handleCreateItem = async () => {
+    await apiFetch("/inventory/items", {
+      method: "POST",
+      tenant,
+      body: JSON.stringify({
+        branchId: tenant.branchId,
+        name: itemForm.name,
+        sku: itemForm.sku,
+        unit: itemForm.unit,
+        lowStockThreshold: itemForm.lowStockThreshold
+          ? Number(itemForm.lowStockThreshold)
+          : undefined,
+      }),
+    });
+    setItemForm({ name: "", sku: "", unit: "", lowStockThreshold: "" });
+    setShowItemForm(false);
+    load();
   };
 
   const handleAddMovement = async () => {
@@ -56,10 +77,54 @@ export default function InventoryPage() {
       <PageHeader title="Stock Management" description="Ledger-based: Stock = SUM(IN) − SUM(OUT)" />
       <Flex gap={2} mb={4}>
         <Button size="sm" onClick={load}>Refresh</Button>
+        <Button size="sm" variant="outline" onClick={() => setShowItemForm(!showItemForm)}>
+          {showItemForm ? "Cancel" : "+ New Item"}
+        </Button>
         <Button size="sm" colorPalette="blue" onClick={() => setShowAdd(!showAdd)}>
           {showAdd ? "Cancel" : "+ Record Movement"}
         </Button>
       </Flex>
+
+      {showItemForm && (
+        <Box bg="white" borderRadius="md" p={4} mb={4}>
+          <Stack gap={3}>
+            <Flex gap={3} wrap="wrap">
+              <Input
+                size="sm"
+                w="180px"
+                placeholder="Name"
+                value={itemForm.name}
+                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+              />
+              <Input
+                size="sm"
+                w="120px"
+                placeholder="SKU"
+                value={itemForm.sku}
+                onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
+              />
+              <Input
+                size="sm"
+                w="100px"
+                placeholder="Unit"
+                value={itemForm.unit}
+                onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
+              />
+              <Input
+                size="sm"
+                w="120px"
+                type="number"
+                placeholder="Low stock at"
+                value={itemForm.lowStockThreshold}
+                onChange={(e) => setItemForm({ ...itemForm, lowStockThreshold: e.target.value })}
+              />
+            </Flex>
+            <Button size="sm" colorPalette="green" w="fit-content" onClick={handleCreateItem}>
+              Create Item
+            </Button>
+          </Stack>
+        </Box>
+      )}
 
       {showAdd && (
         <Box bg="white" borderRadius="md" p={4} mb={4}>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Box, SimpleGrid, Stat, Text } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader } from "@erp/ui";
+import { PageHeader, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { syncUserAfterLogin } from "@/lib/auth";
@@ -20,6 +20,8 @@ export default function DashboardPage() {
   const { loading: authLoading } = useUser();
   const tenant = useTenantHeaders();
   const [data, setData] = useState<Dashboard | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => {
@@ -31,12 +33,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!tenant.organizationId) return;
-    apiFetch<Dashboard>("/reporting/dashboard", { tenant }).then(setData).catch(console.error);
+    setLoading(true);
+    setError(null);
+    apiFetch<Dashboard>("/reporting/dashboard", { tenant })
+      .then(setData)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
   }, [tenant.organizationId, tenant.branchId]);
 
   return (
     <DashboardShell title="Dashboard">
       <PageHeader title="Overview" description="Today's property metrics" />
+      {loading && <LoadingState />}
+      {error && (
+        <Text color="red.500" mb={4}>
+          {error}
+        </Text>
+      )}
       <SimpleGrid columns={{ base: 1, md: 4 }} gap={4}>
         <Stat.Root>
           <Stat.Label>Occupancy</Stat.Label>

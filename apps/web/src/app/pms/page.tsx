@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Box, Button, Table, Text, Input, Stack, Flex, NativeSelect } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader, StatusBadge } from "@erp/ui";
+import { PageHeader, StatusBadge, EmptyState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 
@@ -25,6 +25,8 @@ export default function PmsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestForm, setGuestForm] = useState({ fullName: "", phone: "", email: "" });
   const [form, setForm] = useState({ guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "" });
 
   const load = useCallback(() => {
@@ -41,6 +43,21 @@ export default function PmsPage() {
       method: "PATCH",
       tenant,
     });
+    load();
+  };
+
+  const handleCreateGuest = async () => {
+    await apiFetch("/pms/guests", {
+      method: "POST",
+      tenant,
+      body: JSON.stringify({
+        fullName: guestForm.fullName,
+        phone: guestForm.phone || undefined,
+        email: guestForm.email || undefined,
+      }),
+    });
+    setGuestForm({ fullName: "", phone: "", email: "" });
+    setShowGuestForm(false);
     load();
   };
 
@@ -70,7 +87,43 @@ export default function PmsPage() {
         <Button size="sm" colorPalette="blue" onClick={() => setShowForm(!showForm)}>
           {showForm ? "Cancel" : "+ New Reservation"}
         </Button>
+        <Button size="sm" variant="outline" onClick={() => setShowGuestForm(!showGuestForm)}>
+          {showGuestForm ? "Cancel" : "+ New Guest"}
+        </Button>
       </Flex>
+
+      {showGuestForm && (
+        <Box bg="white" borderRadius="md" p={4} mb={4}>
+          <Stack gap={3}>
+            <Flex gap={3} wrap="wrap">
+              <Input
+                size="sm"
+                w="200px"
+                placeholder="Full name"
+                value={guestForm.fullName}
+                onChange={(e) => setGuestForm({ ...guestForm, fullName: e.target.value })}
+              />
+              <Input
+                size="sm"
+                w="160px"
+                placeholder="Phone"
+                value={guestForm.phone}
+                onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
+              />
+              <Input
+                size="sm"
+                w="200px"
+                placeholder="Email"
+                value={guestForm.email}
+                onChange={(e) => setGuestForm({ ...guestForm, email: e.target.value })}
+              />
+            </Flex>
+            <Button size="sm" colorPalette="green" w="fit-content" onClick={handleCreateGuest}>
+              Save Guest
+            </Button>
+          </Stack>
+        </Box>
+      )}
 
       {showForm && (
         <Box bg="white" borderRadius="md" p={4} mb={4}>
@@ -140,9 +193,7 @@ export default function PmsPage() {
             ))}
           </Table.Body>
         </Table.Root>
-        {reservations.length === 0 && (
-          <Text color="fg.muted" py={4}>No reservations found.</Text>
-        )}
+        {reservations.length === 0 && <EmptyState message="No reservations found." />}
       </Box>
 
       <PageHeader title="Rooms" description="Current room status" />

@@ -73,7 +73,7 @@ export async function mockAuth(page: Page) {
 export const MOCK_ORGANIZATIONS = [
   {
     organizationId: FAKE_ORG_ID,
-    role: "Admin",
+    role: "ADMIN",
     organization: {
       id: FAKE_ORG_ID,
       name: "Boulevard Café",
@@ -85,7 +85,7 @@ export const MOCK_ORGANIZATIONS = [
   },
   {
     organizationId: FAKE_ORG_ID_2,
-    role: "Admin",
+    role: "ADMIN",
     organization: {
       id: FAKE_ORG_ID_2,
       name: "Harbor Hotel Group",
@@ -245,13 +245,63 @@ export const MOCK_INVENTORY = [
  * tests work without a running API server.
  */
 export async function mockApiRoutes(page: Page) {
-  await page.route("**/localhost:3001/api/tenants/organizations**", (route) =>
+  const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(MOCK_ORGANIZATIONS),
-    }),
-  );
+      body: JSON.stringify(body),
+    });
+
+  await page.route("**/localhost:3001/api/tenants/organizations**", (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      return fulfillJson(route, MOCK_ORGANIZATIONS);
+    }
+    if (method === "POST") {
+      return fulfillJson(route, {
+        organization: {
+          id: "org-new-001",
+          name: "New Org",
+          branches: [{ id: "branch-new-001", name: "Main Branch" }],
+        },
+      });
+    }
+    return fulfillJson(route, {});
+  });
+
+  await page.route("**/localhost:3001/api/tenants/organizations/current**", (route) => {
+    if (route.request().method() === "PATCH") {
+      return fulfillJson(route, { id: FAKE_ORG_ID, name: "Updated Org Name" });
+    }
+    return fulfillJson(route, {
+      id: FAKE_ORG_ID,
+      name: "Boulevard Café",
+      propelAuthOrgId: "demo-org-propelauth",
+      branches: MOCK_ORGANIZATIONS[0]!.organization.branches,
+    });
+  });
+
+  await page.route("**/localhost:3001/api/tenants/branches**", (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      return fulfillJson(route, MOCK_ORGANIZATIONS[0]!.organization.branches);
+    }
+    if (method === "POST") {
+      return fulfillJson(route, {
+        id: "branch-new-002",
+        name: "New Branch",
+        timezone: "Asia/Dhaka",
+      });
+    }
+    return fulfillJson(route, {});
+  });
+
+  await page.route("**/localhost:3001/api/tenants/branches/**", (route) => {
+    if (route.request().method() === "PATCH") {
+      return fulfillJson(route, { id: FAKE_BRANCH_ID, name: "Renamed Branch", timezone: "Asia/Dhaka" });
+    }
+    return fulfillJson(route, {});
+  });
 
   await page.route("**/localhost:3001/api/reporting/dashboard**", (route) => {
     const orgId = route.request().headers()["x-organization-id"];
@@ -265,13 +315,6 @@ export async function mockApiRoutes(page: Page) {
       body: JSON.stringify(body),
     });
   });
-
-  const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(body),
-    });
 
   await page.route("**/localhost:3001/api/pms/reservations**", (route) => {
     if (route.request().method() !== "GET") return fulfillJson(route, {});

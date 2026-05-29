@@ -28,3 +28,15 @@ Roles: `OWNER`, `ADMIN`, `FRONT_DESK`, `CASHIER`, `KITCHEN`, `ACCOUNTANT`, `HR`.
 Permissions are checked via `@RequirePermission()` and `roleHasPermission()` in `@erp/utils`.
 
 See `packages/utils/src/rbac.ts` for the matrix.
+
+## Managing organizations & branches
+
+| Surface | Purpose |
+|---------|---------|
+| **Web → Settings** (`/settings`) | Create organizations, rename org, add/edit branches (OWNER / ADMIN) |
+| **Header selectors** | Switch active org/branch for all modules; persisted in `localStorage` (`erp:tenant`) |
+| **API → `/api/tenants`** | CRUD for branches; create org; PATCH org name |
+
+After changing branches in Settings, call `refreshMemberships()` so header dropdowns include new branches.
+
+How each module scopes data is documented in [App Workflow Guide — §1b](app-workflow-guide.md#1b-organization--branch-management).

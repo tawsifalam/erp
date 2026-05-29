@@ -104,14 +104,15 @@ The seed creates a realistic working dataset:
 ## Testing
 
 ```bash
-pnpm test           # Unit tests (Jest)
-cd apps/web && pnpm test:e2e  # E2E tests (Playwright)
+pnpm test                        # API unit tests (Jest)
+pnpm --filter @erp/web test:unit # Web unit tests (Vitest)
+pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 ```
 
 ## Documentation
 
 - [Local Setup](docs/local-setup.md) — full environment configuration
 - [PropelAuth](docs/propelauth.md) — authentication integration
-- [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with examples
-- [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
+- [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with examples ([§1b org & branch management](docs/app-workflow-guide.md#1b-organization--branch-management))
+- [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture and Settings API surface
 - [Deployment](docs/deployment.md) — production deployment

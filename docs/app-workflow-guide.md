@@ -8,6 +8,7 @@
 
 - [Quick Start](#quick-start)
 - [1. Authentication & Tenant Selection](#1-authentication--tenant-selection)
+- [1b. Organization & Branch Management](#1b-organization--branch-management)
 - [2. Property Management System (PMS)](#2-property-management-system-pms)
 - [3. Point of Sale (POS)](#3-point-of-sale-pos)
 - [4. Inventory Management](#4-inventory-management)
@@ -161,6 +162,128 @@ The `TenantGuard` in the backend:
 ### Permissions
 
 Each endpoint is protected by a `PermissionGuard` with specific permissions like `PMS_READ`, `PMS_WRITE`, `POS_READ`, etc. The OWNER role (assigned to the seed admin) has all permissions.
+
+---
+
+## 1b. Organization & Branch Management
+
+Organizations and branches are the **tenant boundary** for all operational data. Every module scopes records by `organizationId` and usually by `branchId`.
+
+### Data model
+
+| Table            | Purpose |
+|------------------|---------|
+| `Organization`   | Top-level tenant (hotel group, restaurant company). Linked to PropelAuth via `propelAuthOrgId`. |
+| `Branch`         | A physical property under an org (hotel, café outlet). Has `name` and IANA `timezone`. |
+| `UserOrganization` | Maps a user to an org with a `Role` (OWNER, ADMIN, FRONT_DESK, …). |
+
+Prefixed IDs (e.g. `org_…`, `br_…`) make it easy to recognize entity types in logs and support tickets.
+
+### How modules use org & branch
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  User selects Organization + Branch (header or Settings)     │
+│       ↓ X-Organization-Id, X-Branch-Id on every API call     │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ├── PMS ──────── reservations, rooms, guests (branch)
+         ├── POS ──────── orders, menu (branch)
+         ├── Inventory ─ items, movements (branch)
+         ├── Accounting ─ accounts, journals (organization)
+         ├── HR ───────── employees (org; optional branch)
+         └── Reporting ─ dashboard metrics (org + branch)
+```
+
+- **Organization-scoped**: chart of accounts, employees, payroll runs, journal entries, guests (org-wide guest book).
+- **Branch-scoped**: rooms, reservations, inventory, POS orders, attendance clock-in branch.
+
+If you change branch in the header, PMS/POS/Inventory pages reload data for that branch. Accounting and HR stay at organization level.
+
+### Web UI: Settings page
+
+Open **Settings** (`/settings`) in the sidebar (OWNER / ADMIN only for management actions).
+
+| Action | What it does |
+|--------|----------------|
+| **Create organization** | Inserts `Organization`, default branch "Main Branch", and `UserOrganization` as OWNER. |
+| **Rename organization** | Updates display `name` in the local database. |
+| **Add branch** | Creates a new `Branch` under the current organization. |
+| **Edit branch** | Updates branch `name` and `timezone`. |
+
+After changes, the app refreshes memberships so the header **Organization / Branch** dropdowns stay in sync.
+
+### API: Tenant management (`/api/tenants`)
+
+Requires `Authorization` and, for branch/org updates, `X-Organization-Id`. Management endpoints require `admin:*` permission (OWNER / ADMIN roles).
+
+**List memberships (used by header selectors):**
+
+```bash
+curl -s "$BASE/tenants/organizations" \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+**Get current organization (with branches):**
+
+```bash
+curl -s "$BASE/tenants/organizations/current" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Rename current organization:**
+
+```bash
+curl -s -X PATCH "$BASE/tenants/organizations/current" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Boulevard Hospitality Group"}' | jq
+```
+
+**List branches:**
+
+```bash
+curl -s "$BASE/tenants/branches" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Create branch:**
+
+```bash
+curl -s -X POST "$BASE/tenants/branches" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Boulevard Café","timezone":"Asia/Dhaka"}' | jq
+```
+
+**Update branch:**
+
+```bash
+curl -s -X PATCH "$BASE/tenants/branches/$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Main Hotel & Restaurant","timezone":"Asia/Dhaka"}' | jq
+```
+
+**Create organization (new tenant + default branch + OWNER membership):**
+
+```bash
+curl -s -X POST "$BASE/tenants/organizations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"New Property Co","timezone":"Asia/Dhaka"}' | jq
+```
+
+> **PropelAuth note:** On login, `AuthService.syncUser` can also create or link an `Organization` from your PropelAuth org id. The Settings UI is for managing branches and display names in the ERP database without leaving the app.
+
+### PMS overlap
+
+`POST /api/pms/branches` still exists for users with `pms:write` and creates a branch the same way. Prefer **`/api/tenants/branches`** for admin setup so all tenant CRUD lives under `/tenants`.
 
 ---
 

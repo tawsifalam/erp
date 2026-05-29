@@ -14,6 +14,7 @@ const NAV = [
   { href: "/accounting", label: "Accounting" },
   { href: "/hr", label: "HR" },
   { href: "/reports", label: "Reports" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function DashboardShell({

@@ -1,6 +1,6 @@
 # Phase 2 — Post-MVP backlog
 
-Ship after MVP is stable in production (2–4 weeks soak recommended).
+See [phase2/README.md](./phase2/README.md) for distribution features (offline POS, mobile, OTA). For the full path to a complete hospitality ERP (procurement, GL reports, audit, etc.), see [erp-completeness-roadmap.md](./erp-completeness-roadmap.md).
 
 ## PRD index
 

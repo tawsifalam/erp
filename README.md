@@ -122,5 +122,6 @@ pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 - [HR Module](docs/hr-module.md) — employees, attendance, staff meals, payroll
 - [Reporting Module](docs/reporting-module.md) — dashboard metrics and CSV exports
 - [Settings Module](docs/settings-module.md) — organizations, branches, inventory pools
+- [ERP Completeness Roadmap](docs/erp-completeness-roadmap.md) — path from Phase 1 to full hospitality ERP
 - [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
 - [Deployment](docs/deployment.md) — production deployment

@@ -17,17 +17,18 @@ COPY . .
 ENV DATABASE_URL=postgresql://erp:erp@localhost:5432/hospitality_erp
 RUN pnpm db:generate
 RUN pnpm --filter @erp/api... build
+# Portable prod tree: Nest webpack externalizes @nestjs/* — needs proper node_modules layout
+RUN pnpm deploy --filter @erp/api --prod /prod/api \
+  && cp -r apps/api/dist /prod/api/dist \
+  && cp -r apps/api/prisma /prod/api/prisma \
+  && cd /prod/api && /app/node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
 
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV API_PORT=3001
 
-# Nest webpack bundles @erp/*; node_modules still needed for Prisma engine and native deps
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/prisma ./prisma
-COPY --from=build /app/apps/api/package.json ./package.json
+COPY --from=build /prod/api ./
 
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

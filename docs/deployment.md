@@ -23,7 +23,7 @@ Run from the **repository root** so `./.env` is loaded (see [docker-compose.yml]
 
 Dockerfiles: [infra/docker/Dockerfile.api](../infra/docker/Dockerfile.api), [infra/docker/Dockerfile.web](../infra/docker/Dockerfile.web).
 
-- **API:** builds workspace deps via `pnpm --filter @erp/api... build`; ships `dist`, `prisma`, and production `node_modules` (Prisma engine).
+- **API:** builds workspace deps via `pnpm --filter @erp/api... build`; `pnpm deploy` produces a self-contained prod `node_modules` (fixes missing `@nestjs/core` at runtime).
 - **Web:** Next.js `standalone` output; `NEXT_PUBLIC_*` must be passed as **build args** (see compose `web.build.args`). PropelAuth server env (`PROPELAUTH_*`) is runtime-only on web.
 
 For a single-domain deploy behind nginx, rebuild web with `NEXT_PUBLIC_API_URL=https://your-domain.com` (same origin as the app).

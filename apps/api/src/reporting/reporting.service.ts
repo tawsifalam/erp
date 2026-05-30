@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { ReservationStatus, OrderStatus } from "@prisma/client";
+import { ReservationStatus, OrderStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
 import {

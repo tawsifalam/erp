@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Role } from "@prisma/client";
+import { Role } from "@erp/types";
 import type { AuthUserPayload } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 

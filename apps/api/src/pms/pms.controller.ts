@@ -16,7 +16,7 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
-import { ReservationStatus, RoomStatus } from "@prisma/client";
+import { ReservationStatus, RoomStatus } from "@erp/types";
 import { PmsService } from "./pms.service";
 import { AvailabilityService } from "./availability.service";
 

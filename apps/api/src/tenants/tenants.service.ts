@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Role } from "@prisma/client";
+import { Role } from "@erp/types";
 import { generatePrefixedId } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryPoolsService } from "../inventory/inventory-pools.service";

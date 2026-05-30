@@ -7,79 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  OWNER
-  ADMIN
-  FRONT_DESK
-  CASHIER
-  KITCHEN
-  ACCOUNTANT
-  HR
-}
-
-enum RoomStatus {
-  VACANT
-  OCCUPIED
-  DIRTY
-  MAINTENANCE
-}
-
-enum ReservationStatus {
-  INQUIRY
-  CONFIRMED
-  CHECKED_IN
-  CHECKED_OUT
-  CANCELLED
-}
-
-enum OrderStatus {
-  DRAFT
-  SUBMITTED
-  PREPARING
-  READY
-  COMPLETED
-  CANCELLED
-}
-
-enum PaymentStatus {
-  UNPAID
-  PARTIAL
-  PAID
-}
-
-enum MovementType {
-  PURCHASE
-  SALE
-  WASTE
-  STAFF_MEAL
-  ADJUSTMENT
-}
-
-enum MovementDirection {
-  IN
-  OUT
-}
-
-enum AccountType {
-  ASSET
-  LIABILITY
-  EQUITY
-  REVENUE
-  EXPENSE
-}
-
-enum PayrollRunStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-enum AttendanceType {
-  CLOCK_IN
-  CLOCK_OUT
-}
-
 model User {
   id            String   @id @default(uuid())
   propelAuthUserId String   @unique
@@ -114,7 +41,7 @@ model UserOrganization {
   id             String   @id @default(uuid())
   userId         String
   organizationId String
-  role           Role
+  role           String
   createdAt      DateTime @default(now())
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -159,7 +86,7 @@ model Room {
   branchId   String
   roomTypeId String
   roomNumber String
-  status     RoomStatus @default(VACANT)
+  status     String     @default("VACANT")
   basePrice  Decimal    @db.Decimal(12, 2)
 
   branch        Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -188,7 +115,7 @@ model Reservation {
   roomId      String
   checkIn     DateTime
   checkOut    DateTime
-  status      ReservationStatus @default(CONFIRMED)
+  status      String            @default("CONFIRMED")
   totalAmount Decimal           @db.Decimal(12, 2)
   paidAmount  Decimal           @default(0) @db.Decimal(12, 2)
   createdAt   DateTime          @default(now())
@@ -229,8 +156,8 @@ model MenuItem {
 model Order {
   id            String        @id @default(uuid())
   branchId      String
-  status        OrderStatus   @default(DRAFT)
-  paymentStatus PaymentStatus @default(UNPAID)
+  status        String   @default("DRAFT")
+  paymentStatus String   @default("UNPAID")
   tableNumber   String?
   notes         String?
   totalAmount   Decimal       @default(0) @db.Decimal(12, 2)
@@ -258,7 +185,7 @@ model OrderLine {
 model KitchenTicket {
   id        String      @id @default(uuid())
   orderId   String
-  status    OrderStatus @default(SUBMITTED)
+  status    String   @default("SUBMITTED")
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -303,8 +230,8 @@ model InventoryMovement {
   id            String            @id @default(uuid())
   itemId        String
   branchId      String
-  direction     MovementDirection
-  movementType  MovementType
+  direction     String
+  movementType  String
   quantity      Decimal           @db.Decimal(12, 4)
   referenceType String?
   referenceId   String?
@@ -339,7 +266,7 @@ model Account {
   organizationId String
   code           String
   name           String
-  type           AccountType
+  type           String
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   journalLines JournalLine[]
@@ -391,7 +318,7 @@ model AttendanceRecord {
   id         String         @id @default(uuid())
   employeeId String
   branchId   String
-  type       AttendanceType
+  type       String
   recordedAt DateTime       @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -402,7 +329,7 @@ model PayrollRun {
   organizationId String
   periodStart    DateTime
   periodEnd      DateTime
-  status         PayrollRunStatus @default(PENDING)
+  status         String   @default("PENDING")
   createdAt      DateTime         @default(now())
   completedAt    DateTime?
 

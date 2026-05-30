@@ -4,7 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
-import { OrderStatus, PaymentStatus } from "@prisma/client";
+import { OrderStatus, PaymentStatus } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PosService } from "./pos.service";
 import { PrismaService } from "../prisma/prisma.service";

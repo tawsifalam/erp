@@ -4,20 +4,20 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { OrderStatus, PaymentStatus } from "@prisma/client";
+import { OrderStatus, PaymentStatus } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PrismaService, TransactionClient } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { OrderCompletedEvent } from "../common/events/order-completed.event";
 import { toNumber, generatePrefixedId } from "@erp/utils";
 
-const CANCELLABLE: OrderStatus[] = [OrderStatus.DRAFT, OrderStatus.SUBMITTED];
-const COMPLETABLE: OrderStatus[] = [
+const CANCELLABLE: string[] = [OrderStatus.DRAFT, OrderStatus.SUBMITTED];
+const COMPLETABLE: string[] = [
   OrderStatus.SUBMITTED,
   OrderStatus.PREPARING,
   OrderStatus.READY,
 ];
-const KITCHEN_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+const KITCHEN_TRANSITIONS: Record<string, string[]> = {
   [OrderStatus.SUBMITTED]: [OrderStatus.PREPARING],
   [OrderStatus.PREPARING]: [OrderStatus.READY],
 };
@@ -333,7 +333,7 @@ export class PosService {
   async deleteOrder(orderId: string, branchId: string) {
     const order = await this.getOrder(branchId, orderId);
 
-    const deletable: OrderStatus[] = [OrderStatus.DRAFT, OrderStatus.CANCELLED];
+    const deletable: string[] = [OrderStatus.DRAFT, OrderStatus.CANCELLED];
     if (!deletable.includes(order.status)) {
       throw new BadRequestException(
         "Only DRAFT or CANCELLED orders can be deleted; completed orders must be kept for audit",

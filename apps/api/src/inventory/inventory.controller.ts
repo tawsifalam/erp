@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
-import { MovementDirection, MovementType } from "@prisma/client";
+import { MovementDirection, MovementType } from "@erp/types";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";

@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { OrderStatus } from "@prisma/client";
+import { OrderStatus } from "@erp/types";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";

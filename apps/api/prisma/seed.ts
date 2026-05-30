@@ -1,5 +1,5 @@
+import { PrismaClient } from "@prisma/client";
 import {
-  PrismaClient,
   Role,
   AccountType,
   RoomStatus,
@@ -9,7 +9,7 @@ import {
   MovementType,
   MovementDirection,
   AttendanceType,
-} from "@prisma/client";
+} from "@erp/types";
 import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();

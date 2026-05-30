@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { ReservationStatus } from "@prisma/client";
+import { ReservationStatus } from "@erp/types";
 import { AvailabilityService } from "./availability.service";
 import { PrismaService } from "../prisma/prisma.service";
 

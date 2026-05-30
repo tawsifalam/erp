@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { Job } from "bullmq";
-import { PayrollRunStatus } from "@prisma/client";
+import { PayrollRunStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { toNumber } from "@erp/utils";

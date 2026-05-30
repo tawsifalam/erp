@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { MovementType } from "@prisma/client";
+import { MovementType } from "@erp/types";
 import { InventoryRecipesService } from "./inventory-recipes.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "./inventory.service";

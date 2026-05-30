@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { ReservationStatus, RoomStatus } from "@prisma/client";
+import { ReservationStatus, RoomStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { AvailabilityService } from "./availability.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -13,12 +13,12 @@ import { ReservationCheckedInEvent } from "../common/events/reservation-checked-
 import { ReservationPaymentEvent } from "../common/events/reservation-payment.event";
 import { ReservationCheckedOutEvent } from "../common/events/reservation-checked-out.event";
 
-const CANCELLABLE: ReservationStatus[] = [
+const CANCELLABLE: string[] = [
   ReservationStatus.INQUIRY,
   ReservationStatus.CONFIRMED,
 ];
 
-const BLOCKING_ROOM_RESERVATIONS: ReservationStatus[] = [
+const BLOCKING_ROOM_RESERVATIONS: string[] = [
   ReservationStatus.INQUIRY,
   ReservationStatus.CONFIRMED,
   ReservationStatus.CHECKED_IN,
@@ -155,13 +155,13 @@ export class PmsService {
       );
     }
 
-    const allowed: Partial<Record<RoomStatus, RoomStatus[]>> = {
+    const allowed: Record<string, string[]> = {
       [RoomStatus.VACANT]: [RoomStatus.MAINTENANCE],
       [RoomStatus.DIRTY]: [RoomStatus.VACANT],
       [RoomStatus.MAINTENANCE]: [RoomStatus.VACANT],
     };
 
-    const from = room.status as RoomStatus;
+    const from = room.status;
     if (from !== status && !(allowed[from]?.includes(status) ?? false)) {
       throw new BadRequestException(
         `Cannot change room status from ${from} to ${status}`,

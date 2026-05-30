@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { ReservationStatus } from "@prisma/client";
+import { ReservationStatus } from "@erp/types";
 import { rangesOverlap } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 

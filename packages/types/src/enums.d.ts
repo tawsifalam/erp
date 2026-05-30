@@ -51,6 +51,16 @@ export declare enum AccountType {
     REVENUE = "REVENUE",
     EXPENSE = "EXPENSE"
 }
+export declare enum AttendanceType {
+    CLOCK_IN = "CLOCK_IN",
+    CLOCK_OUT = "CLOCK_OUT"
+}
+export declare enum PayrollRunStatus {
+    PENDING = "PENDING",
+    PROCESSING = "PROCESSING",
+    COMPLETED = "COMPLETED",
+    FAILED = "FAILED"
+}
 export declare enum Permission {
     PMS_READ = "pms:read",
     PMS_WRITE = "pms:write",

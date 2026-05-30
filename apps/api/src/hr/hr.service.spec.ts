@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { MovementType } from "@prisma/client";
+import { MovementType } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { HrService } from "./hr.service";
 import { PrismaService } from "../prisma/prisma.service";

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { AccountType } from "@prisma/client";
+import { AccountType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { roundMoney, generatePrefixedId } from "@erp/utils";
 

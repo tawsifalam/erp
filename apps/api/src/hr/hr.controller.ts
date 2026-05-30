@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
-import { AttendanceType } from "@prisma/client";
+import { AttendanceType } from "@erp/types";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";

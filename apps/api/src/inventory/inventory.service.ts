@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { MovementDirection, MovementType } from "@prisma/client";
+import { MovementDirection, MovementType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { toNumber } from "@erp/utils";
 import { InventoryPoolsService } from "./inventory-pools.service";

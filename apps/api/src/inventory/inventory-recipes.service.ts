@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { MovementType } from "@prisma/client";
+import { MovementType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "./inventory.service";
 import { toNumber, generatePrefixedId } from "@erp/utils";

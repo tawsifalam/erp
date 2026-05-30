@@ -4,7 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
-import { ReservationStatus, RoomStatus } from "@prisma/client";
+import { ReservationStatus, RoomStatus } from "@erp/types";
 import { PmsService } from "./pms.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AvailabilityService } from "./availability.service";

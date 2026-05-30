@@ -20,10 +20,22 @@ pnpm install
 
 ### Option A — Docker (recommended)
 
-Starts Postgres, Redis, and MinIO with one command:
+Your `.env` file must be at the **repo root** (`erp/.env`). Compose reads it only when the project directory is the repo root.
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+cp .env.example .env   # if needed — set PropelAuth keys
+docker compose up -d postgres redis minio
+docker compose build
+docker compose up -d api web
+pnpm db:migrate
+```
+
+Use the root [docker-compose.yml](docker-compose.yml) (do **not** pass `-f infra/docker/...` alone — that makes Compose look for `.env` under `infra/docker/`).
+
+Equivalent with an explicit env file:
+
+```bash
+docker compose --env-file .env -f infra/docker/docker-compose.yml build
 ```
 
 ### Option B — Local installs (no Docker)

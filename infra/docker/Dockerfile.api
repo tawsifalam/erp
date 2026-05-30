@@ -1,25 +1,33 @@
+# Hospitality ERP API — NestJS + Prisma (monorepo)
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
+ENV CI=true
 
 FROM base AS deps
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/config/package.json ./packages/config/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN pnpm db:generate && pnpm --filter @erp/api build
+ENV DATABASE_URL=postgresql://erp:erp@localhost:5432/hospitality_erp
+RUN pnpm db:generate
+RUN pnpm --filter @erp/api... build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/package.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/prisma ./prisma
 ENV NODE_ENV=production
+ENV API_PORT=3001
+
+# Nest webpack bundles @erp/*; node_modules still needed for Prisma engine and native deps
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/dist ./dist
+COPY --from=build /app/apps/api/prisma ./prisma
+COPY --from=build /app/apps/api/package.json ./package.json
+
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

@@ -16,8 +16,17 @@ For a **full step-by-step cloud deployment plan** (DNS, Docker, PropelAuth, TLS,
 ```bash
 pnpm install
 pnpm db:generate
-docker compose -f infra/docker/docker-compose.yml build
+docker compose build
 ```
+
+Run from the **repository root** so `./.env` is loaded (see [docker-compose.yml](../docker-compose.yml)). Do not use `-f infra/docker/docker-compose.yml` alone unless you pass `--env-file .env`.
+
+Dockerfiles: [infra/docker/Dockerfile.api](../infra/docker/Dockerfile.api), [infra/docker/Dockerfile.web](../infra/docker/Dockerfile.web).
+
+- **API:** builds workspace deps via `pnpm --filter @erp/api... build`; ships `dist`, `prisma`, and production `node_modules` (Prisma engine).
+- **Web:** Next.js `standalone` output; `NEXT_PUBLIC_*` must be passed as **build args** (see compose `web.build.args`). PropelAuth server env (`PROPELAUTH_*`) is runtime-only on web.
+
+For a single-domain deploy behind nginx, rebuild web with `NEXT_PUBLIC_API_URL=https://your-domain.com` (same origin as the app).
 
 ## Environment
 

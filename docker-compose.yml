@@ -1,0 +1,9 @@
+# Run from repo root so Compose loads ./.env for ${VAR} substitution:
+#   docker compose build
+#   docker compose up -d
+#
+# Do not use -f infra/docker/docker-compose.yml alone — that uses infra/docker as the
+# project directory and will not read the root .env file.
+
+include:
+  - path: ./infra/docker/docker-compose.yml

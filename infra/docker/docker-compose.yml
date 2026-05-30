@@ -41,15 +41,19 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.api
+    env_file:
+      - path: ../../.env
+        required: false
     ports:
       - "3001:3001"
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgresql://erp:erp@postgres:5432/hospitality_erp
       REDIS_URL: redis://redis:6379
       API_PORT: 3001
       CORS_ORIGIN: http://localhost:3000
-      PROPELAUTH_AUTH_URL: ${PROPELAUTH_AUTH_URL}
-      PROPELAUTH_API_KEY: ${PROPELAUTH_API_KEY}
+      PROPELAUTH_AUTH_URL: ${PROPELAUTH_AUTH_URL:-https://your-project.propelauth.com}
+      PROPELAUTH_API_KEY: ${PROPELAUTH_API_KEY:-}
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_ACCESS_KEY: minioadmin
@@ -68,15 +72,22 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.web
+      args:
+        # Rebuild web when these change (baked into Next.js). Loaded from repo root .env.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-https://your-project.propelauth.com}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    env_file:
+      - path: ../../.env
+        required: false
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      NEXT_PUBLIC_AUTH_URL: ${PROPELAUTH_AUTH_URL}
-      PROPELAUTH_API_KEY: ${PROPELAUTH_API_KEY}
+      NODE_ENV: production
+      # Runtime env for PropelAuth Next.js routes (not NEXT_PUBLIC_*)
+      PROPELAUTH_API_KEY: ${PROPELAUTH_API_KEY:-}
       PROPELAUTH_VERIFIER_KEY: ${PROPELAUTH_VERIFIER_KEY:-}
-      PROPELAUTH_REDIRECT_URI: ${PROPELAUTH_REDIRECT_URI}
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      PROPELAUTH_REDIRECT_URI: ${PROPELAUTH_REDIRECT_URI:-http://localhost:3000/api/auth/callback}
     depends_on:
       - api
 

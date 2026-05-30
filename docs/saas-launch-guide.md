@@ -302,10 +302,13 @@ propelauth.com/signup → /dashboard
 
 Product depth in parallel: [Phase 1.5](./erp-completeness-roadmap.md) when pilots ask for procurement or financial reports.
 
+For **production deployment**, see [cloud-deployment.md](./cloud-deployment.md).
+
 ---
 
 ## Related docs
 
+- [Cloud deployment guide](./cloud-deployment.md) — step-by-step production deploy
 - [Tenant model](./tenant-model.md) — org/branch headers and RBAC
 - [PropelAuth](./propelauth.md) — auth setup
 - [Deployment](./deployment.md) — production stack

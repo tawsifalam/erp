@@ -125,4 +125,5 @@ pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 - [ERP Completeness Roadmap](docs/erp-completeness-roadmap.md) — path from Phase 1 to full hospitality ERP
 - [SaaS Launch Guide](docs/saas-launch-guide.md) — monetization, billing design, and launch checklists
 - [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
-- [Deployment](docs/deployment.md) — production deployment
+- [Deployment](docs/deployment.md) — production deployment summary
+- [Cloud Deployment Guide](docs/cloud-deployment.md) — step-by-step cloud deploy for Phase 1

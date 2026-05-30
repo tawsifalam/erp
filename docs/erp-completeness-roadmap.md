@@ -342,6 +342,8 @@ Use this to decide when to call the product a **complete hospitality ERP**:
 
 When **Finance complete** + **Control complete** are checked, the product meets the internal **complete ERP** bar for hospitality. Phase 2 items extend reach and UX, not core ERP completeness.
 
+For **monetization and SaaS launch** (design partners, Stripe, plan limits), see [saas-launch-guide.md](./saas-launch-guide.md).
+
 ---
 
 ## Related docs

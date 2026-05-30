@@ -1,6 +1,6 @@
 # Phase 2 — Post-MVP backlog
 
-See [phase2/README.md](./phase2/README.md) for distribution features (offline POS, mobile, OTA). For the full path to a complete hospitality ERP (procurement, GL reports, audit, etc.), see [erp-completeness-roadmap.md](./erp-completeness-roadmap.md).
+See [phase2/README.md](./phase2/README.md) for distribution features (offline POS, mobile, OTA). For the full path to a complete hospitality ERP (procurement, GL reports, audit, etc.), see [erp-completeness-roadmap.md](./erp-completeness-roadmap.md). For SaaS monetization and launch, see [saas-launch-guide.md](./saas-launch-guide.md).
 
 ## PRD index
 

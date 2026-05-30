@@ -37,7 +37,18 @@ docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
 
 ## 4. Database
 
+Single initial migration (`20260101000000_init`) — full Phase 1 schema. No prior migration history.
+
 ```bash
+pnpm db:migrate
+pnpm db:seed
+```
+
+**If you previously ran older migrations locally**, reset Postgres first:
+
+```bash
+docker compose -f infra/docker/docker-compose.yml down -v   # removes volumes
+docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
 pnpm db:migrate
 pnpm db:seed
 ```

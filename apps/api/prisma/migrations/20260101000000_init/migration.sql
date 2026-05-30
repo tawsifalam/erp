@@ -1,36 +1,6 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
--- CreateEnum
-CREATE TYPE "Role" AS ENUM ('OWNER', 'ADMIN', 'FRONT_DESK', 'CASHIER', 'KITCHEN', 'ACCOUNTANT', 'HR');
-
--- CreateEnum
-CREATE TYPE "RoomStatus" AS ENUM ('VACANT', 'OCCUPIED', 'DIRTY', 'MAINTENANCE');
-
--- CreateEnum
-CREATE TYPE "ReservationStatus" AS ENUM ('INQUIRY', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED');
-
--- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('DRAFT', 'SUBMITTED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED');
-
--- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('UNPAID', 'PARTIAL', 'PAID');
-
--- CreateEnum
-CREATE TYPE "MovementType" AS ENUM ('PURCHASE', 'SALE', 'WASTE', 'STAFF_MEAL', 'ADJUSTMENT');
-
--- CreateEnum
-CREATE TYPE "MovementDirection" AS ENUM ('IN', 'OUT');
-
--- CreateEnum
-CREATE TYPE "AccountType" AS ENUM ('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE');
-
--- CreateEnum
-CREATE TYPE "PayrollRunStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
-
--- CreateEnum
-CREATE TYPE "AttendanceType" AS ENUM ('CLOCK_IN', 'CLOCK_OUT');
-
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -59,7 +29,7 @@ CREATE TABLE "UserOrganization" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
-    "role" "Role" NOT NULL,
+    "role" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "UserOrganization_pkey" PRIMARY KEY ("id")
@@ -94,7 +64,7 @@ CREATE TABLE "Room" (
     "branchId" TEXT NOT NULL,
     "roomTypeId" TEXT NOT NULL,
     "roomNumber" TEXT NOT NULL,
-    "status" "RoomStatus" NOT NULL DEFAULT 'VACANT',
+    "status" TEXT NOT NULL DEFAULT 'VACANT',
     "basePrice" DECIMAL(12,2) NOT NULL,
 
     CONSTRAINT "Room_pkey" PRIMARY KEY ("id")
@@ -120,7 +90,7 @@ CREATE TABLE "Reservation" (
     "roomId" TEXT NOT NULL,
     "checkIn" TIMESTAMP(3) NOT NULL,
     "checkOut" TIMESTAMP(3) NOT NULL,
-    "status" "ReservationStatus" NOT NULL DEFAULT 'CONFIRMED',
+    "status" TEXT NOT NULL DEFAULT 'CONFIRMED',
     "totalAmount" DECIMAL(12,2) NOT NULL,
     "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,8 +125,8 @@ CREATE TABLE "MenuItem" (
 CREATE TABLE "Order" (
     "id" TEXT NOT NULL,
     "branchId" TEXT NOT NULL,
-    "status" "OrderStatus" NOT NULL DEFAULT 'DRAFT',
-    "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'UNPAID',
+    "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "paymentStatus" TEXT NOT NULL DEFAULT 'UNPAID',
     "tableNumber" TEXT,
     "notes" TEXT,
     "totalAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -183,7 +153,7 @@ CREATE TABLE "OrderLine" (
 CREATE TABLE "KitchenTicket" (
     "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
-    "status" "OrderStatus" NOT NULL DEFAULT 'SUBMITTED',
+    "status" TEXT NOT NULL DEFAULT 'SUBMITTED',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -191,9 +161,24 @@ CREATE TABLE "KitchenTicket" (
 );
 
 -- CreateTable
+CREATE TABLE "InventoryPool" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "isSystem" BOOLEAN NOT NULL DEFAULT false,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "InventoryPool_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "InventoryItem" (
     "id" TEXT NOT NULL,
     "branchId" TEXT NOT NULL,
+    "poolId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "sku" TEXT NOT NULL,
     "unit" TEXT NOT NULL,
@@ -207,8 +192,8 @@ CREATE TABLE "InventoryMovement" (
     "id" TEXT NOT NULL,
     "itemId" TEXT NOT NULL,
     "branchId" TEXT NOT NULL,
-    "direction" "MovementDirection" NOT NULL,
-    "movementType" "MovementType" NOT NULL,
+    "direction" TEXT NOT NULL,
+    "movementType" TEXT NOT NULL,
     "quantity" DECIMAL(12,4) NOT NULL,
     "referenceType" TEXT,
     "referenceId" TEXT,
@@ -242,7 +227,7 @@ CREATE TABLE "Account" (
     "organizationId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "type" "AccountType" NOT NULL,
+    "type" TEXT NOT NULL,
 
     CONSTRAINT "Account_pkey" PRIMARY KEY ("id")
 );
@@ -289,7 +274,7 @@ CREATE TABLE "AttendanceRecord" (
     "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "branchId" TEXT NOT NULL,
-    "type" "AttendanceType" NOT NULL,
+    "type" TEXT NOT NULL,
     "recordedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "AttendanceRecord_pkey" PRIMARY KEY ("id")
@@ -301,7 +286,7 @@ CREATE TABLE "PayrollRun" (
     "organizationId" TEXT NOT NULL,
     "periodStart" TIMESTAMP(3) NOT NULL,
     "periodEnd" TIMESTAMP(3) NOT NULL,
-    "status" "PayrollRunStatus" NOT NULL DEFAULT 'PENDING',
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completedAt" TIMESTAMP(3),
 
@@ -321,12 +306,34 @@ CREATE TABLE "PayrollLine" (
 );
 
 -- CreateTable
+CREATE TABLE "StaffMealRecipe" (
+    "id" TEXT NOT NULL,
+    "branchId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "StaffMealRecipe_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StaffMealRecipeLine" (
+    "id" TEXT NOT NULL,
+    "recipeId" TEXT NOT NULL,
+    "inventoryItemId" TEXT NOT NULL,
+    "quantity" DECIMAL(12,4) NOT NULL,
+
+    CONSTRAINT "StaffMealRecipeLine_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "StaffMeal" (
     "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
-    "inventoryItemId" TEXT NOT NULL,
-    "quantity" DECIMAL(12,4) NOT NULL,
+    "branchId" TEXT NOT NULL,
+    "staffMealRecipeId" TEXT NOT NULL,
+    "mealCount" INTEGER NOT NULL,
+    "unitCostPerMeal" DECIMAL(12,2) NOT NULL,
     "deductFromPayroll" BOOLEAN NOT NULL DEFAULT false,
+    "payrollDeducted" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "StaffMeal_pkey" PRIMARY KEY ("id")
@@ -350,9 +357,11 @@ CREATE TABLE "AuditLog" (
 CREATE TABLE "ReportJob" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
+    "branchId" TEXT,
     "type" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "fileUrl" TEXT,
+    "errorMessage" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completedAt" TIMESTAMP(3),
 
@@ -381,6 +390,9 @@ CREATE INDEX "Reservation_branchId_checkIn_checkOut_idx" ON "Reservation"("branc
 CREATE INDEX "Reservation_roomId_status_idx" ON "Reservation"("roomId", "status");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "InventoryPool_organizationId_code_key" ON "InventoryPool"("organizationId", "code");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "InventoryItem_branchId_sku_key" ON "InventoryItem"("branchId", "sku");
 
 -- CreateIndex
@@ -394,6 +406,9 @@ CREATE UNIQUE INDEX "Account_organizationId_code_key" ON "Account"("organization
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Employee_userId_key" ON "Employee"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StaffMealRecipe_branchId_name_key" ON "StaffMealRecipe"("branchId", "name");
 
 -- AddForeignKey
 ALTER TABLE "UserOrganization" ADD CONSTRAINT "UserOrganization_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -447,7 +462,13 @@ ALTER TABLE "OrderLine" ADD CONSTRAINT "OrderLine_menuItemId_fkey" FOREIGN KEY (
 ALTER TABLE "KitchenTicket" ADD CONSTRAINT "KitchenTicket_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "InventoryPool" ADD CONSTRAINT "InventoryPool_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InventoryItem" ADD CONSTRAINT "InventoryItem_poolId_fkey" FOREIGN KEY ("poolId") REFERENCES "InventoryPool"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InventoryMovement" ADD CONSTRAINT "InventoryMovement_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "InventoryItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -489,7 +510,25 @@ ALTER TABLE "PayrollLine" ADD CONSTRAINT "PayrollLine_payrollRunId_fkey" FOREIGN
 ALTER TABLE "PayrollLine" ADD CONSTRAINT "PayrollLine_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "StaffMealRecipe" ADD CONSTRAINT "StaffMealRecipe_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StaffMealRecipeLine" ADD CONSTRAINT "StaffMealRecipeLine_recipeId_fkey" FOREIGN KEY ("recipeId") REFERENCES "StaffMealRecipe"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StaffMealRecipeLine" ADD CONSTRAINT "StaffMealRecipeLine_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "InventoryItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "StaffMeal" ADD CONSTRAINT "StaffMeal_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "StaffMeal" ADD CONSTRAINT "StaffMeal_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StaffMeal" ADD CONSTRAINT "StaffMeal_staffMealRecipeId_fkey" FOREIGN KEY ("staffMealRecipeId") REFERENCES "StaffMealRecipe"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ReportJob" ADD CONSTRAINT "ReportJob_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;

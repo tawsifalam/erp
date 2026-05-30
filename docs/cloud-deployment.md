@@ -278,6 +278,8 @@ docker build -f infra/docker/Dockerfile.web \
 
 **Before** starting the API against production data:
 
+One migration applies the full Phase 1 schema: `20260101000000_init`.
+
 ```bash
 # From your laptop or CI — recommended
 DATABASE_URL="postgresql://..." pnpm --filter @erp/api exec prisma migrate deploy
@@ -294,7 +296,7 @@ pnpm --filter @erp/api exec prisma migrate deploy
 
 **Do not run `pnpm db:seed` in production** unless you want demo data. Real customers: create orgs via **Settings** after login.
 
-Migrations include Phase 1 schema: tenants, PMS, POS, inventory pools, staff meals, report jobs, text status columns, etc.
+If a database was created with an older migration chain, drop and recreate it (empty DB) before `migrate deploy`.
 
 ---
 

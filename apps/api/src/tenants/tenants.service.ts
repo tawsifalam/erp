@@ -328,14 +328,30 @@ export class TenantsService {
     });
   }
 
-  listMembers(organizationId: string) {
-    return this.prisma.userOrganization.findMany({
+  private async getFounderUserId(organizationId: string): Promise<string | null> {
+    const founder = await this.prisma.userOrganization.findFirst({
+      where: { organizationId },
+      orderBy: { createdAt: "asc" },
+      select: { userId: true },
+    });
+    return founder?.userId ?? null;
+  }
+
+  async listMembers(organizationId: string) {
+    const members = await this.prisma.userOrganization.findMany({
       where: { organizationId },
       include: {
         user: { select: { id: true, email: true, name: true } },
       },
       orderBy: { createdAt: "asc" },
     });
+
+    const founderUserId = members[0]?.userId ?? null;
+
+    return members.map((membership) => ({
+      ...membership,
+      isFounder: membership.userId === founderUserId,
+    }));
   }
 
   async updateMemberRole(
@@ -373,6 +389,39 @@ export class TenantsService {
         user: { select: { id: true, email: true, name: true } },
       },
     });
+  }
+
+  async removeMember(organizationId: string, targetUserId: string, actingUserId: string) {
+    const founderUserId = await this.getFounderUserId(organizationId);
+    if (founderUserId && targetUserId === founderUserId) {
+      throw new ForbiddenException("Cannot remove the organization founder");
+    }
+
+    const membership = await this.prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId: targetUserId, organizationId },
+      },
+    });
+    if (!membership) throw new NotFoundException("Member not found");
+
+    if (membership.role === Role.OWNER) {
+      const ownerCount = await this.prisma.userOrganization.count({
+        where: { organizationId, role: Role.OWNER },
+      });
+      if (ownerCount <= 1) {
+        throw new ForbiddenException("Cannot remove the last owner");
+      }
+    }
+
+    if (targetUserId === actingUserId) {
+      throw new ForbiddenException("You cannot remove yourself from the organization");
+    }
+
+    await this.prisma.userOrganization.delete({
+      where: { id: membership.id },
+    });
+
+    return { removed: true, userId: targetUserId };
   }
 
   listBranches(organizationId: string) {

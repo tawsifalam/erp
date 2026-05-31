@@ -34,6 +34,7 @@ Non-admin users see a read-only notice and can still switch org/branch from the 
 | **Approve join request** | Creates `UserOrganization` with selected role (required) |
 | **Reject join request** | Marks request rejected |
 | **Change member role** | Updates `UserOrganization.role` (cannot demote last OWNER) |
+| **Remove member** | Deletes membership for invited/joined members; **founder cannot be removed** |
 
 See [Organization onboarding](organization-onboarding.md) for the full join flow and role matrix.
 
@@ -62,6 +63,7 @@ Base path: `/api/tenants`. Requires `Authorization`. Branch/org mutations requir
 | PATCH | `/tenants/branches/:id` | Update branch |
 | GET | `/tenants/members` | List members + roles |
 | PATCH | `/tenants/members/:userId/role` | Change member role |
+| DELETE | `/tenants/members/:userId` | Remove member (not the founder) |
 | GET | `/tenants/join-requests` | Pending join requests (admin) |
 | POST | `/tenants/join-requests/:id/approve` | Approve with `{ role }` |
 | POST | `/tenants/join-requests/:id/reject` | Reject request |

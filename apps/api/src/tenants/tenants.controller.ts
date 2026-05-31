@@ -176,8 +176,21 @@ export class TenantsController {
   @Get("members")
   @UseGuards(TenantGuard, PermissionGuard)
   @RequirePermission(Permission.ADMIN)
-  listMembers(@Tenant() t: TenantContext) {
+  async listMembers(@Tenant() t: TenantContext) {
     return this.tenants.listMembers(t.organizationId);
+  }
+
+  @Delete("members/:userId")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  async removeMember(
+    @CurrentUser() claims: AuthUserPayload,
+    @Tenant() t: TenantContext,
+    @Param("userId") userId: string,
+  ) {
+    const user = await this.requireUser(claims);
+    if (!user) return null;
+    return this.tenants.removeMember(t.organizationId, userId, user.id);
   }
 
   @Patch("members/:userId/role")

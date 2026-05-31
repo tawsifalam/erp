@@ -14,7 +14,6 @@ import { AppSelect } from "@/components/app-select";
 import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
-import { shortId } from "@/lib/format";
 
 type JoinRequest = {
   id: string;
@@ -26,6 +25,7 @@ type JoinRequest = {
 type Member = {
   id: string;
   role: string;
+  isFounder: boolean;
   user: { id: string; email: string; name: string | null };
 };
 
@@ -152,6 +152,27 @@ export function TeamAccessSection({
     }
   };
 
+  const removeMember = async (member: Member) => {
+    if (!tenant || member.isFounder) return;
+    if (!window.confirm(`Remove ${member.user.name ?? member.user.email} from this organization?`)) {
+      return;
+    }
+    setActing(member.user.id);
+    onError("");
+    try {
+      await apiFetch(`/tenants/members/${member.user.id}`, {
+        method: "DELETE",
+        tenant,
+      });
+      onMessage("Member removed");
+      load();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Failed to remove member");
+    } finally {
+      setActing(null);
+    }
+  };
+
   if (loading) return <LoadingState />;
 
   return (
@@ -248,17 +269,26 @@ export function TeamAccessSection({
             <Table.Row>
               <Table.ColumnHeader>User</Table.ColumnHeader>
               <Table.ColumnHeader>Role</Table.ColumnHeader>
-              <Table.ColumnHeader>ID</Table.ColumnHeader>
+              <Table.ColumnHeader>Actions</Table.ColumnHeader>
             </Table.Row>
           </Table.Header>
           <Table.Body>
             {members.map((m) => (
               <Table.Row key={m.id}>
                 <Table.Cell>
-                  <Text fontSize="sm">{m.user.name ?? m.user.email}</Text>
-                  <Text fontSize="xs" color="fg.muted">
-                    {m.user.email}
-                  </Text>
+                  <Flex align="center" gap={2}>
+                    <Box>
+                      <Text fontSize="sm">{m.user.name ?? m.user.email}</Text>
+                      <Text fontSize="xs" color="fg.muted">
+                        {m.user.email}
+                      </Text>
+                    </Box>
+                    {m.isFounder && (
+                      <Text fontSize="xs" color="blue.600" fontWeight="medium">
+                        Founder
+                      </Text>
+                    )}
+                  </Flex>
                 </Table.Cell>
                 <Table.Cell>
                   <AppSelect
@@ -270,8 +300,22 @@ export function TeamAccessSection({
                     aria-label="Member role"
                   />
                 </Table.Cell>
-                <Table.Cell fontFamily="mono" fontSize="xs">
-                  {shortId(m.user.id)}
+                <Table.Cell>
+                  {!m.isFounder ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      colorPalette="red"
+                      onClick={() => removeMember(m)}
+                      loading={acting === m.user.id}
+                    >
+                      Remove
+                    </Button>
+                  ) : (
+                    <Text fontSize="xs" color="fg.muted">
+                      —
+                    </Text>
+                  )}
                 </Table.Cell>
               </Table.Row>
             ))}

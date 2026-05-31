@@ -1,8 +1,8 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { TenantsService } from "./tenants.service";
 
 const mockPrisma = {
-  userOrganization: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn() },
+  userOrganization: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
   organization: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn() },
   organizationJoinRequest: {
     findFirst: jest.fn(),
@@ -160,5 +160,32 @@ describe("TenantsService", () => {
 
   it("searchOrganizations requires min 2 chars", () => {
     expect(() => service.searchOrganizations("a")).toThrow(BadRequestException);
+  });
+
+  it("removeMember blocks removing the organization founder", async () => {
+    mockPrisma.userOrganization.findFirst.mockResolvedValue({ userId: "usr_founder" });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue({
+      id: "uo_1",
+      userId: "usr_founder",
+      role: "OWNER",
+    });
+
+    await expect(
+      service.removeMember("org_1", "usr_founder", "usr_admin"),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("removeMember deletes non-founder membership", async () => {
+    mockPrisma.userOrganization.findFirst.mockResolvedValue({ userId: "usr_founder" });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue({
+      id: "uo_2",
+      userId: "usr_member",
+      role: "FRONT_DESK",
+    });
+    mockPrisma.userOrganization.delete.mockResolvedValue({});
+
+    const result = await service.removeMember("org_1", "usr_member", "usr_admin");
+    expect(result.removed).toBe(true);
+    expect(mockPrisma.userOrganization.delete).toHaveBeenCalledWith({ where: { id: "uo_2" } });
   });
 });

@@ -2,6 +2,7 @@
 
 import { ChakraProvider, defaultSystem } from "@chakra-ui/react";
 import { AuthProvider } from "@propelauth/nextjs/client";
+import { AuthTokenSync } from "@/components/auth-token-sync";
 import { TenantProvider } from "@/lib/tenant-context";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -9,6 +10,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthProvider authUrl={authUrl}>
+      <AuthTokenSync />
       <ChakraProvider value={defaultSystem}>
         <TenantProvider>{children}</TenantProvider>
       </ChakraProvider>

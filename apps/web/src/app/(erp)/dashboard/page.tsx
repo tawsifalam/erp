@@ -24,7 +24,7 @@ type Dashboard = {
 };
 
 export default function DashboardPage() {
-  const { loading: authLoading } = useUser();
+  const { loading: authLoading, accessToken } = useUser();
   const tenant = useTenantHeaders();
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,11 +32,11 @@ export default function DashboardPage() {
   const [synced, setSynced] = useState(false);
 
   useEffect(() => {
-    if (authLoading || synced) return;
-    syncUserAfterLogin()
+    if (authLoading || synced || !accessToken) return;
+    syncUserAfterLogin(undefined, accessToken)
       .catch(console.error)
       .finally(() => setSynced(true));
-  }, [authLoading, synced]);
+  }, [authLoading, accessToken, synced]);
 
   useEffect(() => {
     if (!tenant.organizationId || !tenant.branchId) return;

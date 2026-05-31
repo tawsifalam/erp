@@ -84,7 +84,7 @@ export async function mockAuth(page: Page) {
     return route.fulfill({ status: 200, body: "{}" });
   });
 
-  // 2. Intercept /api/auth/userinfo (used by getAccessToken)
+  // Intercept /api/auth/userinfo (PropelAuth AuthProvider session refresh)
   await page.route("**/api/auth/userinfo", (route) =>
     route.fulfill({
       status: 200,

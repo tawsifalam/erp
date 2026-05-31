@@ -9,6 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
+import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "./api-client";
 import {
   type OrgMembership,
@@ -32,6 +33,7 @@ type TenantState = {
 const TenantContext = createContext<TenantState | null>(null);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
+  const { loading: authLoading } = useUser();
   const [organizationId, setOrganizationIdState] = useState<string | null>(null);
   const [branchId, setBranchIdState] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<OrgMembership[]>([]);
@@ -69,6 +71,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   }, [loadMemberships]);
 
   useEffect(() => {
+    if (authLoading) return;
+
     loadMemberships()
       .then((mapped) => {
         const initial = pickInitialTenant(mapped, readStoredTenant());
@@ -83,7 +87,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => setMemberships([]))
       .finally(() => setLoading(false));
-  }, [loadMemberships]);
+  }, [authLoading, loadMemberships]);
 
   const role =
     memberships.find((m) => m.organizationId === organizationId)?.role ?? null;

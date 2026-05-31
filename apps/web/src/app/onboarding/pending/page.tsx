@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, Stack, Text } from "@chakra-ui/react";
+import { Button, Stack, Text } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";
@@ -10,6 +10,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { getDefaultRouteForRole } from "@erp/utils";
 import { Role } from "@erp/types";
 import { appToast } from "@/lib/app-toast";
+import { ContentCard, LoadingState } from "@erp/ui";
 
 type OnboardingStatus = {
   hasMembership: boolean;
@@ -80,25 +81,26 @@ export default function OnboardingPendingPage() {
 
   if (authLoading || loading) {
     return (
-      <Box bg="white" borderRadius="lg" p={8} shadow="sm" maxW="480px" w="full">
-        <Text color="fg.muted">Loading…</Text>
-      </Box>
+      <ContentCard maxW="480px" w="full" p={8}>
+        <LoadingState label="Checking request status…" />
+      </ContentCard>
     );
   }
 
   const pending = status?.pendingRequest;
 
   return (
-    <Box bg="white" borderRadius="lg" p={8} shadow="sm" maxW="480px" w="full">
-      <Text fontSize="xl" fontWeight="bold" mb={2}>
+    <ContentCard maxW="480px" w="full" p={8}>
+      <Text fontSize="2xl" fontWeight="bold" mb={2}>
         Waiting for approval
       </Text>
       <Text fontSize="sm" color="fg.muted" mb={6}>
         Your request to join{" "}
-        <Text as="span" fontWeight="semibold">
+        <Text as="span" fontWeight="semibold" color="fg">
           {pending?.organizationName}
         </Text>{" "}
-        is pending. An organization admin will review it and assign your role.
+        is pending. An organization admin will review it, assign your role, and you will receive
+        access automatically once approved.
       </Text>
 
       <Stack gap={3}>
@@ -112,6 +114,6 @@ export default function OnboardingPendingPage() {
           Back to onboarding
         </Button>
       </Stack>
-    </Box>
+    </ContentCard>
   );
 }

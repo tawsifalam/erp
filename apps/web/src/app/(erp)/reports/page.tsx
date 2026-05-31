@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { Box, Button, Flex, Table, Text } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
+import { ModulePageHeader } from "@/components/module-page-header";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader, EmptyState, LoadingState } from "@erp/ui";
+import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -81,14 +83,10 @@ export default function ReportsPage() {
   const types = typesQuery.data ?? [];
 
   return (
-    <DashboardShell title="Reports">
-      <PageHeader title="Reports & exports" description="Async CSV exports via background jobs" />
+    <DashboardShell>
+      <ModulePageHeader />
 
-      {!tenant.branchId && (
-        <Text mb={3} fontSize="sm" color="orange.600">
-          Select a branch in the header to run branch-scoped exports.
-        </Text>
-      )}
+      {!tenant.branchId && <BranchRequiredNotice />}
 
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <AppSelect

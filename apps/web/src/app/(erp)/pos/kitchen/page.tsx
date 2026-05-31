@@ -106,9 +106,21 @@ export default function KitchenPage() {
       </Flex>
 
       {!headers.branchId && (
-        <Text color="orange.200" mb={3} fontSize="sm">
-          Select a branch above to load the kitchen queue.
-        </Text>
+        <Box
+          mb={4}
+          p={4}
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor="orange.400"
+          bg="whiteAlpha.100"
+        >
+          <Text fontSize="sm" fontWeight="semibold" color="orange.200">
+            Branch required
+          </Text>
+          <Text fontSize="sm" color="orange.100" mt={1}>
+            Select a branch above to load the kitchen queue for that location.
+          </Text>
+        </Box>
       )}
 
       <Button size="sm" mb={4} variant="surface" onClick={loadOrders}>
@@ -117,7 +129,11 @@ export default function KitchenPage() {
 
       <Stack gap={4}>
         {cards.length === 0 && (
-          <EmptyState message="No active kitchen tickets. Submit an order from POS." />
+          <EmptyState
+            title="No active tickets"
+            description="Orders appear here after staff submit them from POS. Open POS → Orders to take a new order."
+            icon="🍳"
+          />
         )}
         {cards.map((t) => (
           <Box

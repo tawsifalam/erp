@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Tabs } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader } from "@erp/ui";
+import { ModulePageHeader } from "@/components/module-page-header";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { ReservationsTab } from "./reservations-tab";
 import { RoomsTab } from "./rooms-tab";
@@ -15,11 +15,8 @@ export default function PmsPage() {
   const [tab, setTab] = useState("reservations");
 
   return (
-    <DashboardShell title="PMS">
-      <PageHeader
-        title="Property management"
-        description="Reservations, rooms, guests, and housekeeping for the selected branch"
-      />
+    <DashboardShell>
+      <ModulePageHeader />
       <Tabs.Root value={tab} onValueChange={(d) => setTab(d.value)} variant="enclosed">
         <Tabs.List mb={4}>
           <Tabs.Trigger value="reservations">Reservations</Tabs.Trigger>

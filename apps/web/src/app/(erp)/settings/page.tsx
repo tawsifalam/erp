@@ -12,7 +12,8 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader, EmptyState, LoadingState } from "@erp/ui";
+import { ModulePageHeader } from "@/components/module-page-header";
+import { ContextBanner, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -161,19 +162,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <DashboardShell title="Settings">
-      <PageHeader
-        title="Settings"
-        description="Organization, branches, and inventory pool configuration"
-      />
+    <DashboardShell>
+      <ModulePageHeader />
 
       {!isAdmin && (
-        <Box bg="orange.50" borderRadius="md" p={4} mb={4}>
-          <Text fontSize="sm">
-            Tenant management requires OWNER or ADMIN role. You can still switch organization and
-            branch using the header selectors.
-          </Text>
-        </Box>
+        <ContextBanner status="info" title="View-only access">
+          Tenant management requires Owner or Admin role. You can still switch organization and
+          branch using the selectors in the header.
+        </ContextBanner>
       )}
 
       {isAdmin && (
@@ -298,7 +294,11 @@ export default function SettingsPage() {
                 </Table.Body>
               </Table.Root>
               {branches.length === 0 && !loading && (
-                <EmptyState message="No branches yet. Add one to use PMS, POS, and inventory." />
+                <EmptyState
+                  title="No branches yet"
+                  description="Add at least one branch to run PMS, POS, inventory, and branch-scoped reports."
+                  icon="📍"
+                />
               )}
             </Box>
           </Tabs.Content>

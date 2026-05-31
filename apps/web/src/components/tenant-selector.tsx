@@ -73,6 +73,11 @@ export function TenantSelector() {
           width="180px"
           disabled={branches.length === 0}
         />
+        {branches.length > 0 && !tenant.branchId && (
+          <Text fontSize="xs" color="orange.600">
+            Select a branch to continue
+          </Text>
+        )}
       </Flex>
     </Flex>
   );

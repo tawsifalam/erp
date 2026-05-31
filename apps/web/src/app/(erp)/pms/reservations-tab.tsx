@@ -11,6 +11,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { EmptyState, LoadingState, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -231,11 +232,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     form.checkOut > form.checkIn;
 
   if (!branchId) {
-    return (
-      <Text color="fg.muted" fontSize="sm">
-        Select a branch in the header to manage reservations.
-      </Text>
-    );
+    return <BranchRequiredNotice />;
   }
 
   return (
@@ -461,7 +458,11 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
             </Table.Body>
           </Table.Root>
           {reservations.length === 0 && (
-            <EmptyState message="No reservations for this branch." />
+            <EmptyState
+              title="No reservations yet"
+              description="Create a reservation to assign guests to rooms for this branch."
+              icon="🛎️"
+            />
           )}
         </Box>
       )}

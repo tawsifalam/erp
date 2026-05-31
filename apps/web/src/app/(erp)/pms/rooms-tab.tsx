@@ -10,6 +10,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { EmptyState, LoadingState, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -136,11 +137,7 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
   };
 
   if (!branchId) {
-    return (
-      <Text color="fg.muted" fontSize="sm">
-        Select a branch in the header to manage rooms.
-      </Text>
-    );
+    return <BranchRequiredNotice />;
   }
 
   return (

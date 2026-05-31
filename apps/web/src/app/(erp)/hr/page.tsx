@@ -12,8 +12,10 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader, MoneyText, EmptyState, LoadingState } from "@erp/ui";
+import { ModulePageHeader } from "@/components/module-page-header";
+import { MoneyText, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -240,8 +242,8 @@ export default function HrPage() {
   };
 
   return (
-    <DashboardShell title="HR">
-      <PageHeader title="Human Resources" description="Employees, attendance, staff meals, and payroll" />
+    <DashboardShell>
+      <ModulePageHeader />
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
         <Tabs.List>
@@ -313,11 +315,7 @@ export default function HrPage() {
         </Tabs.Content>
 
         <Tabs.Content value="attendance" pt={4}>
-          {!tenant.branchId && (
-            <Text mb={3} fontSize="sm" color="orange.600">
-              Select a branch in the header to record attendance.
-            </Text>
-          )}
+          {!tenant.branchId && <BranchRequiredNotice />}
           <Box bg="white" borderRadius="md" p={4} maxW="480px" mb={4}>
             <Stack gap={3}>
               <AppSelect
@@ -364,11 +362,7 @@ export default function HrPage() {
         </Tabs.Content>
 
         <Tabs.Content value="meals" pt={4}>
-          {!tenant.branchId && (
-            <Text mb={3} fontSize="sm" color="orange.600">
-              Select a branch in the header to manage staff meals.
-            </Text>
-          )}
+          {!tenant.branchId && <BranchRequiredNotice />}
 
           <Box bg="white" borderRadius="md" p={4} mb={4}>
             <Text fontWeight="semibold" mb={2}>

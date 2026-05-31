@@ -13,6 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import NextLink from "next/link";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { EmptyState, LoadingState, MoneyText, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -174,7 +175,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   };
 
   if (!branchId) {
-    return <EmptyState message="Select a branch in the header to manage orders." />;
+    return <BranchRequiredNotice />;
   }
 
   return (

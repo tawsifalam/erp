@@ -13,7 +13,8 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader, MoneyText, EmptyState, LoadingState } from "@erp/ui";
+import { ModulePageHeader } from "@/components/module-page-header";
+import { MoneyText, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -128,8 +129,8 @@ export default function AccountingPage() {
     journalTotals.debit === journalTotals.credit && journalTotals.debit > 0;
 
   return (
-    <DashboardShell title="Accounting">
-      <PageHeader title="Accounting" description="Chart of accounts and double-entry journals" />
+    <DashboardShell>
+      <ModulePageHeader />
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
         <Tabs.List>

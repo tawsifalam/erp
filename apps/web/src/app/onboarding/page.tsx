@@ -20,6 +20,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { getDefaultRouteForRole } from "@erp/utils";
 import { Role } from "@erp/types";
 import { appToast } from "@/lib/app-toast";
+import { ContentCard, LoadingState } from "@erp/ui";
 
 type OnboardingStatus = {
   hasMembership: boolean;
@@ -153,20 +154,21 @@ export default function OnboardingPage() {
 
   if (authLoading || checking) {
     return (
-      <Box bg="white" borderRadius="lg" p={8} shadow="sm" maxW="480px" w="full">
-        <Text color="fg.muted">Loading…</Text>
-      </Box>
+      <ContentCard maxW="480px" w="full" p={8}>
+        <LoadingState label="Checking your account…" />
+      </ContentCard>
     );
   }
 
   return (
-    <Box bg="white" borderRadius="lg" p={8} shadow="sm" maxW="560px" w="full">
-      <Text fontSize="xl" fontWeight="bold" mb={1}>
+    <ContentCard maxW="560px" w="full" p={8}>
+      <Text fontSize="2xl" fontWeight="bold" mb={1}>
         Welcome to One Venue
       </Text>
       <Text fontSize="sm" color="fg.muted" mb={6}>
-        Create your organization or request to join an existing one. An admin must approve join
-        requests before you can access the app.
+        Set up your hospitality workspace in a few steps. Create a new organization if you are
+        opening a property, or request access to one that already exists — an admin must approve
+        join requests before you can use the app.
       </Text>
 
       <Tabs.Root defaultValue="create">
@@ -302,6 +304,6 @@ export default function OnboardingPage() {
           </Stack>
         </Tabs.Content>
       </Tabs.Root>
-    </Box>
+    </ContentCard>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link, Tabs } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader } from "@erp/ui";
+import { ModulePageHeader } from "@/components/module-page-header";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { OrdersTab } from "./orders-tab";
 import { MenuTab } from "./menu-tab";
@@ -14,10 +14,8 @@ export default function PosPage() {
   const [tab, setTab] = useState("orders");
 
   return (
-    <DashboardShell title="POS">
-      <PageHeader
-        title="Point of Sale"
-        description="Cashier orders and branch menu for the selected property"
+    <DashboardShell>
+      <ModulePageHeader
         actions={
           <Link asChild colorPalette="blue">
             <NextLink href="/pos/kitchen">Kitchen display →</NextLink>

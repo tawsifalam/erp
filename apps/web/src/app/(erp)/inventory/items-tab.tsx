@@ -11,6 +11,7 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { EmptyState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -187,7 +188,7 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
   const selectedItemData = items.find((i) => i.id === selectedItem);
 
   if (!tenant.branchId) {
-    return <EmptyState message="Select a branch in the header to manage inventory." />;
+    return <BranchRequiredNotice />;
   }
 
   return (

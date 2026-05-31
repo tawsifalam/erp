@@ -11,6 +11,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -113,7 +114,7 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
   };
 
   if (!branchId) {
-    return <EmptyState message="Select a branch in the header to manage recipes." />;
+    return <BranchRequiredNotice />;
   }
 
   return (

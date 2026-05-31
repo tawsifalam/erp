@@ -1,12 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Box, SimpleGrid, Stack, Stat, Text } from "@chakra-ui/react";
+import { BranchRequiredNotice } from "@/components/branch-required-notice";
+import { DashboardQuickLinks } from "@/components/dashboard-quick-links";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { PageHeader, LoadingState } from "@erp/ui";
-import { apiFetch } from "@/lib/api-client";
-import { useTenantHeaders } from "@/lib/tenant-context";
+import { ModulePageHeader } from "@/components/module-page-header";
+import {
+  BuildingIcon,
+  ChartIcon,
+  PackageIcon,
+  UtensilsIcon,
+} from "@/components/sidebar-icons";
+import { useTenantHeaders, useTenant } from "@/lib/tenant-context";
 import { appToast } from "@/lib/app-toast";
+import { apiFetch } from "@/lib/api-client";
+import {
+  ContentCard,
+  EmptyState,
+  LoadingState,
+  StatCard,
+} from "@erp/ui";
+import { Box, Stack, Table, Text } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 
 type Dashboard = {
   occupancyPct: number;
@@ -24,8 +38,10 @@ type Dashboard = {
 
 export default function DashboardPage() {
   const tenant = useTenantHeaders();
+  const { role } = useTenant();
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     if (!tenant.organizationId || !tenant.branchId) return;
     setLoading(true);
@@ -35,54 +51,108 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [tenant.organizationId, tenant.branchId]);
 
+  const needsBranch = Boolean(tenant.organizationId && !tenant.branchId);
+  const needsOrg = !tenant.organizationId;
+
   return (
-    <DashboardShell title="Dashboard">
-      <PageHeader title="Overview" description="Today's property metrics" />
-      {!tenant.branchId && tenant.organizationId && (
-        <Text mb={3} fontSize="sm" color="orange.600">
-          Select a branch in the header to load branch metrics.
-        </Text>
-      )}
-      {loading && <LoadingState />}
-      <SimpleGrid columns={{ base: 1, md: 4 }} gap={4}>
-        <Stat.Root>
-          <Stat.Label>Occupancy</Stat.Label>
-          <Stat.ValueText>{data?.occupancyPct ?? "—"}%</Stat.ValueText>
-        </Stat.Root>
-        <Stat.Root>
-          <Stat.Label>Active reservations</Stat.Label>
-          <Stat.ValueText>{data?.activeReservations ?? "—"}</Stat.ValueText>
-        </Stat.Root>
-        <Stat.Root>
-          <Stat.Label>Revenue today (POS)</Stat.Label>
-          <Stat.ValueText>{data?.revenueToday?.toFixed(2) ?? "—"}</Stat.ValueText>
-        </Stat.Root>
-        <Stat.Root>
-          <Stat.Label>Low stock alerts</Stat.Label>
-          <Stat.ValueText>{data?.lowStockAlerts ?? "—"}</Stat.ValueText>
-        </Stat.Root>
-      </SimpleGrid>
+    <DashboardShell>
+      <ModulePageHeader />
 
-      {data && data.lowStockItems.length > 0 && (
-        <Box mt={6} bg="white" borderRadius="md" p={4}>
-          <Text fontWeight="semibold" mb={2}>
-            Low stock items
-          </Text>
-          <Stack gap={1} fontSize="sm">
-            {data.lowStockItems.map((i) => (
-              <Text key={i.sku}>
-                {i.name} ({i.sku}): {i.currentStock.toFixed(2)} {i.unit} — threshold{" "}
-                {i.lowStockThreshold}
+      {needsOrg && (
+        <EmptyState
+          title="No organization selected"
+          description="Sign in and complete onboarding, then pick an organization in the header to load metrics."
+          icon="🏢"
+        />
+      )}
+
+      {needsBranch && <BranchRequiredNotice />}
+
+      {loading && <LoadingState label="Loading dashboard metrics…" />}
+
+      {!needsOrg && !needsBranch && !loading && (
+        <>
+          <Box
+            display="grid"
+            gridTemplateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}
+            gap={4}
+          >
+            <StatCard
+              label="Occupancy"
+              value={data ? `${data.occupancyPct}%` : "—"}
+              helper="Rooms occupied vs available"
+              icon={<BuildingIcon boxSize={5} aria-hidden />}
+            />
+            <StatCard
+              label="Active reservations"
+              value={data?.activeReservations ?? "—"}
+              helper="Confirmed and checked in"
+              icon={<ChartIcon boxSize={5} aria-hidden />}
+            />
+            <StatCard
+              label="Revenue today"
+              value={data ? `$${data.revenueToday.toFixed(2)}` : "—"}
+              helper="POS sales for this branch"
+              icon={<UtensilsIcon boxSize={5} aria-hidden />}
+            />
+            <StatCard
+              label="Low stock alerts"
+              value={data?.lowStockAlerts ?? "—"}
+              helper="Items below reorder threshold"
+              icon={<PackageIcon boxSize={5} aria-hidden />}
+            />
+          </Box>
+
+          {data && data.lowStockItems.length > 0 && (
+            <ContentCard mt={6}>
+              <Text fontWeight="semibold" mb={3}>
+                Low stock items
               </Text>
-            ))}
-          </Stack>
-        </Box>
-      )}
+              <Text fontSize="sm" color="fg.muted" mb={4}>
+                Restock these items soon to avoid running out during service.
+              </Text>
+              <Box overflowX="auto">
+                <Table.Root size="sm">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeader>Item</Table.ColumnHeader>
+                      <Table.ColumnHeader>SKU</Table.ColumnHeader>
+                      <Table.ColumnHeader textAlign="end">On hand</Table.ColumnHeader>
+                      <Table.ColumnHeader textAlign="end">Threshold</Table.ColumnHeader>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {data.lowStockItems.map((item) => (
+                      <Table.Row key={item.sku}>
+                        <Table.Cell>{item.name}</Table.Cell>
+                        <Table.Cell fontFamily="mono" fontSize="xs">
+                          {item.sku}
+                        </Table.Cell>
+                        <Table.Cell textAlign="end">
+                          {item.currentStock.toFixed(2)} {item.unit}
+                        </Table.Cell>
+                        <Table.Cell textAlign="end">{item.lowStockThreshold}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              </Box>
+            </ContentCard>
+          )}
 
-      {!tenant.organizationId && (
-        <Text mt={4} color="fg.muted">
-          Sign in and select an organization to load metrics.
-        </Text>
+          {data && data.lowStockAlerts === 0 && (
+            <ContentCard mt={6} py={6}>
+              <Stack gap={1} textAlign="center">
+                <Text fontWeight="medium">All stock levels look good</Text>
+                <Text fontSize="sm" color="fg.muted">
+                  No items are below their reorder threshold right now.
+                </Text>
+              </Stack>
+            </ContentCard>
+          )}
+
+          <DashboardQuickLinks role={role} />
+        </>
       )}
     </DashboardShell>
   );

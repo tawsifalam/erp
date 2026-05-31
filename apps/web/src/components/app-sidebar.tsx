@@ -15,6 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
 import { signOut } from "@/lib/auth";
+import { formatRoleLabel } from "@erp/utils";
 import {
   BOTTOM_NAV,
   filterNavGroups,
@@ -375,6 +376,17 @@ export function AppSidebar() {
             <Text fontSize="xs" color="blue.100" truncate>
               {user?.email ?? ""}
             </Text>
+            {role && (
+              <Text
+                fontSize="xs"
+                color="blue.200"
+                mt={0.5}
+                truncate
+                title={`Your role: ${formatRoleLabel(role)}`}
+              >
+                {formatRoleLabel(role)}
+              </Text>
+            )}
           </Box>
         )}
       </Flex>

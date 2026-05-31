@@ -145,7 +145,13 @@ export function RoomTypesTab({ tenant }: { tenant: TenantHeaders }) {
               ))}
             </Table.Body>
           </Table.Root>
-          {roomTypes.length === 0 && <EmptyState message="No room types. Create one before adding rooms." />}
+          {roomTypes.length === 0 && (
+            <EmptyState
+              title="No room types yet"
+              description="Define room types (e.g. Standard, Suite) before adding individual rooms."
+              icon="🛏️"
+            />
+          )}
         </Box>
       )}
     </Box>

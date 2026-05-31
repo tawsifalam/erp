@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { Job } from "bullmq";
-import { PayrollRunStatus } from "@erp/types";
+import { EmployeeStatus, PayrollRunStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { toNumber } from "@erp/utils";
@@ -37,7 +37,7 @@ export class PayrollProcessor extends WorkerHost {
     });
 
     const employees = await this.prisma.employee.findMany({
-      where: { organizationId: run.organizationId },
+      where: { organizationId: run.organizationId, status: EmployeeStatus.ACTIVE },
     });
 
     for (const emp of employees) {

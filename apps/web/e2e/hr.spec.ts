@@ -23,6 +23,28 @@ test.describe("HR", () => {
     await expect(page.getByRole("cell", { name: "New Hire" })).toBeVisible({ timeout: 5000 });
   });
 
+  test("can edit employee and save", async ({ page }) => {
+    await page.goto("/hr");
+    const row = page.getByRole("row").filter({ hasText: "Karim Hossain" });
+    await row.getByRole("textbox").first().fill("Karim H. Updated");
+    await row.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText(/Employee updated/i)).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Karim H. Updated" })).toBeVisible();
+  });
+
+  test("can terminate employee and hide from attendance dropdown", async ({ page }) => {
+    await page.goto("/hr");
+    const row = page.getByRole("row").filter({ hasText: "Nasreen Begum" });
+    await row.getByRole("button", { name: "Terminate" }).click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByText(/Employee terminated/i)).toBeVisible();
+    await expect(page.getByText("TERMINATED")).toBeVisible();
+    await page.getByRole("tab", { name: /Attendance/i }).click();
+    const employeeSelect = page.locator('select:has(option:text("Select employee"))');
+    await expect(employeeSelect.locator("option", { hasText: "Nasreen Begum" })).toHaveCount(0);
+    await expect(employeeSelect.locator("option", { hasText: "Karim Hossain" })).toBeVisible();
+  });
+
   test("clock attendance shows in recent list", async ({ page }) => {
     await page.goto("/hr");
     await page.getByRole("tab", { name: /Attendance/i }).click();

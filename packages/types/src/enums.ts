@@ -71,6 +71,11 @@ export enum AttendanceType {
   CLOCK_OUT = "CLOCK_OUT",
 }
 
+export enum EmployeeStatus {
+  ACTIVE = "ACTIVE",
+  TERMINATED = "TERMINATED",
+}
+
 export enum PayrollRunStatus {
   PENDING = "PENDING",
   PROCESSING = "PROCESSING",

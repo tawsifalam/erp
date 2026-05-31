@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AttendanceType, MovementType } from "@erp/types";
+import { AttendanceType, EmployeeStatus, MovementType } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
@@ -36,6 +36,14 @@ export class HrService {
     return employee;
   }
 
+  async assertActiveEmployee(organizationId: string, employeeId: string) {
+    const employee = await this.getEmployee(organizationId, employeeId);
+    if (employee.status !== EmployeeStatus.ACTIVE) {
+      throw new BadRequestException("Employee is terminated");
+    }
+    return employee;
+  }
+
   createEmployee(
     organizationId: string,
     data: {
@@ -60,12 +68,72 @@ export class HrService {
         salary: data.salary,
         userId: data.userId,
         branchId: data.branchId,
+        status: EmployeeStatus.ACTIVE,
       },
     });
   }
 
-  async clockAttendance(employeeId: string, branchId: string, type: AttendanceType) {
+  async updateEmployee(
+    organizationId: string,
+    employeeId: string,
+    data: {
+      name?: string;
+      designation?: string;
+      salary?: number;
+      branchId?: string | null;
+      status?: EmployeeStatus;
+    },
+  ) {
+    await this.getEmployee(organizationId, employeeId);
+
+    if (data.name !== undefined && !data.name.trim()) {
+      throw new BadRequestException("Employee name is required");
+    }
+    if (data.designation !== undefined && !data.designation.trim()) {
+      throw new BadRequestException("Designation is required");
+    }
+    if (data.salary !== undefined && data.salary < 0) {
+      throw new BadRequestException("Salary cannot be negative");
+    }
+
+    const updateData: {
+      name?: string;
+      designation?: string;
+      salary?: number;
+      branchId?: string | null;
+      status?: EmployeeStatus;
+      terminatedAt?: Date | null;
+    } = {};
+
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.designation !== undefined) updateData.designation = data.designation.trim();
+    if (data.salary !== undefined) updateData.salary = data.salary;
+    if (data.branchId !== undefined) updateData.branchId = data.branchId;
+
+    if (data.status !== undefined) {
+      updateData.status = data.status;
+      if (data.status === EmployeeStatus.TERMINATED) {
+        updateData.terminatedAt = new Date();
+      } else if (data.status === EmployeeStatus.ACTIVE) {
+        updateData.terminatedAt = null;
+      }
+    }
+
+    return this.prisma.employee.update({
+      where: { id: employeeId },
+      data: updateData,
+      include: { branch: true, user: true },
+    });
+  }
+
+  async clockAttendance(
+    organizationId: string,
+    employeeId: string,
+    branchId: string,
+    type: AttendanceType,
+  ) {
     if (!branchId) throw new BadRequestException("Branch is required for attendance");
+    await this.assertActiveEmployee(organizationId, employeeId);
     return this.prisma.attendanceRecord.create({
       data: { employeeId, branchId, type },
     });
@@ -190,7 +258,7 @@ export class HrService {
       throw new BadRequestException("mealCount must be a positive whole number");
     }
 
-    await this.getEmployee(params.organizationId, params.employeeId);
+    await this.assertActiveEmployee(params.organizationId, params.employeeId);
     const recipe = await this.getStaffMealRecipe(params.branchId, params.staffMealRecipeId);
     const unitCostPerMeal = computeStaffMealUnitCost(recipe.lines);
 

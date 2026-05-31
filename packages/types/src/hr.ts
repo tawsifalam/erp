@@ -1,9 +1,19 @@
+import type { EmployeeStatus } from "./enums";
+
 export interface CreateEmployeeDto {
   name: string;
   designation: string;
   salary: number;
   userId?: string;
   branchId?: string;
+}
+
+export interface UpdateEmployeeDto {
+  name?: string;
+  designation?: string;
+  salary?: number;
+  branchId?: string | null;
+  status?: EmployeeStatus;
 }
 
 export interface ClockAttendanceDto {

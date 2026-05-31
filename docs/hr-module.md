@@ -10,7 +10,7 @@ Organization-scoped **employees**, branch-scoped **attendance** and **staff meal
 | Attendance | Branch | Clock in/out per branch |
 | Staff meal recipes | Branch | Ingredients must be **staff pool** items |
 | Staff meal consumption | Branch | Meal count per employee; auto-deducts staff pool stock |
-| Payroll runs | Organization | BullMQ worker processes all org employees |
+| Payroll runs | Organization | BullMQ worker processes **active** org employees |
 
 All HR routes require `Authorization` and `X-Organization-Id`. Attendance, staff meals, and clock require `X-Branch-Id`.
 
@@ -22,7 +22,7 @@ Select **organization** and **branch** in the header (branch required for attend
 
 | Tab | Features |
 |-----|----------|
-| **Employees** | List staff; **add** employee (name, designation, salary) |
+| **Employees** | List staff; **add**, **edit** (inline), **terminate**, and **reactivate** employees |
 | **Attendance** | Clock in/out for selected employee; **recent attendance** list for current branch |
 | **Staff meals** | Define **meal recipes** (ingredients per meal); **record consumption** (employee + recipe + meal count); recent consumption list; optional payroll deduction |
 | **Payroll** | **Run payroll** for current month; list runs with gross / deductions / net per employee |
@@ -95,7 +95,7 @@ POST /hr/payroll/runs
   → Emit payroll.run_requested
   → PayrollListener → BullMQ "payroll" queue
   → PayrollProcessor
-      → For each employee: gross = salary, deduct pending staff meals
+      → For each **active** employee: gross = salary, deduct pending staff meals
       → Create PayrollLine rows
       → Mark staff meals payrollDeducted
       → Upload placeholder artifact to storage
@@ -108,10 +108,13 @@ List runs: `GET /payroll/runs`.
 
 | Action | Rules |
 |--------|-------|
-| Create employee | Non-empty name and designation; salary ≥ 0 |
-| Clock attendance | Employee must exist in org; branch required |
+| Create employee | Non-empty name and designation; salary ≥ 0; status defaults to `ACTIVE` |
+| Update employee | Same field rules as create; optional `status` (`ACTIVE` / `TERMINATED`) |
+| Terminate employee | `PATCH` with `status: TERMINATED`; sets `terminatedAt` |
+| Reactivate employee | `PATCH` with `status: ACTIVE`; clears `terminatedAt` |
+| Clock attendance | Employee must be **active** in org; branch required |
 | Staff meal recipe | Name + at least one line; items must belong to branch |
-| Staff meal consumption | `mealCount` positive integer; employee in org; recipe in branch |
+| Staff meal consumption | `mealCount` positive integer; employee must be **active**; recipe in branch |
 | Payroll run | `periodStart` < `periodEnd` |
 
 ## API reference
@@ -130,7 +133,21 @@ curl -s -X POST "$BASE/hr/employees" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"New Hire","designation":"Trainee","salary":12000,"branchId":"<branch-id>"}' | jq
+
+curl -s -X PATCH "$BASE/hr/employees/$EMP_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Karim Hossain","designation":"Head Chef","salary":48000}' | jq
+
+curl -s -X PATCH "$BASE/hr/employees/$EMP_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"TERMINATED"}' | jq
 ```
+
+**Employee status:** `ACTIVE` (default) or `TERMINATED`. Terminated employees remain in the list for history but are excluded from payroll runs, attendance clock-in, and staff meal recording. Reactivate with `{"status":"ACTIVE"}`.
 
 ### Attendance
 

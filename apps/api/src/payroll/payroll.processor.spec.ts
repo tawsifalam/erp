@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { PayrollRunStatus } from "@erp/types";
+import { EmployeeStatus, PayrollRunStatus } from "@erp/types";
 import { PayrollProcessor, computePayrollLine } from "./payroll.processor";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
@@ -62,6 +62,9 @@ describe("PayrollProcessor", () => {
 
     await processor.process({ data: { payrollRunId: "pr-1" } } as never);
 
+    expect(mockPrisma.employee.findMany).toHaveBeenCalledWith({
+      where: { organizationId: "org-1", status: EmployeeStatus.ACTIVE },
+    });
     expect(mockPrisma.payrollLine.create).toHaveBeenCalledWith({
       data: {
         payrollRunId: "pr-1",

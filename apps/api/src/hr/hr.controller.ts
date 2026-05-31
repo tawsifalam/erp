@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
-import { AttendanceType } from "@erp/types";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { AttendanceType, EmployeeStatus } from "@erp/types";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";
@@ -29,6 +29,23 @@ export class HrController {
     return this.hr.createEmployee(t.organizationId, body);
   }
 
+  @Patch("employees/:id")
+  @RequirePermission(Permission.HR_WRITE)
+  updateEmployee(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body()
+    body: {
+      name?: string;
+      designation?: string;
+      salary?: number;
+      branchId?: string | null;
+      status?: EmployeeStatus;
+    },
+  ) {
+    return this.hr.updateEmployee(t.organizationId, id, body);
+  }
+
   @Get("attendance")
   @RequirePermission(Permission.HR_READ)
   attendance(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
@@ -41,8 +58,12 @@ export class HrController {
     @Tenant() t: TenantContext,
     @Body() body: { employeeId: string; type: AttendanceType },
   ) {
-    await this.hr.getEmployee(t.organizationId, body.employeeId);
-    return this.hr.clockAttendance(body.employeeId, t.branchId!, body.type);
+    return this.hr.clockAttendance(
+      t.organizationId,
+      body.employeeId,
+      t.branchId!,
+      body.type,
+    );
   }
 
   @Get("staff-meal-recipes")

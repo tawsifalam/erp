@@ -1239,7 +1239,7 @@ Select **organization** and **branch** in the header (branch required for attend
 
 | Tab | Features |
 |-----|----------|
-| **Employees** | List staff; add employee (name, designation, salary) |
+| **Employees** | List staff; add, edit, terminate, and reactivate employees |
 | **Attendance** | Clock in/out; recent attendance list for current branch |
 | **Staff meals** | Define **meal recipes** (ingredients per meal); record consumption (employee + recipe + meal count); optional payroll deduction |
 | **Payroll** | Run payroll for current month; view runs with gross / deductions / net |
@@ -1289,6 +1289,24 @@ curl -s "$BASE/hr/employees" \
   }
 ]
 ```
+
+### Step 1b: Update or terminate an employee
+
+```bash
+curl -s -X PATCH "$BASE/hr/employees/$EMP_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Karim Hossain","designation":"Head Chef","salary":48000}' | jq
+
+curl -s -X PATCH "$BASE/hr/employees/$EMP_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"TERMINATED"}' | jq
+```
+
+Terminated employees are kept for payroll history but excluded from new payroll runs, attendance, and staff meals. Reactivate with `{"status":"ACTIVE"}`.
 
 ### Step 2: Clock Attendance
 
@@ -1781,6 +1799,7 @@ See [accounting-module.md](accounting-module.md) for curl examples.
 |--------|--------------------------------------|------------|------------------------|
 | GET    | `/hr/employees`                      | HR_READ    | List employees         |
 | POST   | `/hr/employees`                      | HR_WRITE   | Create employee        |
+| PATCH  | `/hr/employees/:id`                  | HR_WRITE   | Update or terminate employee |
 | GET    | `/hr/attendance`                     | HR_READ    | List attendance (branch) |
 | POST   | `/hr/attendance/clock`               | HR_WRITE   | Clock in/out           |
 | GET    | `/hr/staff-meal-recipes`             | HR_READ    | List staff meal recipes |

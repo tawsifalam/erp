@@ -3,7 +3,9 @@ type MockEmployee = {
   name: string;
   designation: string;
   salary: string;
+  status: string;
   branchId?: string;
+  terminatedAt?: string | null;
 };
 
 type MockAttendance = {
@@ -51,8 +53,8 @@ type MockStaffMeal = {
 };
 
 const INITIAL_EMPLOYEES: MockEmployee[] = [
-  { id: "emp_001", name: "Karim Hossain", designation: "Head Chef", salary: "45000" },
-  { id: "emp_002", name: "Nasreen Begum", designation: "Front Desk", salary: "35000" },
+  { id: "emp_001", name: "Karim Hossain", designation: "Head Chef", salary: "45000", status: "ACTIVE" },
+  { id: "emp_002", name: "Nasreen Begum", designation: "Front Desk", salary: "35000", status: "ACTIVE" },
 ];
 
 const INITIAL_PAYROLL: MockPayrollRun[] = [
@@ -122,6 +124,25 @@ export function handleHrMutation(
   url: string,
   body: Record<string, unknown> | null,
 ): unknown {
+  if (url.match(/\/hr\/employees\/[^/?]+/) && method === "PATCH") {
+    const idMatch = url.match(/\/employees\/([^/?]+)/);
+    const id = idMatch?.[1];
+    const emp = id ? findEmployee(id) : undefined;
+    if (!emp) return { status: 404, message: "Employee not found" };
+    if (body?.name) emp.name = String(body.name);
+    if (body?.designation) emp.designation = String(body.designation);
+    if (body?.salary !== undefined) emp.salary = String(body.salary);
+    if (body?.status === "TERMINATED") {
+      emp.status = "TERMINATED";
+      emp.terminatedAt = new Date().toISOString();
+    }
+    if (body?.status === "ACTIVE") {
+      emp.status = "ACTIVE";
+      emp.terminatedAt = null;
+    }
+    return { ...emp };
+  }
+
   if (url.includes("/hr/employees")) {
     if (method === "GET") return getHrEmployees();
     if (method === "POST") {
@@ -130,6 +151,7 @@ export function handleHrMutation(
         name: String(body?.name ?? "New Employee"),
         designation: String(body?.designation ?? "Staff"),
         salary: String(body?.salary ?? "0"),
+        status: "ACTIVE",
         branchId: body?.branchId ? String(body.branchId) : undefined,
       };
       employees.push(emp);
@@ -141,6 +163,9 @@ export function handleHrMutation(
     const employeeId = String(body?.employeeId ?? "");
     const emp = findEmployee(employeeId);
     if (!emp) return { status: 404, message: "Employee not found" };
+    if (emp.status === "TERMINATED") {
+      return { status: 400, message: "Employee is terminated" };
+    }
     const record: MockAttendance = {
       id: `att_${attendance.length + 1}`,
       employeeId,

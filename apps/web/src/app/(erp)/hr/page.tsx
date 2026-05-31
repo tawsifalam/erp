@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -23,6 +23,7 @@ import {
   ListSkeleton,
   TableSkeleton,
   TableScrollArea,
+  StatusBadge,
 } from "@erp/ui";
 import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { apiFetch } from "@/lib/api-client";
@@ -33,7 +34,14 @@ import { useModuleTab } from "@/lib/use-module-tab";
 import { formatDateTime } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
 
-type Employee = { id: string; name: string; designation: string; salary: string };
+type Employee = {
+  id: string;
+  name: string;
+  designation: string;
+  salary: string;
+  status: string;
+  terminatedAt?: string | null;
+};
 type PayrollRun = {
   id: string;
   status: string;
@@ -143,6 +151,7 @@ export default function HrPage() {
   const reloadAttendance = useCallback(() => attendanceQuery.reload(), [attendanceQuery]);
 
   const employees = employeesQuery.data ?? [];
+  const activeEmployees = employees.filter((e) => e.status === "ACTIVE");
   const payrollRuns = payrollQuery.data ?? [];
   const attendance = attendanceQuery.data ?? [];
   const mealRecipes = mealRecipesQuery.data ?? [];
@@ -167,6 +176,44 @@ export default function HrPage() {
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to add employee");
     }
+  };
+
+  const updateEmployee = async (
+    id: string,
+    data: {
+      name?: string;
+      designation?: string;
+      salary?: number;
+      status?: string;
+    },
+  ) => {
+    try {
+      await apiFetch(`/hr/employees/${id}`, {
+        method: "PATCH",
+        tenant,
+        body: JSON.stringify(data),
+      });
+      employeesQuery.reload();
+      appToast.success(
+        data.status === "TERMINATED"
+          ? "Employee terminated"
+          : data.status === "ACTIVE"
+            ? "Employee reactivated"
+            : "Employee updated",
+      );
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to update employee");
+    }
+  };
+
+  const confirmTerminate = (employee: Employee) => {
+    ask({
+      title: `Terminate ${employee.name}?`,
+      description:
+        "They will be removed from payroll, attendance, and meal recording. Past payroll and attendance history is preserved.",
+      confirmLabel: "Terminate",
+      onConfirm: () => updateEmployee(employee.id, { status: "TERMINATED" }),
+    });
   };
 
   const handleClock = async () => {
@@ -319,7 +366,7 @@ export default function HrPage() {
           </ContentCard>
           <ContentCard>
             {employeesQuery.loading ? (
-              <TableSkeleton rows={5} columns={3} />
+              <TableSkeleton rows={5} columns={5} />
             ) : (
               <>
                 <TableScrollArea>
@@ -329,17 +376,19 @@ export default function HrPage() {
                         <Table.ColumnHeader>Name</Table.ColumnHeader>
                         <Table.ColumnHeader>Designation</Table.ColumnHeader>
                         <Table.ColumnHeader>Salary</Table.ColumnHeader>
+                        <Table.ColumnHeader>Status</Table.ColumnHeader>
+                        <Table.ColumnHeader>Actions</Table.ColumnHeader>
                       </Table.Row>
                     </Table.Header>
                     <Table.Body>
                       {employees.map((e) => (
-                        <Table.Row key={e.id}>
-                          <Table.Cell>{e.name}</Table.Cell>
-                          <Table.Cell>{e.designation}</Table.Cell>
-                          <Table.Cell>
-                            <MoneyText amount={Number(e.salary)} />
-                          </Table.Cell>
-                        </Table.Row>
+                        <EmployeeRow
+                          key={e.id}
+                          employee={e}
+                          onSave={(id, data) => updateEmployee(id, data)}
+                          onTerminate={() => confirmTerminate(e)}
+                          onReactivate={(id) => updateEmployee(id, { status: "ACTIVE" })}
+                        />
                       ))}
                     </Table.Body>
                   </Table.Root>
@@ -367,7 +416,7 @@ export default function HrPage() {
                 <AppSelect
                   items={[
                     { value: "", label: "Select employee" },
-                    ...employees.map((e) => ({ value: e.id, label: e.name })),
+                    ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
                   ]}
                   value={clockEmployeeId}
                   onValueChange={setClockEmployeeId}
@@ -530,7 +579,7 @@ export default function HrPage() {
                 <AppSelect
                   items={[
                     { value: "", label: "Employee" },
-                    ...employees.map((e) => ({ value: e.id, label: e.name })),
+                    ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
                   ]}
                   value={mealForm.employeeId}
                   onValueChange={(v) => setMealForm({ ...mealForm, employeeId: v })}
@@ -676,5 +725,93 @@ export default function HrPage() {
         </Tabs.Content>
       </Tabs.Root>
     </DashboardShell>
+  );
+}
+
+function EmployeeRow({
+  employee,
+  onSave,
+  onTerminate,
+  onReactivate,
+}: {
+  employee: Employee;
+  onSave: (
+    id: string,
+    data: { name: string; designation: string; salary: number },
+  ) => void;
+  onTerminate: () => void;
+  onReactivate: (id: string) => void;
+}) {
+  const [name, setName] = useState(employee.name);
+  const [designation, setDesignation] = useState(employee.designation);
+  const [salary, setSalary] = useState(String(employee.salary));
+  const isTerminated = employee.status === "TERMINATED";
+
+  useEffect(() => {
+    setName(employee.name);
+    setDesignation(employee.designation);
+    setSalary(String(employee.salary));
+  }, [employee.name, employee.designation, employee.salary]);
+
+  return (
+    <Table.Row opacity={isTerminated ? 0.75 : 1}>
+      <Table.Cell>
+        <Input size="sm" value={name} onChange={(e) => setName(e.target.value)} />
+      </Table.Cell>
+      <Table.Cell>
+        <Input
+          size="sm"
+          value={designation}
+          onChange={(e) => setDesignation(e.target.value)}
+        />
+      </Table.Cell>
+      <Table.Cell>
+        <Input
+          size="sm"
+          type="number"
+          value={salary}
+          onChange={(e) => setSalary(e.target.value)}
+        />
+      </Table.Cell>
+      <Table.Cell>
+        <StatusBadge status={employee.status ?? "ACTIVE"} />
+      </Table.Cell>
+      <Table.Cell>
+        <Flex gap={2} wrap="wrap">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() =>
+              onSave(employee.id, {
+                name,
+                designation,
+                salary: Number(salary),
+              })
+            }
+          >
+            Save
+          </Button>
+          {isTerminated ? (
+            <Button
+              size="xs"
+              variant="outline"
+              colorPalette="green"
+              onClick={() => onReactivate(employee.id)}
+            >
+              Reactivate
+            </Button>
+          ) : (
+            <Button
+              size="xs"
+              variant="outline"
+              colorPalette="red"
+              onClick={onTerminate}
+            >
+              Terminate
+            </Button>
+          )}
+        </Flex>
+      </Table.Cell>
+    </Table.Row>
   );
 }

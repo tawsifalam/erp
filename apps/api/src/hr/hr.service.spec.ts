@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { MovementType } from "@erp/types";
+import { EmployeeStatus, MovementType } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { HrService } from "./hr.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -12,7 +12,7 @@ jest.mock("@erp/utils", () => ({
 }));
 
 const mockPrisma = {
-  employee: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+  employee: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   attendanceRecord: { create: jest.fn(), findMany: jest.fn() },
   staffMeal: { create: jest.fn(), findMany: jest.fn() },
   staffMealRecipe: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -43,7 +43,11 @@ describe("HrService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrisma.employee.findFirst.mockResolvedValue({ id: "emp-1", organizationId: "org-1" });
+    mockPrisma.employee.findFirst.mockResolvedValue({
+      id: "emp-1",
+      organizationId: "org-1",
+      status: EmployeeStatus.ACTIVE,
+    });
     mockPrisma.staffMealRecipe.findFirst.mockResolvedValue(sampleRecipe);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -171,6 +175,117 @@ describe("HrService", () => {
       mockPrisma.employee.findFirst.mockResolvedValue(null);
 
       await expect(service.getEmployee("org-1", "missing")).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("updateEmployee", () => {
+    it("updates fields when found", async () => {
+      mockPrisma.employee.update.mockResolvedValue({
+        id: "emp-1",
+        name: "Updated",
+        designation: "Manager",
+        salary: 50000,
+        status: EmployeeStatus.ACTIVE,
+      });
+
+      const result = await service.updateEmployee("org-1", "emp-1", {
+        name: "Updated",
+        designation: "Manager",
+        salary: 50000,
+      });
+
+      expect(result.name).toBe("Updated");
+      expect(mockPrisma.employee.update).toHaveBeenCalledWith({
+        where: { id: "emp-1" },
+        data: { name: "Updated", designation: "Manager", salary: 50000 },
+        include: { branch: true, user: true },
+      });
+    });
+
+    it("rejects empty name", async () => {
+      await expect(
+        service.updateEmployee("org-1", "emp-1", { name: "   " }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects negative salary", async () => {
+      await expect(
+        service.updateEmployee("org-1", "emp-1", { salary: -1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("terminate sets status and terminatedAt", async () => {
+      mockPrisma.employee.update.mockResolvedValue({
+        id: "emp-1",
+        status: EmployeeStatus.TERMINATED,
+      });
+
+      await service.updateEmployee("org-1", "emp-1", {
+        status: EmployeeStatus.TERMINATED,
+      });
+
+      expect(mockPrisma.employee.update).toHaveBeenCalledWith({
+        where: { id: "emp-1" },
+        data: {
+          status: EmployeeStatus.TERMINATED,
+          terminatedAt: expect.any(Date),
+        },
+        include: { branch: true, user: true },
+      });
+    });
+
+    it("reactivate clears terminatedAt", async () => {
+      mockPrisma.employee.update.mockResolvedValue({
+        id: "emp-1",
+        status: EmployeeStatus.ACTIVE,
+      });
+
+      await service.updateEmployee("org-1", "emp-1", {
+        status: EmployeeStatus.ACTIVE,
+      });
+
+      expect(mockPrisma.employee.update).toHaveBeenCalledWith({
+        where: { id: "emp-1" },
+        data: {
+          status: EmployeeStatus.ACTIVE,
+          terminatedAt: null,
+        },
+        include: { branch: true, user: true },
+      });
+    });
+  });
+
+  describe("clockAttendance", () => {
+    it("rejects terminated employee", async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue({
+        id: "emp-1",
+        organizationId: "org-1",
+        status: EmployeeStatus.TERMINATED,
+      });
+
+      await expect(
+        service.clockAttendance("org-1", "emp-1", "branch-1", "CLOCK_IN" as never),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("recordStaffMeal terminated guard", () => {
+    it("rejects terminated employee", async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue({
+        id: "emp-1",
+        organizationId: "org-1",
+        status: EmployeeStatus.TERMINATED,
+      });
+
+      await expect(
+        service.recordStaffMeal({
+          organizationId: "org-1",
+          employeeId: "emp-1",
+          branchId: "branch-1",
+          staffMealRecipeId: "smr-1",
+          mealCount: 1,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -11,7 +11,6 @@ import {
   IconButton,
   Stack,
   Text,
-  Tooltip,
   Button,
 } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
@@ -34,6 +33,15 @@ import {
 const SIDEBAR_EXPANDED = "260px";
 const SIDEBAR_COLLAPSED = "72px";
 const STORAGE_KEY = "one-venue-sidebar-collapsed";
+
+function readCollapsedPreference(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 const sidebarLinkStyles = {
   display: "flex",
@@ -69,43 +77,66 @@ function SidebarLink({
   active: boolean;
 }) {
   const Icon = item.icon;
-  const link = (
+
+  if (collapsed) {
+    return (
+      <Box
+        asChild
+        {...sidebarLinkStyles}
+        {...activeLinkStyles(active)}
+        justifyContent="center"
+        px={2}
+        title={item.label}
+      >
+        <NextLink href={item.href} aria-current={active ? "page" : undefined}>
+          <Icon aria-hidden />
+        </NextLink>
+      </Box>
+    );
+  }
+
+  return (
     <Box
       asChild
       {...sidebarLinkStyles}
       {...activeLinkStyles(active)}
-      justifyContent={collapsed ? "center" : "flex-start"}
-      px={collapsed ? 2 : 3}
+      justifyContent="flex-start"
     >
       <NextLink href={item.href} aria-current={active ? "page" : undefined}>
         <Icon aria-hidden />
-        {!collapsed && <Text truncate>{item.label}</Text>}
+        <Text truncate>{item.label}</Text>
       </NextLink>
     </Box>
   );
-
-  if (collapsed) {
-    return (
-      <Tooltip.Root positioning={{ placement: "right" }}>
-        <Tooltip.Trigger asChild>{link}</Tooltip.Trigger>
-        <Tooltip.Positioner>
-          <Tooltip.Content>{item.label}</Tooltip.Content>
-        </Tooltip.Positioner>
-      </Tooltip.Root>
-    );
-  }
-
-  return link;
 }
 
-function SidebarGroup({
+function SidebarGroupCollapsed({
   group,
-  collapsed,
+  pathname,
+}: {
+  group: NavGroup;
+  pathname: string;
+}) {
+  return (
+    <Stack gap={1}>
+      {group.items.map((item) => (
+        <SidebarLink
+          key={item.href}
+          item={item}
+          collapsed
+          active={isNavActive(pathname, item.href)}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+function SidebarGroupExpanded({
+  group,
   pathname,
   defaultOpen,
 }: {
   group: NavGroup;
-  collapsed: boolean;
   pathname: string;
   defaultOpen: boolean;
 }) {
@@ -115,21 +146,6 @@ function SidebarGroup({
   useEffect(() => {
     if (groupActive) setOpen(true);
   }, [groupActive]);
-
-  if (collapsed) {
-    return (
-      <Stack gap={1}>
-        {group.items.map((item) => (
-          <SidebarLink
-            key={item.href}
-            item={item}
-            collapsed
-            active={isNavActive(pathname, item.href)}
-          />
-        ))}
-      </Stack>
-    );
-  }
 
   const GroupIcon = group.icon;
 
@@ -175,18 +191,34 @@ function SidebarGroup({
   );
 }
 
+function SidebarGroup({
+  group,
+  collapsed,
+  pathname,
+  defaultOpen,
+}: {
+  group: NavGroup;
+  collapsed: boolean;
+  pathname: string;
+  defaultOpen: boolean;
+}) {
+  if (collapsed) {
+    return <SidebarGroupCollapsed group={group} pathname={pathname} />;
+  }
+
+  return (
+    <SidebarGroupExpanded group={group} pathname={pathname} defaultOpen={defaultOpen} />
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, loading } = useUser();
-  const [collapsed, setCollapsed] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
-    setHydrated(true);
-  }, []);
+  const [collapsed, setCollapsed] = useState(readCollapsedPreference);
+  const [animateWidth, setAnimateWidth] = useState(false);
 
   const toggleCollapsed = () => {
+    setAnimateWidth(true);
     setCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem(STORAGE_KEY, String(next));
@@ -204,9 +236,11 @@ export function AppSidebar() {
     <Box
       as="nav"
       aria-label="Main navigation"
-      w={hydrated ? width : SIDEBAR_EXPANDED}
-      minW={hydrated ? width : SIDEBAR_EXPANDED}
-      transition="width 0.2s ease, min-width 0.2s ease"
+      w={width}
+      minW={width}
+      flexShrink={0}
+      transition={animateWidth ? "width 0.2s ease, min-width 0.2s ease" : undefined}
+      onTransitionEnd={() => setAnimateWidth(false)}
       bg="blue.700"
       color="white"
       display="flex"
@@ -215,9 +249,16 @@ export function AppSidebar() {
       borderRightWidth="1px"
       borderColor="blue.800"
     >
-      <Flex align="center" justify="space-between" px={3} py={4} gap={2}>
+      <Flex
+        align="center"
+        justify={collapsed ? "center" : "space-between"}
+        px={3}
+        py={4}
+        gap={2}
+        minH="72px"
+      >
         {!collapsed && (
-          <Box>
+          <Box minW={0}>
             <Text fontWeight="bold" fontSize="md" lineHeight="short">
               One Venue
             </Text>
@@ -226,25 +267,18 @@ export function AppSidebar() {
             </Text>
           </Box>
         )}
-        <Tooltip.Root positioning={{ placement: "right" }}>
-          <Tooltip.Trigger asChild>
-            <IconButton
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              variant="ghost"
-              size="sm"
-              color="blue.50"
-              _hover={{ bg: "whiteAlpha.200" }}
-              onClick={toggleCollapsed}
-              ml={collapsed ? "auto" : undefined}
-              mr={collapsed ? "auto" : undefined}
-            >
-              {collapsed ? <ChevronRightIcon boxSize={4} /> : <ChevronLeftIcon boxSize={4} />}
-            </IconButton>
-          </Tooltip.Trigger>
-          <Tooltip.Positioner>
-            <Tooltip.Content>{collapsed ? "Expand" : "Collapse"}</Tooltip.Content>
-          </Tooltip.Positioner>
-        </Tooltip.Root>
+        <IconButton
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          variant="ghost"
+          size="sm"
+          color="blue.50"
+          _hover={{ bg: "whiteAlpha.200" }}
+          onClick={toggleCollapsed}
+          flexShrink={0}
+        >
+          {collapsed ? <ChevronRightIcon boxSize={4} /> : <ChevronLeftIcon boxSize={4} />}
+        </IconButton>
       </Flex>
 
       <Stack flex="1" gap={1} px={2} py={2} overflowY="auto">
@@ -280,22 +314,16 @@ export function AppSidebar() {
         ))}
 
         {collapsed ? (
-          <Tooltip.Root positioning={{ placement: "right" }}>
-            <Tooltip.Trigger asChild>
-              <IconButton
-                aria-label="Sign out"
-                variant="ghost"
-                color="blue.50"
-                _hover={{ bg: "whiteAlpha.200" }}
-                onClick={() => signOut()}
-              >
-                <LogOutIcon boxSize={4} />
-              </IconButton>
-            </Tooltip.Trigger>
-            <Tooltip.Positioner>
-              <Tooltip.Content>Sign out</Tooltip.Content>
-            </Tooltip.Positioner>
-          </Tooltip.Root>
+          <IconButton
+            aria-label="Sign out"
+            title="Sign out"
+            variant="ghost"
+            color="blue.50"
+            _hover={{ bg: "whiteAlpha.200" }}
+            onClick={() => signOut()}
+          >
+            <LogOutIcon boxSize={4} />
+          </IconButton>
         ) : (
           <Button
             variant="ghost"
@@ -323,12 +351,13 @@ export function AppSidebar() {
         gap={3}
         px={3}
         py={4}
+        minH="72px"
         borderTopWidth="1px"
         borderColor="whiteAlpha.200"
         bg="blue.800"
         justify={collapsed ? "center" : "flex-start"}
       >
-        <Avatar.Root size="sm" colorPalette="blue">
+        <Avatar.Root size="sm" colorPalette="blue" flexShrink={0}>
           <Avatar.Fallback name={displayName} />
         </Avatar.Root>
         {!collapsed && (

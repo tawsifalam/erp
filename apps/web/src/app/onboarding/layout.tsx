@@ -1,8 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
+import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { signOut } from "@/lib/auth";
+import { LoadingState } from "@erp/ui";
 
 export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
@@ -19,9 +22,14 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         align="center"
         justify="space-between"
       >
-        <Text fontWeight="bold" fontSize="lg" color="blue.700">
-          One Venue
-        </Text>
+        <Box>
+          <Text fontWeight="bold" fontSize="lg" color="blue.700">
+            One Venue
+          </Text>
+          <Suspense fallback={null}>
+            <AppBreadcrumbs />
+          </Suspense>
+        </Box>
         <Flex align="center" gap={3}>
           {user?.email && (
             <Text fontSize="sm" color="fg.muted">
@@ -40,7 +48,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
         </Flex>
       </Flex>
       <Box flex="1" display="flex" alignItems="center" justifyContent="center" p={6}>
-        {children}
+        <Suspense fallback={<LoadingState label="Loading…" />}>{children}</Suspense>
       </Box>
     </Flex>
   );

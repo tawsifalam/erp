@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Text } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
+import { LoadingState } from "@erp/ui";
 import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";
@@ -45,7 +46,7 @@ export function TenantGate({ children }: { children: ReactNode }) {
   if (authLoading || !ready) {
     return (
       <Box flex="1" display="flex" alignItems="center" justifyContent="center" p={8}>
-        <Text color="fg.muted">Loading…</Text>
+        <LoadingState label="Checking access…" />
       </Box>
     );
   }

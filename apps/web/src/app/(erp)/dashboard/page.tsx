@@ -16,8 +16,8 @@ import { apiFetch } from "@/lib/api-client";
 import {
   ContentCard,
   EmptyState,
-  LoadingState,
   StatCard,
+  StatCardSkeleton,
 } from "@erp/ui";
 import { Box, Stack, Table, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
@@ -68,7 +68,18 @@ export default function DashboardPage() {
 
       {needsBranch && <BranchRequiredNotice />}
 
-      {loading && <LoadingState label="Loading dashboard metrics…" />}
+      {loading && (
+        <Box
+          display="grid"
+          gridTemplateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }}
+          gap={4}
+        >
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </Box>
+      )}
 
       {!needsOrg && !needsBranch && !loading && (
         <>

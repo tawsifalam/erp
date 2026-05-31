@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Box } from "@chakra-ui/react";
+import { LoadingState } from "@erp/ui";
 import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";
@@ -37,5 +39,9 @@ export default function HomePage() {
     })().catch(() => router.replace("/onboarding"));
   }, [loading, accessToken, router]);
 
-  return null;
+  return (
+    <Box minH="100vh" display="flex" alignItems="center" justifyContent="center">
+      <LoadingState label="Redirecting…" />
+    </Box>
+  );
 }

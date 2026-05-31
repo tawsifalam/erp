@@ -20,7 +20,8 @@ import { useTenant } from "@/lib/tenant-context";
 import { getDefaultRouteForRole } from "@erp/utils";
 import { Role } from "@erp/types";
 import { appToast } from "@/lib/app-toast";
-import { ContentCard, LoadingState } from "@erp/ui";
+import { ContentCard, FormField, LoadingState } from "@erp/ui";
+import { useModuleTab } from "@/lib/use-module-tab";
 
 type OnboardingStatus = {
   hasMembership: boolean;
@@ -46,6 +47,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { loading: authLoading, accessToken } = useUser();
   const tenant = useTenant();
+  const [tab, setTab] = useModuleTab("create");
   const [checking, setChecking] = useState(true);
   const [createForm, setCreateForm] = useState({ name: "", timezone: "Asia/Dhaka" });
   const [searchQuery, setSearchQuery] = useState("");
@@ -171,7 +173,7 @@ export default function OnboardingPage() {
         join requests before you can use the app.
       </Text>
 
-      <Tabs.Root defaultValue="create">
+      <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)}>
         <Tabs.List mb={4}>
           <Tabs.Trigger value="create">Create organization</Tabs.Trigger>
           <Tabs.Trigger value="join">Join organization</Tabs.Trigger>
@@ -179,27 +181,21 @@ export default function OnboardingPage() {
 
         <Tabs.Content value="create">
           <Stack gap={4}>
-            <Box>
-              <Text fontSize="sm" fontWeight="medium" mb={1}>
-                Organization name
-              </Text>
+            <FormField label="Organization name" help="Your property or business name." required>
               <Input
                 placeholder="Boulevard Café"
                 value={createForm.name}
                 onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
               />
-            </Box>
-            <Box>
-              <Text fontSize="sm" fontWeight="medium" mb={1}>
-                Timezone
-              </Text>
+            </FormField>
+            <FormField label="Timezone" help="Used for the default branch and reporting.">
               <AppSelect
                 items={TIMEZONES}
                 value={createForm.timezone}
                 onValueChange={(tz) => setCreateForm({ ...createForm, timezone: tz })}
                 aria-label="Timezone"
               />
-            </Box>
+            </FormField>
             <Button
               colorPalette="blue"
               onClick={createOrg}
@@ -255,19 +251,18 @@ export default function OnboardingPage() {
             </Box>
 
             <Box borderTopWidth="1px" pt={4}>
-              <Text fontSize="sm" fontWeight="medium" mb={2}>
-                Or use a join code
-              </Text>
-              <Flex gap={2} mb={2}>
-                <Input
-                  placeholder="ov_xxxxxxxx"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                />
-                <Button variant="outline" onClick={lookupJoinCode} disabled={!joinCode.trim()}>
-                  Look up
-                </Button>
-              </Flex>
+              <FormField label="Join code" help="Ask an admin for the organization join code (ov_…).">
+                <Flex gap={2} mb={2}>
+                  <Input
+                    placeholder="ov_xxxxxxxx"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value)}
+                  />
+                  <Button variant="outline" onClick={lookupJoinCode} disabled={!joinCode.trim()}>
+                    Look up
+                  </Button>
+                </Flex>
+              </FormField>
               {selectedOrg && (
                 <Flex
                   p={3}
@@ -290,17 +285,14 @@ export default function OnboardingPage() {
               )}
             </Box>
 
-            <Box>
-              <Text fontSize="sm" fontWeight="medium" mb={1}>
-                Message to admin (optional)
-              </Text>
+            <FormField label="Message to admin" help="Optional note included with your join request.">
               <Textarea
                 placeholder="I'm joining as front desk staff…"
                 value={joinMessage}
                 onChange={(e) => setJoinMessage(e.target.value)}
                 rows={2}
               />
-            </Box>
+            </FormField>
           </Stack>
         </Tabs.Content>
       </Tabs.Root>

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { acceptConfirmDialog } from "./helpers/confirm-dialog";
 
 test.describe("POS – Orders", () => {
   test.beforeEach(async ({ page }) => {
@@ -35,7 +36,6 @@ test.describe("POS – Orders", () => {
 
 test.describe("POS – lifecycle", () => {
   test.beforeEach(async ({ page }) => {
-    page.on("dialog", (dialog) => dialog.accept());
     await mockAuth(page);
     await mockApiRoutes(page);
   });
@@ -58,6 +58,7 @@ test.describe("POS – lifecycle", () => {
     await page.goto("/pos");
     const row = page.getByRole("row").filter({ hasText: "T-3" });
     await row.getByRole("button", { name: "Cancel" }).click();
+    await acceptConfirmDialog(page);
     await expect(row.getByText("CANCELLED")).toBeVisible({ timeout: 5000 });
   });
 
@@ -85,6 +86,7 @@ test.describe("POS – lifecycle", () => {
     const row = page.getByRole("row").filter({ hasText: "T-9" });
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "Delete" }).click();
+    await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "T-9" })).toHaveCount(0);
   });
 });

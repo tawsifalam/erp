@@ -1,6 +1,7 @@
 "use client";
 
 import { Flex, Text } from "@chakra-ui/react";
+import { SelectSkeleton } from "@erp/ui";
 import { AppSelect } from "@/components/app-select";
 import { useTenant } from "@/lib/tenant-context";
 import { getBranchesForOrg } from "@/lib/tenant";
@@ -31,9 +32,10 @@ export function TenantSelector() {
 
   if (tenant.loading) {
     return (
-      <Text fontSize="sm" color="fg.muted" data-testid="tenant-loading">
-        Loading organizations…
-      </Text>
+      <Flex gap={3} align="center" wrap="wrap" data-testid="tenant-loading">
+        <SelectSkeleton width="200px" />
+        <SelectSkeleton width="180px" />
+      </Flex>
     );
   }
 

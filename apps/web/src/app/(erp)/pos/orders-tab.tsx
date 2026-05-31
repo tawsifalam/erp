@@ -14,13 +14,15 @@ import {
 import { AppSelect } from "@/components/app-select";
 import NextLink from "next/link";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, LoadingState, MoneyText, StatusBadge } from "@erp/ui";
+import { EmptyState, FormField, MoneyText, StatusBadge, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { CartItem, MenuCategory, Order } from "@/lib/pos-types";
 import { appToast } from "@/lib/app-toast";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 
 export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
+  const { ask, dialog } = useConfirmDialog();
   const branchId = tenant.branchId;
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -148,8 +150,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
     }
   };
 
-  const handleCancel = async (orderId: string) => {
-    if (!confirm("Cancel this order?")) return;
+  const doCancel = async (orderId: string) => {
     try {
       await apiFetch(`/pos/orders/${orderId}/cancel?branchId=${branchId}`, {
         method: "POST",
@@ -161,8 +162,16 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
     }
   };
 
-  const handleDelete = async (orderId: string) => {
-    if (!confirm("Delete this order record permanently?")) return;
+  const confirmCancel = (orderId: string) => {
+    ask({
+      title: "Cancel order?",
+      description: "This order will be marked as cancelled.",
+      confirmLabel: "Cancel order",
+      onConfirm: () => doCancel(orderId),
+    });
+  };
+
+  const doDelete = async (orderId: string) => {
     try {
       await apiFetch(`/pos/orders/${orderId}?branchId=${branchId}`, {
         method: "DELETE",
@@ -174,12 +183,23 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
     }
   };
 
+  const confirmDelete = (orderId: string) => {
+    ask({
+      title: "Delete order?",
+      description: "This order record will be permanently removed.",
+      confirmLabel: "Delete",
+      onConfirm: () => doDelete(orderId),
+    });
+  };
+
   if (!branchId) {
     return <BranchRequiredNotice />;
   }
 
   return (
-    <Box>
+    <>
+      {dialog}
+      <Box>
 
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>
@@ -245,20 +265,24 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
               <Text fontWeight="semibold" mb={2}>
                 Cart
               </Text>
-              <Input
-                size="sm"
-                placeholder="Table #"
-                mb={2}
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-              />
-              <Input
-                size="sm"
-                placeholder="Notes (allergies, etc.)"
-                mb={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
+              <FormField label="Table number" help="Optional — for dine-in orders.">
+                <Input
+                  size="sm"
+                  placeholder="Table #"
+                  mb={2}
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                />
+              </FormField>
+              <FormField label="Notes" help="Allergies, special requests, etc.">
+                <Input
+                  size="sm"
+                  placeholder="Notes (allergies, etc.)"
+                  mb={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </FormField>
               {cart.length === 0 ? (
                 <Text fontSize="sm" color="fg.muted">
                   Add items from the menu
@@ -309,9 +333,11 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
         </Box>
       )}
 
-      {loading && <LoadingState label="Loading orders…" />}
-      {!loading && (
-        <Box bg="white" borderRadius="md" p={4}>
+      <Box bg="white" borderRadius="md" p={4}>
+        {loading ? (
+          <TableSkeleton rows={5} columns={6} />
+        ) : (
+          <>
           <Table.Root size="sm">
             <Table.Header>
               <Table.Row>
@@ -350,7 +376,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
                             size="xs"
                             colorPalette="red"
                             variant="outline"
-                            onClick={() => handleCancel(o.id)}
+                            onClick={() => confirmCancel(o.id)}
                           >
                             Cancel
                           </Button>
@@ -368,7 +394,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
                               size="xs"
                               colorPalette="red"
                               variant="outline"
-                              onClick={() => handleCancel(o.id)}
+                              onClick={() => confirmCancel(o.id)}
                             >
                               Cancel
                             </Button>
@@ -380,7 +406,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
                           size="xs"
                           colorPalette="red"
                           variant="outline"
-                          onClick={() => handleDelete(o.id)}
+                          onClick={() => confirmDelete(o.id)}
                         >
                           Delete
                         </Button>
@@ -394,8 +420,9 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
           {filteredOrders.length === 0 && (
             <EmptyState message="No orders match this filter." />
           )}
-        </Box>
-      )}
+          </>
+        )}
+      </Box>
 
       {paymentId && (
         <Box
@@ -433,5 +460,6 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
         </Box>
       )}
     </Box>
+    </>
   );
 }

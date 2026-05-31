@@ -12,7 +12,7 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState } from "@erp/ui";
+import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
@@ -38,6 +38,7 @@ type Movement = {
 
 export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
   const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [pools, setPools] = useState<InventoryPool[]>([]);
@@ -65,21 +66,33 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
     notes: "",
   });
 
-  const load = useCallback(() => {
-    if (!tenant.branchId) return;
+  const load = useCallback(async () => {
+    if (!tenant.branchId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     const poolQuery = poolFilter ? `&pool=${poolFilter}` : "";
-    apiFetch<Item[]>(`/inventory/items?branchId=${tenant.branchId}${poolQuery}`, { tenant })
-      .then(setItems)
-      .catch((e) => appToast.error(e instanceof Error ? e.message : "Failed to load items"));
-    apiFetch<InventoryPool[]>("/inventory/pools?activeOnly=true", { tenant })
-      .then((data) => {
-        setPools(data);
-        setItemForm((f) => (f.poolId ? f : { ...f, poolId: data.find((p) => p.code === "guest")?.id ?? data[0]?.id ?? "" }));
-      })
-      .catch(() => {});
+    try {
+      const [itemData, poolData] = await Promise.all([
+        apiFetch<Item[]>(`/inventory/items?branchId=${tenant.branchId}${poolQuery}`, { tenant }),
+        apiFetch<InventoryPool[]>("/inventory/pools?activeOnly=true", { tenant }),
+      ]);
+      setItems(itemData);
+      setPools(poolData);
+      setItemForm((f) =>
+        f.poolId ? f : { ...f, poolId: poolData.find((p) => p.code === "guest")?.id ?? poolData[0]?.id ?? "" },
+      );
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to load items");
+    } finally {
+      setLoading(false);
+    }
   }, [tenant.branchId, tenant.organizationId, poolFilter]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const loadMovements = async (itemId: string) => {
     setSelectedItem(itemId);
@@ -220,44 +233,54 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         <Box bg="white" borderRadius="md" p={4} mb={4}>
           <Stack gap={3}>
             <Flex gap={3} wrap="wrap">
-              <Input
-                size="sm"
-                w="180px"
-                placeholder="Name"
-                value={itemForm.name}
-                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="120px"
-                placeholder="SKU"
-                value={itemForm.sku}
-                onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="100px"
-                placeholder="Unit"
-                value={itemForm.unit}
-                onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="120px"
-                type="number"
-                placeholder="Low stock at"
-                value={itemForm.lowStockThreshold}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
-                }
-              />
-              <AppSelect
-                width="180px"
-                items={pools.map((p) => ({ value: p.id, label: p.name }))}
-                value={itemForm.poolId}
-                onValueChange={(v) => setItemForm({ ...itemForm, poolId: v })}
-                placeholder="Pool"
-              />
+              <FormField label="Name" required>
+                <Input
+                  size="sm"
+                  w="180px"
+                  placeholder="Name"
+                  value={itemForm.name}
+                  onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+                />
+              </FormField>
+              <FormField label="SKU">
+                <Input
+                  size="sm"
+                  w="120px"
+                  placeholder="SKU"
+                  value={itemForm.sku}
+                  onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Unit">
+                <Input
+                  size="sm"
+                  w="100px"
+                  placeholder="Unit"
+                  value={itemForm.unit}
+                  onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Low stock at" help="Alert when on-hand falls below this level.">
+                <Input
+                  size="sm"
+                  w="120px"
+                  type="number"
+                  placeholder="Low stock at"
+                  value={itemForm.lowStockThreshold}
+                  onChange={(e) =>
+                    setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
+                  }
+                />
+              </FormField>
+              <FormField label="Pool">
+                <AppSelect
+                  width="180px"
+                  items={pools.map((p) => ({ value: p.id, label: p.name }))}
+                  value={itemForm.poolId}
+                  onValueChange={(v) => setItemForm({ ...itemForm, poolId: v })}
+                  placeholder="Pool"
+                />
+              </FormField>
             </Flex>
             <Button size="sm" colorPalette="green" w="fit-content" onClick={handleCreateItem}>
               Create Item
@@ -270,54 +293,64 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         <Box bg="white" borderRadius="md" p={4} mb={4}>
           <Stack gap={3}>
             <Flex gap={3} wrap="wrap">
-              <AppSelect
-                width="200px"
-                items={[
-                  { value: "", label: "Select Item" },
-                  ...items.map((i) => ({ value: i.id, label: `${i.name} (${i.sku})` })),
-                ]}
-                value={movForm.itemId}
-                onValueChange={(v) => setMovForm({ ...movForm, itemId: v })}
-                placeholder="Select Item"
-              />
-              <AppSelect
-                width="160px"
-                items={[
-                  { value: "PURCHASE", label: "Purchase (IN)" },
-                  { value: "SALE", label: "Sale (OUT)" },
-                  { value: "WASTE", label: "Waste (OUT)" },
-                  { value: "STAFF_MEAL", label: "Staff Meal (OUT)" },
-                  { value: "ADJUSTMENT", label: "Adjustment" },
-                ]}
-                value={movForm.movementType}
-                onValueChange={(v) => setMovForm({ ...movForm, movementType: v })}
-              />
-              {movForm.movementType === "ADJUSTMENT" && (
+              <FormField label="Item" required>
                 <AppSelect
-                  width="120px"
+                  width="200px"
                   items={[
-                    { value: "IN", label: "Adjust IN" },
-                    { value: "OUT", label: "Adjust OUT" },
+                    { value: "", label: "Select Item" },
+                    ...items.map((i) => ({ value: i.id, label: `${i.name} (${i.sku})` })),
                   ]}
-                  value={movForm.adjustmentDirection}
-                  onValueChange={(v) => setMovForm({ ...movForm, adjustmentDirection: v })}
+                  value={movForm.itemId}
+                  onValueChange={(v) => setMovForm({ ...movForm, itemId: v })}
+                  placeholder="Select Item"
                 />
+              </FormField>
+              <FormField label="Movement type">
+                <AppSelect
+                  width="160px"
+                  items={[
+                    { value: "PURCHASE", label: "Purchase (IN)" },
+                    { value: "SALE", label: "Sale (OUT)" },
+                    { value: "WASTE", label: "Waste (OUT)" },
+                    { value: "STAFF_MEAL", label: "Staff Meal (OUT)" },
+                    { value: "ADJUSTMENT", label: "Adjustment" },
+                  ]}
+                  value={movForm.movementType}
+                  onValueChange={(v) => setMovForm({ ...movForm, movementType: v })}
+                />
+              </FormField>
+              {movForm.movementType === "ADJUSTMENT" && (
+                <FormField label="Direction">
+                  <AppSelect
+                    width="120px"
+                    items={[
+                      { value: "IN", label: "Adjust IN" },
+                      { value: "OUT", label: "Adjust OUT" },
+                    ]}
+                    value={movForm.adjustmentDirection}
+                    onValueChange={(v) => setMovForm({ ...movForm, adjustmentDirection: v })}
+                  />
+                </FormField>
               )}
-              <Input
-                size="sm"
-                w="100px"
-                type="number"
-                placeholder="Qty"
-                value={movForm.quantity}
-                onChange={(e) => setMovForm({ ...movForm, quantity: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="200px"
-                placeholder="Notes (optional)"
-                value={movForm.notes}
-                onChange={(e) => setMovForm({ ...movForm, notes: e.target.value })}
-              />
+              <FormField label="Quantity" required>
+                <Input
+                  size="sm"
+                  w="100px"
+                  type="number"
+                  placeholder="Qty"
+                  value={movForm.quantity}
+                  onChange={(e) => setMovForm({ ...movForm, quantity: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Notes">
+                <Input
+                  size="sm"
+                  w="200px"
+                  placeholder="Notes (optional)"
+                  value={movForm.notes}
+                  onChange={(e) => setMovForm({ ...movForm, notes: e.target.value })}
+                />
+              </FormField>
             </Flex>
             <Button size="sm" colorPalette="green" w="fit-content" onClick={handleAddMovement}>
               Record Movement
@@ -328,7 +361,11 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
 
       <Flex gap={4} wrap="wrap">
         <Box flex="1" minW="400px" bg="white" borderRadius="md" p={4}>
-          <Table.Root size="sm">
+          {loading ? (
+            <TableSkeleton rows={6} columns={6} />
+          ) : (
+            <>
+              <Table.Root size="sm">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeader>SKU</Table.ColumnHeader>
@@ -378,8 +415,10 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
                 );
               })}
             </Table.Body>
-          </Table.Root>
-          {items.length === 0 && <EmptyState message="No inventory items yet." />}
+              </Table.Root>
+              {items.length === 0 && <EmptyState message="No inventory items yet." />}
+            </>
+          )}
         </Box>
 
         {selectedItem && editingItem && (

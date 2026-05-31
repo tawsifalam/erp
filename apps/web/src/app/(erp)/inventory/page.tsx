@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Tabs } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
 import { useTenantHeaders } from "@/lib/tenant-context";
+import { useModuleTab } from "@/lib/use-module-tab";
 import { InventoryItemsTab } from "./items-tab";
 import { RecipesTab } from "./recipes-tab";
 
 export default function InventoryPage() {
   const tenant = useTenantHeaders();
-  const [tab, setTab] = useState("items");
+  const [tab, setTab] = useModuleTab("items");
 
   return (
     <DashboardShell>

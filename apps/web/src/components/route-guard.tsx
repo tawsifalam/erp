@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { roleCanAccessPath, getDefaultRouteForRole } from "@erp/utils";
+import { LoadingState } from "@erp/ui";
 import { useTenant } from "@/lib/tenant-context";
 
 export function RouteGuard({ children }: { children: ReactNode }) {
@@ -18,11 +19,11 @@ export function RouteGuard({ children }: { children: ReactNode }) {
   }, [pathname, role, loading, router]);
 
   if (loading || !role) {
-    return null;
+    return <LoadingState label="Loading…" />;
   }
 
   if (!roleCanAccessPath(role, pathname)) {
-    return null;
+    return <LoadingState label="Redirecting…" />;
   }
 
   return <>{children}</>;

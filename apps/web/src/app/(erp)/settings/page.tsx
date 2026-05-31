@@ -13,12 +13,13 @@ import {
 } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
-import { ContextBanner, EmptyState, LoadingState } from "@erp/ui";
+import { ContextBanner, EmptyState, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
 import { shortId } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
+import { useModuleTab } from "@/lib/use-module-tab";
 import { InventoryPoolsSection } from "./inventory-pools-section";
 import { TeamAccessSection } from "./team-access-section";
 
@@ -48,7 +49,7 @@ function tenantHeadersFor(orgId: string | null, branchId: string | null): Tenant
 
 export default function SettingsPage() {
   const tenant = useTenant();
-  const [tab, setTab] = useState("organization");
+  const [tab, setTab] = useModuleTab("organization");
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,20 +201,24 @@ export default function SettingsPage() {
                   pools, and assigns you as OWNER.
                 </Text>
                 <Flex gap={2} wrap="wrap" mb={3}>
-                  <Input
-                    size="sm"
-                    w="220px"
-                    placeholder="Organization name"
-                    value={newOrgForm.name}
-                    onChange={(e) => setNewOrgForm({ ...newOrgForm, name: e.target.value })}
-                  />
-                  <Input
-                    size="sm"
-                    w="180px"
-                    placeholder="Timezone (IANA)"
-                    value={newOrgForm.timezone}
-                    onChange={(e) => setNewOrgForm({ ...newOrgForm, timezone: e.target.value })}
-                  />
+                  <FormField label="Organization name" required>
+                    <Input
+                      size="sm"
+                      w="220px"
+                      placeholder="Organization name"
+                      value={newOrgForm.name}
+                      onChange={(e) => setNewOrgForm({ ...newOrgForm, name: e.target.value })}
+                    />
+                  </FormField>
+                  <FormField label="Timezone" help="IANA timezone for the default branch.">
+                    <Input
+                      size="sm"
+                      w="180px"
+                      placeholder="Timezone (IANA)"
+                      value={newOrgForm.timezone}
+                      onChange={(e) => setNewOrgForm({ ...newOrgForm, timezone: e.target.value })}
+                    />
+                  </FormField>
                 </Flex>
                 <Button size="sm" colorPalette="blue" onClick={createOrganization}>
                   Create organization
@@ -221,7 +226,7 @@ export default function SettingsPage() {
               </Box>
             )}
 
-            {loading && <LoadingState />}
+            {loading && !org && <TableSkeleton rows={3} columns={2} />}
             {!loading && org && (
               <Box bg="white" borderRadius="md" p={4} mb={6}>
                 <Text fontWeight="semibold" mb={2}>
@@ -230,13 +235,15 @@ export default function SettingsPage() {
                 <Text fontSize="xs" color="fg.muted" fontFamily="mono" mb={3}>
                   ID: {org.id} · PropelAuth: {shortId(org.propelAuthOrgId, 12)}
                 </Text>
-                <Flex gap={2} align="center" mb={2}>
-                  <Input
-                    size="sm"
-                    maxW="320px"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                  />
+                <Flex gap={2} align="flex-end" mb={2}>
+                  <FormField label="Organization name">
+                    <Input
+                      size="sm"
+                      maxW="320px"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                    />
+                  </FormField>
                   <Button size="sm" colorPalette="green" onClick={saveOrgName}>
                     Save name
                   </Button>
@@ -255,20 +262,24 @@ export default function SettingsPage() {
               <Box bg="white" borderRadius="md" p={4} mb={4}>
                 <Stack gap={3}>
                   <Flex gap={2} wrap="wrap">
-                    <Input
-                      size="sm"
-                      w="200px"
-                      placeholder="Branch name"
-                      value={branchForm.name}
-                      onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                    />
-                    <Input
-                      size="sm"
-                      w="180px"
-                      placeholder="Timezone"
-                      value={branchForm.timezone}
-                      onChange={(e) => setBranchForm({ ...branchForm, timezone: e.target.value })}
-                    />
+                    <FormField label="Branch name" required>
+                      <Input
+                        size="sm"
+                        w="200px"
+                        placeholder="Branch name"
+                        value={branchForm.name}
+                        onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                      />
+                    </FormField>
+                    <FormField label="Timezone" help="IANA timezone for this branch.">
+                      <Input
+                        size="sm"
+                        w="180px"
+                        placeholder="Timezone"
+                        value={branchForm.timezone}
+                        onChange={(e) => setBranchForm({ ...branchForm, timezone: e.target.value })}
+                      />
+                    </FormField>
                   </Flex>
                   <Button size="sm" colorPalette="green" w="fit-content" onClick={addBranch}>
                     Create branch
@@ -278,27 +289,33 @@ export default function SettingsPage() {
             )}
 
             <Box bg="white" borderRadius="md" p={4}>
-              <Table.Root size="sm">
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColumnHeader>Name</Table.ColumnHeader>
-                    <Table.ColumnHeader>Timezone</Table.ColumnHeader>
-                    <Table.ColumnHeader>ID</Table.ColumnHeader>
-                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {branches.map((b) => (
-                    <BranchRow key={b.id} branch={b} onSave={updateBranch} />
-                  ))}
-                </Table.Body>
-              </Table.Root>
-              {branches.length === 0 && !loading && (
-                <EmptyState
-                  title="No branches yet"
-                  description="Add at least one branch to run PMS, POS, inventory, and branch-scoped reports."
-                  icon="📍"
-                />
+              {loading ? (
+                <TableSkeleton rows={4} columns={4} />
+              ) : (
+                <>
+                  <Table.Root size="sm">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader>Name</Table.ColumnHeader>
+                        <Table.ColumnHeader>Timezone</Table.ColumnHeader>
+                        <Table.ColumnHeader>ID</Table.ColumnHeader>
+                        <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {branches.map((b) => (
+                        <BranchRow key={b.id} branch={b} onSave={updateBranch} />
+                      ))}
+                    </Table.Body>
+                  </Table.Root>
+                  {branches.length === 0 && (
+                    <EmptyState
+                      title="No branches yet"
+                      description="Add at least one branch to run PMS, POS, inventory, and branch-scoped reports."
+                      icon="📍"
+                    />
+                  )}
+                </>
               )}
             </Box>
           </Tabs.Content>

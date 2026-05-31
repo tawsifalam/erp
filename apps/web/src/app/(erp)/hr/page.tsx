@@ -15,10 +15,18 @@ import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
-import { MoneyText, EmptyState, LoadingState } from "@erp/ui";
+import {
+  MoneyText,
+  EmptyState,
+  FormField,
+  ListSkeleton,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
+import { useModuleTab } from "@/lib/use-module-tab";
 import { formatDateTime } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
 
@@ -62,7 +70,8 @@ type StaffMealRecord = {
 
 export default function HrPage() {
   const tenant = useTenantHeaders();
-  const [tab, setTab] = useState("employees");
+  const [tab, setTab] = useModuleTab("employees");
+  const { ask, dialog } = useConfirmDialog();
   const [empForm, setEmpForm] = useState({ name: "", designation: "", salary: "" });
   const [clockEmployeeId, setClockEmployeeId] = useState("");
   const [clockType, setClockType] = useState<"CLOCK_IN" | "CLOCK_OUT">("CLOCK_IN");
@@ -241,8 +250,19 @@ export default function HrPage() {
     }
   };
 
+  const confirmRunPayroll = () => {
+    ask({
+      title: "Run payroll for current month?",
+      description:
+        "This queues a payroll run from the 1st of this month through today. Existing runs for the same period are not duplicated.",
+      confirmLabel: "Run payroll",
+      onConfirm: runPayroll,
+    });
+  };
+
   return (
     <DashboardShell>
+      {dialog}
       <ModulePageHeader />
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
@@ -259,57 +279,66 @@ export default function HrPage() {
               Add employee
             </Text>
             <Flex gap={2} wrap="wrap">
-              <Input
-                size="sm"
-                w="180px"
-                placeholder="Name"
-                value={empForm.name}
-                onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="160px"
-                placeholder="Designation"
-                value={empForm.designation}
-                onChange={(e) => setEmpForm({ ...empForm, designation: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="120px"
-                type="number"
-                placeholder="Salary"
-                value={empForm.salary}
-                onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })}
-              />
-              <Button size="sm" colorPalette="blue" onClick={handleAddEmployee}>
+              <FormField label="Name" required>
+                <Input
+                  size="sm"
+                  w="180px"
+                  placeholder="Name"
+                  value={empForm.name}
+                  onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Designation">
+                <Input
+                  size="sm"
+                  w="160px"
+                  placeholder="Designation"
+                  value={empForm.designation}
+                  onChange={(e) => setEmpForm({ ...empForm, designation: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Salary">
+                <Input
+                  size="sm"
+                  w="120px"
+                  type="number"
+                  placeholder="Salary"
+                  value={empForm.salary}
+                  onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })}
+                />
+              </FormField>
+              <Button size="sm" colorPalette="blue" alignSelf="flex-end" onClick={handleAddEmployee}>
                 Add
               </Button>
             </Flex>
           </Box>
-          {employeesQuery.loading && <LoadingState />}
           <Box bg="white" borderRadius="md" p={4}>
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>Name</Table.ColumnHeader>
-                  <Table.ColumnHeader>Role</Table.ColumnHeader>
-                  <Table.ColumnHeader>Salary</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {employees.map((e) => (
-                  <Table.Row key={e.id}>
-                    <Table.Cell>{e.name}</Table.Cell>
-                    <Table.Cell>{e.designation}</Table.Cell>
-                    <Table.Cell>
-                      <MoneyText amount={Number(e.salary)} />
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
-            {!employeesQuery.loading && employees.length === 0 && (
-              <EmptyState message="No employees yet." />
+            {employeesQuery.loading ? (
+              <TableSkeleton rows={5} columns={3} />
+            ) : (
+              <>
+                <Table.Root size="sm">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeader>Name</Table.ColumnHeader>
+                      <Table.ColumnHeader>Role</Table.ColumnHeader>
+                      <Table.ColumnHeader>Salary</Table.ColumnHeader>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {employees.map((e) => (
+                      <Table.Row key={e.id}>
+                        <Table.Cell>{e.name}</Table.Cell>
+                        <Table.Cell>{e.designation}</Table.Cell>
+                        <Table.Cell>
+                          <MoneyText amount={Number(e.salary)} />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+                {employees.length === 0 && <EmptyState message="No employees yet." />}
+              </>
             )}
           </Box>
         </Tabs.Content>
@@ -318,23 +347,27 @@ export default function HrPage() {
           {!tenant.branchId && <BranchRequiredNotice />}
           <Box bg="white" borderRadius="md" p={4} maxW="480px" mb={4}>
             <Stack gap={3}>
-              <AppSelect
-                items={[
-                  { value: "", label: "Select employee" },
-                  ...employees.map((e) => ({ value: e.id, label: e.name })),
-                ]}
-                value={clockEmployeeId}
-                onValueChange={setClockEmployeeId}
-                placeholder="Select employee"
-              />
-              <AppSelect
-                items={[
-                  { value: "CLOCK_IN", label: "Clock in" },
-                  { value: "CLOCK_OUT", label: "Clock out" },
-                ]}
-                value={clockType}
-                onValueChange={(v) => setClockType(v as "CLOCK_IN" | "CLOCK_OUT")}
-              />
+              <FormField label="Employee" required>
+                <AppSelect
+                  items={[
+                    { value: "", label: "Select employee" },
+                    ...employees.map((e) => ({ value: e.id, label: e.name })),
+                  ]}
+                  value={clockEmployeeId}
+                  onValueChange={setClockEmployeeId}
+                  placeholder="Select employee"
+                />
+              </FormField>
+              <FormField label="Action">
+                <AppSelect
+                  items={[
+                    { value: "CLOCK_IN", label: "Clock in" },
+                    { value: "CLOCK_OUT", label: "Clock out" },
+                  ]}
+                  value={clockType}
+                  onValueChange={(v) => setClockType(v as "CLOCK_IN" | "CLOCK_OUT")}
+                />
+              </FormField>
               <Button size="sm" colorPalette="green" w="fit-content" onClick={handleClock}>
                 Record attendance
               </Button>
@@ -344,20 +377,25 @@ export default function HrPage() {
             <Text fontWeight="semibold" mb={2}>
               Recent attendance
             </Text>
-            {attendanceQuery.loading && <LoadingState label="Loading attendance…" />}
-            {attendance.length === 0 && !attendanceQuery.loading && (
-              <EmptyState message="No attendance records yet." />
+            {attendanceQuery.loading ? (
+              <ListSkeleton rows={5} />
+            ) : (
+              <>
+                {attendance.length === 0 && (
+                  <EmptyState message="No attendance records yet." />
+                )}
+                <Stack gap={1}>
+                  {attendance.map((a) => (
+                    <Flex key={a.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
+                      <Text>
+                        {a.employee.name} — {a.type.replace("_", " ")}
+                      </Text>
+                      <Text color="fg.muted">{formatDateTime(a.recordedAt)}</Text>
+                    </Flex>
+                  ))}
+                </Stack>
+              </>
             )}
-            <Stack gap={1}>
-              {attendance.map((a) => (
-                <Flex key={a.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
-                  <Text>
-                    {a.employee.name} — {a.type.replace("_", " ")}
-                  </Text>
-                  <Text color="fg.muted">{formatDateTime(a.recordedAt)}</Text>
-                </Flex>
-              ))}
-            </Stack>
           </Box>
         </Tabs.Content>
 
@@ -371,28 +409,33 @@ export default function HrPage() {
             <Text fontSize="sm" color="fg.muted" mb={3}>
               Define each staff meal as a recipe (ingredients per 1 meal). Consumption auto-deducts inventory.
             </Text>
-            {mealRecipesQuery.loading && <LoadingState label="Loading recipes…" />}
-            {mealRecipes.length > 0 && (
-              <Stack gap={2} mb={4}>
-                {mealRecipes.map((r) => (
-                  <Box key={r.id} borderWidth="1px" borderRadius="md" p={3}>
-                    <Text fontWeight="medium">{r.name}</Text>
-                    <Text fontSize="sm" color="fg.muted">
-                      {r.lines
-                        .map((l) => `${l.inventoryItem.name} ${l.quantity}${l.inventoryItem.unit}`)
-                        .join(" · ")}
-                    </Text>
-                  </Box>
-                ))}
-              </Stack>
+            {mealRecipesQuery.loading ? (
+              <ListSkeleton rows={3} />
+            ) : (
+              mealRecipes.length > 0 && (
+                <Stack gap={2} mb={4}>
+                  {mealRecipes.map((r) => (
+                    <Box key={r.id} borderWidth="1px" borderRadius="md" p={3}>
+                      <Text fontWeight="medium">{r.name}</Text>
+                      <Text fontSize="sm" color="fg.muted">
+                        {r.lines
+                          .map((l) => `${l.inventoryItem.name} ${l.quantity}${l.inventoryItem.unit}`)
+                          .join(" · ")}
+                      </Text>
+                    </Box>
+                  ))}
+                </Stack>
+              )
             )}
             <Stack gap={2} maxW="640px">
-              <Input
-                size="sm"
-                placeholder="Recipe name (e.g. Staff Lunch)"
-                value={recipeForm.name}
-                onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
-              />
+              <FormField label="Recipe name" help="e.g. Staff Lunch">
+                <Input
+                  size="sm"
+                  placeholder="Recipe name (e.g. Staff Lunch)"
+                  value={recipeForm.name}
+                  onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
+                />
+              </FormField>
               {recipeForm.lines.map((line, idx) => (
                 <Flex key={idx} gap={2}>
                   <AppSelect
@@ -455,43 +498,51 @@ export default function HrPage() {
               Select employee and meal recipe. Enter how many meals consumed.
             </Text>
             <Stack gap={3}>
-              <AppSelect
-                items={[
-                  { value: "", label: "Employee" },
-                  ...employees.map((e) => ({ value: e.id, label: e.name })),
-                ]}
-                value={mealForm.employeeId}
-                onValueChange={(v) => setMealForm({ ...mealForm, employeeId: v })}
-                placeholder="Employee"
-              />
-              <AppSelect
-                items={[
-                  { value: "", label: "Meal recipe" },
-                  ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
-                ]}
-                value={mealForm.staffMealRecipeId}
-                onValueChange={(v) => setMealForm({ ...mealForm, staffMealRecipeId: v })}
-                placeholder="Meal recipe"
-              />
-              <Input
-                size="sm"
-                type="number"
-                min={1}
-                step={1}
-                placeholder="Meals consumed"
-                value={mealForm.mealCount}
-                onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
-              />
-              <AppSelect
-                items={[
-                  { value: "no", label: "Do not deduct from payroll" },
-                  { value: "yes", label: "Deduct from next payroll" },
-                ]}
-                value={mealForm.deductFromPayroll ? "yes" : "no"}
-                onValueChange={(v) =>
-                  setMealForm({ ...mealForm, deductFromPayroll: v === "yes" })
-                }
-              />
+              <FormField label="Employee" required>
+                <AppSelect
+                  items={[
+                    { value: "", label: "Employee" },
+                    ...employees.map((e) => ({ value: e.id, label: e.name })),
+                  ]}
+                  value={mealForm.employeeId}
+                  onValueChange={(v) => setMealForm({ ...mealForm, employeeId: v })}
+                  placeholder="Employee"
+                />
+              </FormField>
+              <FormField label="Meal recipe" required>
+                <AppSelect
+                  items={[
+                    { value: "", label: "Meal recipe" },
+                    ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
+                  ]}
+                  value={mealForm.staffMealRecipeId}
+                  onValueChange={(v) => setMealForm({ ...mealForm, staffMealRecipeId: v })}
+                  placeholder="Meal recipe"
+                />
+              </FormField>
+              <FormField label="Meals consumed">
+                <Input
+                  size="sm"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="Meals consumed"
+                  value={mealForm.mealCount}
+                  onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Payroll deduction" help="Optionally deduct meal cost from next payroll.">
+                <AppSelect
+                  items={[
+                    { value: "no", label: "Do not deduct from payroll" },
+                    { value: "yes", label: "Deduct from next payroll" },
+                  ]}
+                  value={mealForm.deductFromPayroll ? "yes" : "no"}
+                  onValueChange={(v) =>
+                    setMealForm({ ...mealForm, deductFromPayroll: v === "yes" })
+                  }
+                />
+              </FormField>
               <Button size="sm" colorPalette="green" w="fit-content" onClick={handleStaffMeal}>
                 Record meal
               </Button>
@@ -502,68 +553,82 @@ export default function HrPage() {
             <Text fontWeight="semibold" mb={2}>
               Recent consumption
             </Text>
-            {staffMealsQuery.loading && <LoadingState label="Loading…" />}
-            {staffMeals.length === 0 && !staffMealsQuery.loading && (
-              <EmptyState message="No staff meals recorded yet." />
+            {staffMealsQuery.loading ? (
+              <ListSkeleton rows={5} />
+            ) : (
+              <>
+                {staffMeals.length === 0 && (
+                  <EmptyState message="No staff meals recorded yet." />
+                )}
+                <Stack gap={1}>
+                  {staffMeals.map((m) => (
+                    <Flex key={m.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
+                      <Text>
+                        {m.employee.name} — {m.mealCount}× {m.recipe.name}
+                      </Text>
+                      <Text color="fg.muted">{formatDateTime(m.createdAt)}</Text>
+                    </Flex>
+                  ))}
+                </Stack>
+              </>
             )}
-            <Stack gap={1}>
-              {staffMeals.map((m) => (
-                <Flex key={m.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
-                  <Text>
-                    {m.employee.name} — {m.mealCount}× {m.recipe.name}
-                  </Text>
-                  <Text color="fg.muted">{formatDateTime(m.createdAt)}</Text>
-                </Flex>
-              ))}
-            </Stack>
           </Box>
         </Tabs.Content>
 
         <Tabs.Content value="payroll" pt={4}>
-          <Button size="sm" mb={4} colorPalette="blue" onClick={runPayroll}>
+          <Text fontSize="sm" color="fg.muted" mb={3} maxW="560px">
+            Run payroll to calculate gross pay, deductions, and net pay for all employees in the
+            current calendar month. Results appear below once processing completes.
+          </Text>
+          <Button size="sm" mb={4} colorPalette="blue" onClick={confirmRunPayroll}>
             Run payroll for current month
           </Button>
-          {payrollQuery.loading && <LoadingState />}
-          {payrollRuns.map((run) => (
-            <Box key={run.id} bg="white" borderRadius="md" p={4} mb={4}>
-              <Flex justify="space-between" mb={2}>
-                <Text fontWeight="semibold">
-                  {formatDateTime(run.periodStart)} — {formatDateTime(run.periodEnd)}
-                </Text>
-                <Text fontSize="sm" color="fg.muted">
-                  {run.status}
-                </Text>
-              </Flex>
-              <Table.Root size="sm">
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColumnHeader>Employee</Table.ColumnHeader>
-                    <Table.ColumnHeader>Gross</Table.ColumnHeader>
-                    <Table.ColumnHeader>Deductions</Table.ColumnHeader>
-                    <Table.ColumnHeader>Net</Table.ColumnHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {run.lines.map((l, i) => (
-                    <Table.Row key={i}>
-                      <Table.Cell>{l.employee.name}</Table.Cell>
-                      <Table.Cell>
-                        <MoneyText amount={Number(l.grossPay)} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <MoneyText amount={Number(l.deductions)} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <MoneyText amount={Number(l.netPay)} />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Root>
-            </Box>
-          ))}
-          {!payrollQuery.loading && payrollRuns.length === 0 && (
-            <EmptyState message="No payroll runs yet." />
+          {payrollQuery.loading ? (
+            <TableSkeleton rows={4} columns={4} />
+          ) : (
+            <>
+              {payrollRuns.map((run) => (
+                <Box key={run.id} bg="white" borderRadius="md" p={4} mb={4}>
+                  <Flex justify="space-between" mb={2}>
+                    <Text fontWeight="semibold">
+                      {formatDateTime(run.periodStart)} — {formatDateTime(run.periodEnd)}
+                    </Text>
+                    <Text fontSize="sm" color="fg.muted">
+                      {run.status}
+                    </Text>
+                  </Flex>
+                  <Table.Root size="sm">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader>Employee</Table.ColumnHeader>
+                        <Table.ColumnHeader>Gross</Table.ColumnHeader>
+                        <Table.ColumnHeader>Deductions</Table.ColumnHeader>
+                        <Table.ColumnHeader>Net</Table.ColumnHeader>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {run.lines.map((l, i) => (
+                        <Table.Row key={i}>
+                          <Table.Cell>{l.employee.name}</Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(l.grossPay)} />
+                          </Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(l.deductions)} />
+                          </Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(l.netPay)} />
+                          </Table.Cell>
+                        </Table.Row>
+                      ))}
+                    </Table.Body>
+                  </Table.Root>
+                </Box>
+              ))}
+              {payrollRuns.length === 0 && (
+                <EmptyState message="No payroll runs yet." />
+              )}
+            </>
           )}
         </Tabs.Content>
       </Tabs.Root>

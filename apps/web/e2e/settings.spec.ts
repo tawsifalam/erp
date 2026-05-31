@@ -45,4 +45,10 @@ test.describe("Settings – Organization & branch management", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
   });
+
+  test("deep-link opens team and access tab with breadcrumb", async ({ page }) => {
+    await page.goto("/settings?tab=team");
+    await expect(page.getByTestId("app-breadcrumbs")).toContainText("Team & access");
+    await expect(page.getByText("Organization join code")).toBeVisible();
+  });
 });

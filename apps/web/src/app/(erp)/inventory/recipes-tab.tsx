@@ -12,7 +12,7 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, LoadingState } from "@erp/ui";
+import { EmptyState, CardSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { MenuCategory } from "@/lib/pos-types";
@@ -119,8 +119,9 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {loading && <LoadingState label="Loading menu and inventory…" />}
-      {!loading && (
+      {loading ? (
+        <CardSkeleton lines={5} />
+      ) : (
         <Box bg="white" borderRadius="md" p={4}>
           <Text fontWeight="semibold" mb={3}>
             Bill of materials (recipe)

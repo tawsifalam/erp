@@ -12,13 +12,15 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, LoadingState } from "@erp/ui";
+import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { MenuCategory } from "@/lib/pos-types";
 import { appToast } from "@/lib/app-toast";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 
 export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
+  const { ask, dialog } = useConfirmDialog();
   const branchId = tenant.branchId;
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,8 +88,8 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
     }
   };
 
-  const removeCategory = async (id: string) => {
-    if (!branchId || !confirm("Delete this category?")) return;
+  const doRemoveCategory = async (id: string) => {
+    if (!branchId) return;
     try {
       await apiFetch(`/pos/menu/categories/${id}?branchId=${branchId}`, {
         method: "DELETE",
@@ -97,6 +99,15 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Cannot delete category");
     }
+  };
+
+  const confirmRemoveCategory = (cat: MenuCategory) => {
+    ask({
+      title: "Delete category?",
+      description: `"${cat.name}" and its items will be removed.`,
+      confirmLabel: "Delete",
+      onConfirm: () => doRemoveCategory(cat.id),
+    });
   };
 
   const saveItem = async () => {
@@ -125,8 +136,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
     }
   };
 
-  const removeItem = async (id: string) => {
-    if (!confirm("Delete this menu item?")) return;
+  const doRemoveItem = async (id: string) => {
     try {
       await apiFetch(`/pos/menu/items/${id}`, { method: "DELETE", tenant });
       load();
@@ -135,25 +145,38 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
     }
   };
 
+  const confirmRemoveItem = (itemName: string, id: string) => {
+    ask({
+      title: "Delete menu item?",
+      description: `"${itemName}" will be permanently removed.`,
+      confirmLabel: "Delete",
+      onConfirm: () => doRemoveItem(id),
+    });
+  };
+
   if (!branchId) {
     return <BranchRequiredNotice />;
   }
 
   return (
-    <Box>
+    <>
+      {dialog}
+      <Box>
 
       <Box bg="white" borderRadius="md" p={4} mb={4}>
         <Text fontWeight="semibold" mb={3}>
           {editingCatId ? "Edit category" : "New category"}
         </Text>
         <Flex gap={2} wrap="wrap" mb={2}>
-          <Input
-            size="sm"
-            w="200px"
-            placeholder="Category name"
-            value={catForm.name}
-            onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
-          />
+          <FormField label="Category name" required>
+            <Input
+              size="sm"
+              w="200px"
+              placeholder="Category name"
+              value={catForm.name}
+              onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+            />
+          </FormField>
           <Input
             size="sm"
             w="80px"
@@ -162,20 +185,24 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
             value={catForm.sortOrder}
             onChange={(e) => setCatForm({ ...catForm, sortOrder: Number(e.target.value) || 0 })}
           />
-          <Button size="sm" colorPalette="green" onClick={saveCategory}>
-            {editingCatId ? "Update" : "Add category"}
-          </Button>
-          {editingCatId && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEditingCatId(null);
-                setCatForm({ name: "", sortOrder: 0 });
-              }}
-            >
-              Cancel
+          <Box alignSelf="flex-end">
+            <Button size="sm" colorPalette="green" onClick={saveCategory}>
+              {editingCatId ? "Update" : "Add category"}
             </Button>
+          </Box>
+          {editingCatId && (
+            <Box alignSelf="flex-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditingCatId(null);
+                  setCatForm({ name: "", sortOrder: 0 });
+                }}
+              >
+                Cancel
+              </Button>
+            </Box>
           )}
         </Flex>
       </Box>
@@ -185,31 +212,37 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
           {editingItemId ? "Edit menu item" : "New menu item"}
         </Text>
         <Flex gap={2} wrap="wrap" mb={2}>
-          <AppSelect
-            width="180px"
-            items={[
-              { value: "", label: "Category" },
-              ...categories.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-            value={itemForm.categoryId}
-            onValueChange={(v) => setItemForm({ ...itemForm, categoryId: v })}
-            placeholder="Category"
-          />
-          <Input
-            size="sm"
-            w="180px"
-            placeholder="Item name"
-            value={itemForm.name}
-            onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-          />
-          <Input
-            size="sm"
-            w="100px"
-            type="number"
-            placeholder="Price"
-            value={itemForm.price}
-            onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
-          />
+          <FormField label="Category" required>
+            <AppSelect
+              width="180px"
+              items={[
+                { value: "", label: "Category" },
+                ...categories.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              value={itemForm.categoryId}
+              onValueChange={(v) => setItemForm({ ...itemForm, categoryId: v })}
+              placeholder="Category"
+            />
+          </FormField>
+          <FormField label="Item name" required>
+            <Input
+              size="sm"
+              w="180px"
+              placeholder="Item name"
+              value={itemForm.name}
+              onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Price" required>
+            <Input
+              size="sm"
+              w="100px"
+              type="number"
+              placeholder="Price"
+              value={itemForm.price}
+              onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
+            />
+          </FormField>
           <AppSelect
             width="120px"
             items={[
@@ -219,26 +252,33 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
             value={itemForm.isActive ? "true" : "false"}
             onValueChange={(v) => setItemForm({ ...itemForm, isActive: v === "true" })}
           />
-          <Button size="sm" colorPalette="green" onClick={saveItem}>
-            {editingItemId ? "Update" : "Add item"}
-          </Button>
-          {editingItemId && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEditingItemId(null);
-                setItemForm({ categoryId: itemForm.categoryId, name: "", price: "", isActive: true });
-              }}
-            >
-              Cancel
+          <Box alignSelf="flex-end">
+            <Button size="sm" colorPalette="green" onClick={saveItem}>
+              {editingItemId ? "Update" : "Add item"}
             </Button>
+          </Box>
+          {editingItemId && (
+            <Box alignSelf="flex-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditingItemId(null);
+                  setItemForm({ categoryId: itemForm.categoryId, name: "", price: "", isActive: true });
+                }}
+              >
+                Cancel
+              </Button>
+            </Box>
           )}
         </Flex>
       </Box>
 
-      {loading && <LoadingState label="Loading menu…" />}
-      {!loading && (
+      {loading ? (
+        <Box bg="white" borderRadius="md" p={4}>
+          <TableSkeleton rows={5} columns={3} />
+        </Box>
+      ) : (
         <Stack gap={4}>
           {categories.map((cat) => (
             <Box key={cat.id} bg="white" borderRadius="md" p={4}>
@@ -262,7 +302,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
                     size="xs"
                     colorPalette="red"
                     variant="outline"
-                    onClick={() => removeCategory(cat.id)}
+                    onClick={() => confirmRemoveCategory(cat)}
                   >
                     Delete
                   </Button>
@@ -310,7 +350,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
                             size="xs"
                             colorPalette="red"
                             variant="outline"
-                            onClick={() => removeItem(item.id)}
+                            onClick={() => confirmRemoveItem(item.name, item.id)}
                           >
                             Delete
                           </Button>
@@ -333,5 +373,6 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
         </Stack>
       )}
     </Box>
+    </>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Tabs } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
+import { useModuleTab } from "@/lib/use-module-tab";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { ReservationsTab } from "./reservations-tab";
 import { RoomsTab } from "./rooms-tab";
@@ -12,7 +12,7 @@ import { GuestsTab } from "./guests-tab";
 
 export default function PmsPage() {
   const tenant = useTenantHeaders();
-  const [tab, setTab] = useState("reservations");
+  const [tab, setTab] = useModuleTab("reservations");
 
   return (
     <DashboardShell>

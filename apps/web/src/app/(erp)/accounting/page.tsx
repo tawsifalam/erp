@@ -14,10 +14,17 @@ import {
 import { AppSelect } from "@/components/app-select";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
-import { MoneyText, EmptyState, LoadingState } from "@erp/ui";
+import {
+  MoneyText,
+  EmptyState,
+  FormField,
+  CardSkeleton,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
+import { useModuleTab } from "@/lib/use-module-tab";
 import { formatDateTime } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
 
@@ -33,7 +40,7 @@ type JournalLineForm = { accountId: string; debit: string; credit: string };
 
 export default function AccountingPage() {
   const tenant = useTenantHeaders();
-  const [tab, setTab] = useState("journals");
+  const [tab, setTab] = useModuleTab("journals");
   const [journalForm, setJournalForm] = useState({
     description: "",
     lines: [{ accountId: "", debit: "", credit: "" }] as JournalLineForm[],
@@ -140,39 +147,47 @@ export default function AccountingPage() {
         </Tabs.List>
 
         <Tabs.Content value="journals" pt={4}>
-          {journalsQuery.loading && <LoadingState />}
-          {!journalsQuery.loading && journals.length === 0 && (
-            <EmptyState message="No journal entries yet." />
+          {journalsQuery.loading ? (
+            <Stack gap={4}>
+              <CardSkeleton lines={4} />
+              <CardSkeleton lines={4} />
+            </Stack>
+          ) : (
+            <>
+              {journals.length === 0 && (
+                <EmptyState message="No journal entries yet." />
+              )}
+              {journals.map((j) => (
+                <Box key={j.id} mb={6} bg="white" borderRadius="md" p={4}>
+                  <Text fontWeight="semibold" mb={2}>
+                    {j.description ?? j.id} — {formatDateTime(j.createdAt)}
+                  </Text>
+                  <Table.Root size="sm">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader>Account</Table.ColumnHeader>
+                        <Table.ColumnHeader>Debit</Table.ColumnHeader>
+                        <Table.ColumnHeader>Credit</Table.ColumnHeader>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {j.lines.map((l, i) => (
+                        <Table.Row key={i}>
+                          <Table.Cell>{l.account.name}</Table.Cell>
+                          <Table.Cell>
+                            {Number(l.debit) > 0 && <MoneyText amount={Number(l.debit)} />}
+                          </Table.Cell>
+                          <Table.Cell>
+                            {Number(l.credit) > 0 && <MoneyText amount={Number(l.credit)} />}
+                          </Table.Cell>
+                        </Table.Row>
+                      ))}
+                    </Table.Body>
+                  </Table.Root>
+                </Box>
+              ))}
+            </>
           )}
-          {journals.map((j) => (
-            <Box key={j.id} mb={6} bg="white" borderRadius="md" p={4}>
-              <Text fontWeight="semibold" mb={2}>
-                {j.description ?? j.id} — {formatDateTime(j.createdAt)}
-              </Text>
-              <Table.Root size="sm">
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColumnHeader>Account</Table.ColumnHeader>
-                    <Table.ColumnHeader>Debit</Table.ColumnHeader>
-                    <Table.ColumnHeader>Credit</Table.ColumnHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {j.lines.map((l, i) => (
-                    <Table.Row key={i}>
-                      <Table.Cell>{l.account.name}</Table.Cell>
-                      <Table.Cell>
-                        {Number(l.debit) > 0 && <MoneyText amount={Number(l.debit)} />}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {Number(l.credit) > 0 && <MoneyText amount={Number(l.credit)} />}
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Root>
-            </Box>
-          ))}
         </Tabs.Content>
 
         <Tabs.Content value="accounts" pt={4}>
@@ -181,68 +196,79 @@ export default function AccountingPage() {
               Add account
             </Text>
             <Flex gap={2} wrap="wrap" align="flex-end">
-              <Input
-                size="sm"
-                w="100px"
-                placeholder="Code"
-                value={accountForm.code}
-                onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
-              />
-              <Input
-                size="sm"
-                w="200px"
-                placeholder="Name"
-                value={accountForm.name}
-                onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
-              />
-              <AppSelect
-                width="140px"
-                items={[
-                  { value: "ASSET", label: "Asset" },
-                  { value: "LIABILITY", label: "Liability" },
-                  { value: "EQUITY", label: "Equity" },
-                  { value: "REVENUE", label: "Revenue" },
-                  { value: "EXPENSE", label: "Expense" },
-                ]}
-                value={accountForm.type}
-                onValueChange={(v) => setAccountForm({ ...accountForm, type: v })}
-              />
+              <FormField label="Code" help="Unique account code (e.g. 1000).">
+                <Input
+                  size="sm"
+                  w="100px"
+                  placeholder="Code"
+                  value={accountForm.code}
+                  onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Name">
+                <Input
+                  size="sm"
+                  w="200px"
+                  placeholder="Name"
+                  value={accountForm.name}
+                  onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Type">
+                <AppSelect
+                  width="140px"
+                  items={[
+                    { value: "ASSET", label: "Asset" },
+                    { value: "LIABILITY", label: "Liability" },
+                    { value: "EQUITY", label: "Equity" },
+                    { value: "REVENUE", label: "Revenue" },
+                    { value: "EXPENSE", label: "Expense" },
+                  ]}
+                  value={accountForm.type}
+                  onValueChange={(v) => setAccountForm({ ...accountForm, type: v })}
+                />
+              </FormField>
               <Button size="sm" colorPalette="blue" onClick={handleCreateAccount}>
                 Add
               </Button>
             </Flex>
           </Box>
-          {accountsQuery.loading && <LoadingState />}
           <Box bg="white" borderRadius="md" p={4}>
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>Code</Table.ColumnHeader>
-                  <Table.ColumnHeader>Name</Table.ColumnHeader>
-                  <Table.ColumnHeader>Type</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {accounts.map((a) => (
-                  <Table.Row key={a.id}>
-                    <Table.Cell fontFamily="mono">{a.code}</Table.Cell>
-                    <Table.Cell>{a.name}</Table.Cell>
-                    <Table.Cell>{a.type}</Table.Cell>
+            {accountsQuery.loading ? (
+              <TableSkeleton rows={5} columns={3} />
+            ) : (
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Code</Table.ColumnHeader>
+                    <Table.ColumnHeader>Name</Table.ColumnHeader>
+                    <Table.ColumnHeader>Type</Table.ColumnHeader>
                   </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
+                </Table.Header>
+                <Table.Body>
+                  {accounts.map((a) => (
+                    <Table.Row key={a.id}>
+                      <Table.Cell fontFamily="mono">{a.code}</Table.Cell>
+                      <Table.Cell>{a.name}</Table.Cell>
+                      <Table.Cell>{a.type}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            )}
           </Box>
         </Tabs.Content>
 
         <Tabs.Content value="new-journal" pt={4}>
           <Box bg="white" borderRadius="md" p={4}>
             <Stack gap={3}>
-              <Input
-                placeholder="Description"
-                value={journalForm.description}
-                onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })}
-              />
+              <FormField label="Description" help="Optional memo for this journal entry.">
+                <Input
+                  placeholder="Description"
+                  value={journalForm.description}
+                  onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })}
+                />
+              </FormField>
               {journalForm.lines.map((line, i) => (
                 <Flex key={i} gap={2} wrap="wrap">
                   <AppSelect
@@ -277,17 +303,22 @@ export default function AccountingPage() {
                   />
                 </Flex>
               ))}
-              <Flex gap={4} align="center" wrap="wrap" fontSize="sm">
-                <Text>
-                  Debits: <strong>{journalTotals.debit.toFixed(2)}</strong>
-                </Text>
-                <Text>
-                  Credits: <strong>{journalTotals.credit.toFixed(2)}</strong>
-                </Text>
-                <Text color={journalBalanced ? "green.600" : "orange.600"}>
-                  {journalBalanced ? "Balanced ✓" : "Not balanced"}
-                </Text>
-              </Flex>
+              <FormField
+                label="Balance check"
+                help="Total debits must equal total credits. Each line uses either a debit or credit, not both."
+              >
+                <Flex gap={4} align="center" wrap="wrap" fontSize="sm">
+                  <Text>
+                    Debits: <strong>{journalTotals.debit.toFixed(2)}</strong>
+                  </Text>
+                  <Text>
+                    Credits: <strong>{journalTotals.credit.toFixed(2)}</strong>
+                  </Text>
+                  <Text color={journalBalanced ? "green.600" : "orange.600"}>
+                    {journalBalanced ? "Balanced ✓" : "Not balanced"}
+                  </Text>
+                </Flex>
+              </FormField>
               <Flex gap={2}>
                 <Button size="sm" variant="outline" onClick={addJournalLine}>
                   + Line

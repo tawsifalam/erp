@@ -10,7 +10,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
-import { EmptyState, LoadingState } from "@erp/ui";
+import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
@@ -102,18 +102,22 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
       {showForm && (
         <Box bg="white" borderRadius="md" p={4} mb={4}>
           <Stack gap={3} maxW="480px">
-            <Input
-              size="sm"
-              placeholder="Code (e.g. minibar)"
-              value={form.code}
-              onChange={(e) => setForm({ ...form, code: e.target.value })}
-            />
-            <Input
-              size="sm"
-              placeholder="Display name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
+            <FormField label="Code" help="Text slug (e.g. minibar). Cannot be changed later.">
+              <Input
+                size="sm"
+                placeholder="Code (e.g. minibar)"
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Display name">
+              <Input
+                size="sm"
+                placeholder="Display name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </FormField>
             <Button size="sm" colorPalette="green" w="fit-content" onClick={createPool}>
               Create pool
             </Button>
@@ -121,25 +125,30 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
         </Box>
       )}
 
-      {loading && <LoadingState label="Loading pools…" />}
       <Box bg="white" borderRadius="md" p={4}>
-        <Table.Root size="sm">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeader>Code</Table.ColumnHeader>
-              <Table.ColumnHeader>Name</Table.ColumnHeader>
-              <Table.ColumnHeader>Status</Table.ColumnHeader>
-              <Table.ColumnHeader>Actions</Table.ColumnHeader>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {pools.map((p) => (
-              <PoolRow key={p.id} pool={p} onSave={updatePool} />
-            ))}
-          </Table.Body>
-        </Table.Root>
-        {!loading && pools.length === 0 && (
-          <EmptyState message="No inventory pools. They are created automatically for new organizations." />
+        {loading ? (
+          <TableSkeleton rows={4} columns={4} />
+        ) : (
+          <>
+            <Table.Root size="sm">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeader>Code</Table.ColumnHeader>
+                  <Table.ColumnHeader>Name</Table.ColumnHeader>
+                  <Table.ColumnHeader>Status</Table.ColumnHeader>
+                  <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {pools.map((p) => (
+                  <PoolRow key={p.id} pool={p} onSave={updatePool} />
+                ))}
+              </Table.Body>
+            </Table.Root>
+            {pools.length === 0 && (
+              <EmptyState message="No inventory pools. They are created automatically for new organizations." />
+            )}
+          </>
         )}
       </Box>
     </Box>

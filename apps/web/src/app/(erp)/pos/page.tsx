@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { Link, Tabs } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
+import { useModuleTab } from "@/lib/use-module-tab";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { OrdersTab } from "./orders-tab";
 import { MenuTab } from "./menu-tab";
 
 export default function PosPage() {
   const tenant = useTenantHeaders();
-  const [tab, setTab] = useState("orders");
+  const [tab, setTab] = useModuleTab("orders");
 
   return (
     <DashboardShell>

@@ -7,6 +7,7 @@ import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";
 import { useTenant } from "@/lib/tenant-context";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 import { getDefaultRouteForRole } from "@erp/utils";
 import { Role } from "@erp/types";
 import { appToast } from "@/lib/app-toast";
@@ -28,6 +29,7 @@ export default function OnboardingPendingPage() {
   const router = useRouter();
   const { loading: authLoading, accessToken } = useUser();
   const tenant = useTenant();
+  const { ask, dialog } = useConfirmDialog();
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
@@ -79,6 +81,15 @@ export default function OnboardingPendingPage() {
     }
   };
 
+  const confirmCancel = () => {
+    ask({
+      title: "Cancel join request?",
+      description: `Your request to join ${status?.pendingRequest?.organizationName ?? "this organization"} will be withdrawn.`,
+      confirmLabel: "Cancel request",
+      onConfirm: cancelRequest,
+    });
+  };
+
   if (authLoading || loading) {
     return (
       <ContentCard maxW="480px" w="full" p={8}>
@@ -90,30 +101,33 @@ export default function OnboardingPendingPage() {
   const pending = status?.pendingRequest;
 
   return (
-    <ContentCard maxW="480px" w="full" p={8}>
-      <Text fontSize="2xl" fontWeight="bold" mb={2}>
-        Waiting for approval
-      </Text>
-      <Text fontSize="sm" color="fg.muted" mb={6}>
-        Your request to join{" "}
-        <Text as="span" fontWeight="semibold" color="fg">
-          {pending?.organizationName}
-        </Text>{" "}
-        is pending. An organization admin will review it, assign your role, and you will receive
-        access automatically once approved.
-      </Text>
-
-      <Stack gap={3}>
-        <Text fontSize="xs" color="fg.muted">
-          This page refreshes automatically every 15 seconds.
+    <>
+      {dialog}
+      <ContentCard maxW="480px" w="full" p={8}>
+        <Text fontSize="2xl" fontWeight="bold" mb={2}>
+          Waiting for approval
         </Text>
-        <Button variant="outline" onClick={cancelRequest} loading={cancelling}>
-          Cancel request
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => router.push("/onboarding")}>
-          Back to onboarding
-        </Button>
-      </Stack>
-    </ContentCard>
+        <Text fontSize="sm" color="fg.muted" mb={6}>
+          Your request to join{" "}
+          <Text as="span" fontWeight="semibold" color="fg">
+            {pending?.organizationName}
+          </Text>{" "}
+          is pending. An organization admin will review it, assign your role, and you will receive
+          access automatically once approved.
+        </Text>
+
+        <Stack gap={3}>
+          <Text fontSize="xs" color="fg.muted">
+            This page refreshes automatically every 15 seconds.
+          </Text>
+          <Button variant="outline" onClick={confirmCancel} loading={cancelling}>
+            Cancel request
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => router.push("/onboarding")}>
+            Back to onboarding
+          </Button>
+        </Stack>
+      </ContentCard>
+    </>
   );
 }

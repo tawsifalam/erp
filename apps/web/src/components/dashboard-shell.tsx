@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { getModuleMeta } from "@/lib/module-meta";
+import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { TenantSelector } from "@/components/tenant-selector";
 import { useTenant } from "@/lib/tenant-context";
 
@@ -41,6 +43,9 @@ export function DashboardShell({
           <Text fontSize="xl" fontWeight="semibold" lineHeight="short">
             {headerTitle}
           </Text>
+          <Suspense fallback={null}>
+            <AppBreadcrumbs />
+          </Suspense>
           {(orgName || branchName) && (
             <Text fontSize="xs" color="fg.muted" mt={0.5}>
               {[orgName, branchName].filter(Boolean).join(" · ")}

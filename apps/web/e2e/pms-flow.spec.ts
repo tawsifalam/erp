@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { acceptConfirmDialog } from "./helpers/confirm-dialog";
 
 test.describe("PMS – reservation lifecycle", () => {
   test.beforeEach(async ({ page }) => {
@@ -47,7 +48,6 @@ test.describe("PMS – reservation lifecycle", () => {
 
 test.describe("PMS – delete and payment", () => {
   test.beforeEach(async ({ page }) => {
-    page.on("dialog", (dialog) => dialog.accept());
     await mockAuth(page);
     await mockApiRoutes(page);
   });
@@ -70,6 +70,7 @@ test.describe("PMS – delete and payment", () => {
     const inquiryRow = page.getByRole("row").filter({ hasText: "INQUIRY" });
     await expect(inquiryRow).toHaveCount(1);
     await inquiryRow.getByRole("button", { name: "Delete" }).click();
+    await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "INQUIRY" })).toHaveCount(0);
   });
 
@@ -79,6 +80,7 @@ test.describe("PMS – delete and payment", () => {
     const roomRow = page.getByRole("row").filter({ hasText: "102" });
     await expect(roomRow).toBeVisible();
     await roomRow.getByRole("button", { name: "Delete" }).click();
+    await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "102" })).toHaveCount(0);
   });
 
@@ -88,6 +90,7 @@ test.describe("PMS – delete and payment", () => {
     const typeRow = page.getByRole("row").filter({ hasText: "Economy Single" });
     await expect(typeRow).toBeVisible();
     await typeRow.getByRole("button", { name: "Delete" }).click();
+    await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "Economy Single" })).toHaveCount(0);
   });
 
@@ -97,6 +100,7 @@ test.describe("PMS – delete and payment", () => {
     const guestRow = page.getByRole("row").filter({ hasText: "Karim Uddin" });
     await expect(guestRow).toBeVisible();
     await guestRow.getByRole("button", { name: "Delete" }).click();
+    await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "Karim Uddin" })).toHaveCount(0);
   });
 });

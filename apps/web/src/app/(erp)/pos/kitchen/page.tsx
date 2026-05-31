@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Button, Flex, Heading, Link, Stack, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
+import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { getSocket, joinKitchen } from "@/lib/socket";
 import { useTenant, useTenantHeaders } from "@/lib/tenant-context";
 import { getBranchesForOrg } from "@/lib/tenant";
 import { apiFetch } from "@/lib/api-client";
-import { erpTheme, EmptyState } from "@erp/ui";
+import { CardSkeleton, erpTheme, EmptyState } from "@erp/ui";
 import { TenantSelector } from "@/components/tenant-selector";
 import { shortId } from "@/lib/format";
 import type { Order } from "@/lib/pos-types";
@@ -26,6 +27,7 @@ export default function KitchenPage() {
   const tenant = useTenant();
   const headers = useTenantHeaders();
   const [cards, setCards] = useState<KitchenCard[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const branchName = useMemo(() => {
     if (!tenant.organizationId || !tenant.branchId) return null;
@@ -35,7 +37,12 @@ export default function KitchenPage() {
   }, [tenant.organizationId, tenant.branchId, tenant.memberships]);
 
   const loadOrders = useCallback(() => {
-    if (!headers.branchId) return;
+    if (!headers.branchId) {
+      setCards([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     apiFetch<Order[]>(`/pos/orders?branchId=${headers.branchId}`, { tenant: headers })
       .then((orders) => {
         const active = orders
@@ -52,7 +59,8 @@ export default function KitchenPage() {
           })),
         );
       })
-      .catch((e) => appToast.error(e instanceof Error ? e.message : "Failed to load queue"));
+      .catch((e) => appToast.error(e instanceof Error ? e.message : "Failed to load queue"))
+      .finally(() => setLoading(false));
   }, [headers.branchId, headers.organizationId]);
 
   useEffect(loadOrders, [loadOrders]);
@@ -88,6 +96,7 @@ export default function KitchenPage() {
     <Box minH="100vh" bg={erpTheme.kitchen.bg} color={erpTheme.kitchen.text} p={6}>
       <Flex justify="space-between" align="flex-start" mb={6} gap={4} wrap="wrap">
         <Box>
+          <AppBreadcrumbs />
           <Heading size="xl" color={erpTheme.kitchen.accent}>
             Kitchen Display
           </Heading>
@@ -128,67 +137,75 @@ export default function KitchenPage() {
       </Button>
 
       <Stack gap={4}>
-        {cards.length === 0 && (
+        {loading && (
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
+        )}
+        {!loading && cards.length === 0 && (
           <EmptyState
             title="No active tickets"
             description="Orders appear here after staff submit them from POS. Open POS → Orders to take a new order."
             icon="🍳"
           />
         )}
-        {cards.map((t) => (
-          <Box
-            key={t.id}
-            p={4}
-            borderWidth="2px"
-            borderColor={erpTheme.kitchen.accent}
-            borderRadius="md"
-          >
-            <Text fontSize="lg" fontWeight="bold" mb={1}>
-              Order {shortId(t.orderId)}
-              {t.order?.tableNumber ? ` · Table ${t.order.tableNumber}` : ""}
-            </Text>
-            <Text mb={1}>{t.status}</Text>
-            {t.order?.notes && (
-              <Text fontSize="sm" color="orange.200" mb={2}>
-                Note: {t.order.notes}
+        {!loading &&
+          cards.map((t) => (
+            <Box
+              key={t.id}
+              p={4}
+              borderWidth="2px"
+              borderColor={erpTheme.kitchen.accent}
+              borderRadius="md"
+            >
+              <Text fontSize="lg" fontWeight="bold" mb={1}>
+                Order {shortId(t.orderId)}
+                {t.order?.tableNumber ? ` · Table ${t.order.tableNumber}` : ""}
               </Text>
-            )}
-            {t.order?.lines && (
-              <Stack gap={1} mb={3} fontSize="sm">
-                {t.order.lines.map((l, i) => (
-                  <Text key={i}>
-                    {l.quantity}× {l.menuItem.name}
-                  </Text>
-                ))}
-              </Stack>
-            )}
-            <Flex gap={2}>
-              {t.status === "SUBMITTED" && (
-                <Button
-                  size="sm"
-                  colorPalette="yellow"
-                  onClick={() => updateStatus(t.orderId, "PREPARING")}
-                >
-                  Start prep
-                </Button>
-              )}
-              {t.status === "PREPARING" && (
-                <Button
-                  size="sm"
-                  colorPalette="green"
-                  onClick={() => updateStatus(t.orderId, "READY")}
-                >
-                  Mark ready
-                </Button>
-              )}
-              {t.status === "READY" && (
-                <Text fontSize="sm" color="fg.muted">
-                  Ready — complete payment on POS
+              <Text mb={1}>{t.status}</Text>
+              {t.order?.notes && (
+                <Text fontSize="sm" color="orange.200" mb={2}>
+                  Note: {t.order.notes}
                 </Text>
               )}
-            </Flex>
-          </Box>
-        ))}
+              {t.order?.lines && (
+                <Stack gap={1} mb={3} fontSize="sm">
+                  {t.order.lines.map((l, i) => (
+                    <Text key={i}>
+                      {l.quantity}× {l.menuItem.name}
+                    </Text>
+                  ))}
+                </Stack>
+              )}
+              <Flex gap={2}>
+                {t.status === "SUBMITTED" && (
+                  <Button
+                    size="sm"
+                    colorPalette="yellow"
+                    onClick={() => updateStatus(t.orderId, "PREPARING")}
+                  >
+                    Start prep
+                  </Button>
+                )}
+                {t.status === "PREPARING" && (
+                  <Button
+                    size="sm"
+                    colorPalette="green"
+                    onClick={() => updateStatus(t.orderId, "READY")}
+                  >
+                    Mark ready
+                  </Button>
+                )}
+                {t.status === "READY" && (
+                  <Text fontSize="sm" color="fg.muted">
+                    Ready — complete payment on POS
+                  </Text>
+                )}
+              </Flex>
+            </Box>
+          ))}
       </Stack>
     </Box>
   );

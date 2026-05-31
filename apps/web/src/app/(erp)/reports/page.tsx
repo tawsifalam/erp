@@ -6,7 +6,7 @@ import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { ModulePageHeader } from "@/components/module-page-header";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { EmptyState, LoadingState } from "@erp/ui";
+import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -88,14 +88,16 @@ export default function ReportsPage() {
 
       {!tenant.branchId && <BranchRequiredNotice />}
 
-      <Flex gap={2} mb={4} wrap="wrap" align="center">
-        <AppSelect
-          items={types.map((t) => ({ value: t.code, label: t.label }))}
-          value={exportType}
-          onValueChange={setExportType}
-          width="220px"
-          placeholder="Report type"
-        />
+      <Flex gap={2} mb={4} wrap="wrap" align="flex-end">
+        <FormField label="Report type" help="Branch-scoped reports require a branch in the header.">
+          <AppSelect
+            items={types.map((t) => ({ value: t.code, label: t.label }))}
+            value={exportType}
+            onValueChange={setExportType}
+            width="220px"
+            placeholder="Report type"
+          />
+        </FormField>
         <Button size="sm" colorPalette="blue" onClick={exportCsv}>
           Export CSV
         </Button>
@@ -104,10 +106,12 @@ export default function ReportsPage() {
         </Button>
       </Flex>
 
-      {jobsQuery.loading && <LoadingState />}
-
       <Box bg="white" borderRadius="md" p={4}>
-        <Table.Root size="sm">
+        {jobsQuery.loading ? (
+          <TableSkeleton rows={5} columns={4} />
+        ) : (
+          <>
+            <Table.Root size="sm">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeader>Type</Table.ColumnHeader>
@@ -141,9 +145,11 @@ export default function ReportsPage() {
               </Table.Row>
             ))}
           </Table.Body>
-        </Table.Root>
-        {!jobsQuery.loading && jobs.length === 0 && (
-          <EmptyState message="No report jobs yet. Export a report to get started." />
+            </Table.Root>
+            {jobs.length === 0 && (
+              <EmptyState message="No report jobs yet. Export a report to get started." />
+            )}
+          </>
         )}
       </Box>
     </DashboardShell>

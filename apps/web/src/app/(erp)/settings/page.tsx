@@ -20,6 +20,7 @@ import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
 import { shortId } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 import { useModuleTab } from "@/lib/use-module-tab";
 import { InventoryPoolsSection } from "./inventory-pools-section";
 import { TeamAccessSection } from "./team-access-section";
@@ -50,6 +51,7 @@ function tenantHeadersFor(orgId: string | null, branchId: string | null): Tenant
 
 export default function SettingsPage() {
   const tenant = useTenant();
+  const { ask, dialog } = useConfirmDialog();
   const [tab, setTab] = useModuleTab("organization");
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -138,6 +140,31 @@ export default function SettingsPage() {
     }
   };
 
+  const deleteBranch = async (id: string) => {
+    if (!tenantHeaders) return;
+    try {
+      await apiFetch(`/tenants/branches/${id}`, {
+        method: "DELETE",
+        tenant: tenantHeaders,
+      });
+      appToast.success("Branch deleted");
+      await tenant.refreshMemberships();
+      load();
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to delete branch");
+    }
+  };
+
+  const confirmDeleteBranch = (branch: Branch) => {
+    ask({
+      title: `Delete branch "${branch.name}"?`,
+      description:
+        "All rooms, reservations, POS menu and orders, inventory, and HR meal data for this branch will be permanently removed. Branches with active reservations (inquiry, confirmed, or checked in) cannot be deleted.",
+      confirmLabel: "Delete branch",
+      onConfirm: () => deleteBranch(branch.id),
+    });
+  };
+
   const createOrganization = async () => {
     try {
       const name = newOrgForm.name;
@@ -165,6 +192,7 @@ export default function SettingsPage() {
 
   return (
     <DashboardShell>
+      {dialog}
       <ModulePageHeader />
 
       {!isAdmin && (
@@ -308,7 +336,13 @@ export default function SettingsPage() {
                       </Table.Header>
                       <Table.Body>
                         {branches.map((b) => (
-                          <BranchRow key={b.id} branch={b} onSave={updateBranch} />
+                          <BranchRow
+                            key={b.id}
+                            branch={b}
+                            canDelete={branches.length > 1}
+                            onSave={updateBranch}
+                            onDelete={() => confirmDeleteBranch(b)}
+                          />
                         ))}
                       </Table.Body>
                     </Table.Root>
@@ -340,10 +374,14 @@ export default function SettingsPage() {
 
 function BranchRow({
   branch,
+  canDelete,
   onSave,
+  onDelete,
 }: {
   branch: Branch;
+  canDelete: boolean;
   onSave: (id: string, data: { name: string; timezone: string }) => void;
+  onDelete: () => void;
 }) {
   const [name, setName] = useState(branch.name);
   const [timezone, setTimezone] = useState(branch.timezone);
@@ -365,9 +403,21 @@ function BranchRow({
         {shortId(branch.id)}
       </Table.Cell>
       <Table.Cell>
-        <Button size="xs" variant="outline" onClick={() => onSave(branch.id, { name, timezone })}>
-          Save
-        </Button>
+        <Flex gap={2}>
+          <Button size="xs" variant="outline" onClick={() => onSave(branch.id, { name, timezone })}>
+            Save
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            colorPalette="red"
+            disabled={!canDelete}
+            title={canDelete ? undefined : "Cannot delete the only branch"}
+            onClick={onDelete}
+          >
+            Delete
+          </Button>
+        </Flex>
       </Table.Cell>
     </Table.Row>
   );

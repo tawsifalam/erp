@@ -5,12 +5,27 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { JoinRequestStatus, Role } from "@erp/types";
+import { JoinRequestStatus, ReservationStatus, Role } from "@erp/types";
 import { generateId, generateJoinCode, generatePrefixedId } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryPoolsService } from "../inventory/inventory-pools.service";
 
 const VALID_ROLES = new Set(Object.values(Role));
+
+const BLOCKING_BRANCH_RESERVATIONS: string[] = [
+  ReservationStatus.INQUIRY,
+  ReservationStatus.CONFIRMED,
+  ReservationStatus.CHECKED_IN,
+];
+
+type MemberWithUser = {
+  id: string;
+  userId: string;
+  organizationId: string;
+  role: string;
+  createdAt: Date;
+  user: { id: string; email: string; name: string | null };
+};
 
 @Injectable()
 export class TenantsService {
@@ -338,13 +353,13 @@ export class TenantsService {
   }
 
   async listMembers(organizationId: string) {
-    const members = await this.prisma.userOrganization.findMany({
+    const members = (await this.prisma.userOrganization.findMany({
       where: { organizationId },
       include: {
         user: { select: { id: true, email: true, name: true } },
       },
       orderBy: { createdAt: "asc" },
-    });
+    })) as MemberWithUser[];
 
     const founderUserId = members[0]?.userId ?? null;
 
@@ -474,5 +489,45 @@ export class TenantsService {
     return this.prisma.branch.findFirst({
       where: { id: branchId, organizationId },
     });
+  }
+
+  async deleteBranch(branchId: string, organizationId: string) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, organizationId },
+    });
+    if (!branch) throw new NotFoundException("Branch not found");
+
+    const branchCount = await this.prisma.branch.count({
+      where: { organizationId },
+    });
+    if (branchCount <= 1) {
+      throw new BadRequestException("Cannot delete the last branch in the organization");
+    }
+
+    const activeReservations = await this.prisma.reservation.count({
+      where: {
+        branchId,
+        status: { in: BLOCKING_BRANCH_RESERVATIONS },
+      },
+    });
+    if (activeReservations > 0) {
+      throw new ConflictException(
+        "Branch has active reservations and cannot be deleted",
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.employee.updateMany({
+        where: { branchId },
+        data: { branchId: null },
+      });
+      await tx.reportJob.updateMany({
+        where: { branchId },
+        data: { branchId: null },
+      });
+      await tx.branch.delete({ where: { id: branchId } });
+    });
+
+    return { deleted: true, id: branchId };
   }
 }

@@ -212,6 +212,7 @@ Open **Settings** (`/settings`) in the sidebar (OWNER / ADMIN only for managemen
 | **Rename organization** | Updates display `name` in the local database. |
 | **Add branch** | Creates a new `Branch` under the current organization. |
 | **Edit branch** | Updates branch `name` and `timezone`. |
+| **Delete branch** | Removes a branch after confirmation; cannot delete the only branch or one with active reservations. |
 | **Team & access** | Approve join requests (with role), manage members, copy join code. |
 | **Inventory pools** | View/edit guest & staff pools; add custom pools (codes as text slugs). |
 
@@ -273,6 +274,16 @@ curl -s -X PATCH "$BASE/tenants/branches/$BRANCH_ID" \
   -H "Content-Type: application/json" \
   -d '{"name":"Main Hotel & Restaurant","timezone":"Asia/Dhaka"}' | jq
 ```
+
+**Delete branch:**
+
+```bash
+curl -s -X DELETE "$BASE/tenants/branches/$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Returns `400` if this is the last branch, `409` if active reservations exist. On success, branch-scoped data (rooms, reservations, POS, inventory, etc.) is permanently removed.
 
 **Create organization (new tenant + default branch + OWNER membership):**
 

@@ -8,6 +8,7 @@
     "start": "node dist/main",
     "lint": "echo ok",
     "typecheck": "tsc --noEmit",
+    "pretest": "prisma generate",
     "test": "jest --passWithNoTests",
     "test:unit": "jest",
     "db:generate": "prisma generate",

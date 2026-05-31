@@ -235,6 +235,13 @@ export class TenantsController {
     return this.tenants.updateBranch(id, t.organizationId, body);
   }
 
+  @Delete("branches/:id")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  deleteBranch(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.tenants.deleteBranch(id, t.organizationId);
+  }
+
   @Get("context")
   @UseGuards(TenantGuard)
   context(@Req() req: Request & { tenant: unknown }) {

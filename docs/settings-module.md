@@ -23,6 +23,7 @@ Web UI: `/settings` (sidebar). Management actions require **OWNER** or **ADMIN**
 | **Rename organization** | Updates display `name`; refreshes header memberships |
 | **Add branch** | Creates a new `Branch` under the current organization |
 | **Edit branch** | Updates branch `name` and `timezone` inline |
+| **Delete branch** | Permanently removes a branch after confirmation; disabled for the only branch; blocked by API if active reservations exist |
 
 Non-admin users see a read-only notice and can still switch org/branch from the header.
 
@@ -61,6 +62,7 @@ Base path: `/api/tenants`. Requires `Authorization`. Branch/org mutations requir
 | GET | `/tenants/branches` | List branches |
 | POST | `/tenants/branches` | Create branch |
 | PATCH | `/tenants/branches/:id` | Update branch |
+| DELETE | `/tenants/branches/:id` | Delete branch (not last; no active reservations) |
 | GET | `/tenants/members` | List members + roles |
 | PATCH | `/tenants/members/:userId/role` | Change member role |
 | DELETE | `/tenants/members/:userId` | Remove member (not the founder) |
@@ -82,6 +84,16 @@ Inventory pools: `/api/inventory/pools` (documented in [Inventory module](invent
 | Pool code | Lowercase slug, unique per org (inventory API) |
 
 Empty strings return `400 Bad Request`.
+
+**Delete branch guardrails:**
+
+| Condition | HTTP status |
+|-----------|---------------|
+| Branch not in current org | `404` |
+| Last branch in organization | `400` |
+| Active reservations (INQUIRY, CONFIRMED, CHECKED_IN) | `409` |
+
+Successful delete cascades rooms, reservations, POS, inventory, and related branch-scoped data. Employee and report job references are cleared before delete.
 
 ## Permissions
 

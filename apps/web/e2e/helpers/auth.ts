@@ -267,6 +267,20 @@ export async function mockApiRoutes(page: Page) {
       body: JSON.stringify(body),
     });
 
+  const fulfillTenantMutation = (route: import("@playwright/test").Route, result: unknown) => {
+    if (result && typeof result === "object" && "status" in result) {
+      const err = result as { status: number; message: string };
+      if (err.status >= 400) {
+        return route.fulfill({
+          status: err.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: err.message }),
+        });
+      }
+    }
+    return fulfillJson(route, result);
+  };
+
   await page.route("**/localhost:3001/api/tenants/onboarding/status**", (route) =>
     fulfillJson(route, {
       hasMembership: true,
@@ -297,14 +311,14 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleTenantMutation(method, route.request().url(), body);
-    return fulfillJson(route, result);
+    return fulfillTenantMutation(route, result);
   });
 
   await page.route("**/localhost:3001/api/tenants/branches/**", async (route) => {
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleTenantMutation(method, route.request().url(), body);
-    return fulfillJson(route, result);
+    return fulfillTenantMutation(route, result);
   });
 
   await page.route("**/localhost:3001/api/tenants/branches**", async (route) => {

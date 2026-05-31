@@ -62,6 +62,18 @@ export function handleTenantMutation(
     return { ...branch };
   }
 
+  if (url.match(/\/tenants\/branches\/[^/?]+/) && method === "DELETE") {
+    const idMatch = url.match(/\/branches\/([^/?]+)/);
+    const id = idMatch?.[1];
+    const branch = branches.find((b) => b.id === id);
+    if (!branch) return { status: 404, message: "Branch not found" };
+    if (branches.length <= 1) {
+      return { status: 400, message: "Cannot delete the last branch in the organization" };
+    }
+    branches = branches.filter((b) => b.id !== id);
+    return { deleted: true, id };
+  }
+
   if (url.includes("/tenants/branches")) {
     if (method === "GET") return getTenantBranches();
     if (method === "POST") {

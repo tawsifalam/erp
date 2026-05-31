@@ -24,6 +24,27 @@ test.describe("Settings – Organization & branch management", () => {
     await expect(page.getByRole("cell", { name: "Rooftop Bar" })).toBeVisible();
   });
 
+  test("can delete a branch after confirmation", async ({ page }) => {
+    await page.goto("/settings");
+    const annexRow = page.getByRole("row").filter({ hasText: "Annex Branch" });
+    await annexRow.getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByText(/Branch deleted/i)).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Annex Branch" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "Main Branch" })).toBeVisible();
+  });
+
+  test("cannot delete the only remaining branch", async ({ page }) => {
+    await page.goto("/settings");
+    const annexRow = page.getByRole("row").filter({ hasText: "Annex Branch" });
+    await annexRow.getByRole("button", { name: "Delete" }).click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByText(/Branch deleted/i)).toBeVisible();
+    const mainRow = page.getByRole("row").filter({ hasText: "Main Branch" });
+    await expect(mainRow.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
   test("can save organization name", async ({ page }) => {
     await page.goto("/settings");
     const nameInput = page.locator('input[value="Boulevard Café"]').first();

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { TenantsService } from "./tenants.service";
 
 const mockPrisma = {
@@ -16,7 +16,12 @@ const mockPrisma = {
     findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    count: jest.fn(),
+    delete: jest.fn(),
   },
+  reservation: { count: jest.fn() },
+  employee: { updateMany: jest.fn() },
+  reportJob: { updateMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -89,6 +94,49 @@ describe("TenantsService", () => {
     await expect(
       service.updateBranch("br_1", "org_1", { name: "   " }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it("deleteBranch deletes when branch exists with multiple branches and no active reservations", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_2", organizationId: "org_1" });
+    mockPrisma.branch.count.mockResolvedValue(2);
+    mockPrisma.reservation.count.mockResolvedValue(0);
+    const tx = {
+      employee: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      reportJob: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      branch: { delete: jest.fn().mockResolvedValue({ id: "br_2" }) },
+    };
+    mockPrisma.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
+
+    const result = await service.deleteBranch("br_2", "org_1");
+
+    expect(result).toEqual({ deleted: true, id: "br_2" });
+    expect(tx.employee.updateMany).toHaveBeenCalledWith({
+      where: { branchId: "br_2" },
+      data: { branchId: null },
+    });
+    expect(tx.reportJob.updateMany).toHaveBeenCalledWith({
+      where: { branchId: "br_2" },
+      data: { branchId: null },
+    });
+    expect(tx.branch.delete).toHaveBeenCalledWith({ where: { id: "br_2" } });
+  });
+
+  it("deleteBranch throws when branch not in org", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue(null);
+    await expect(service.deleteBranch("br_x", "org_1")).rejects.toThrow(NotFoundException);
+  });
+
+  it("deleteBranch throws when last branch in org", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.branch.count.mockResolvedValue(1);
+    await expect(service.deleteBranch("br_1", "org_1")).rejects.toThrow(BadRequestException);
+  });
+
+  it("deleteBranch throws when branch has active reservations", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_2", organizationId: "org_1" });
+    mockPrisma.branch.count.mockResolvedValue(2);
+    mockPrisma.reservation.count.mockResolvedValue(3);
+    await expect(service.deleteBranch("br_2", "org_1")).rejects.toThrow(ConflictException);
   });
 
   it("updateOrganization rejects empty name", () => {

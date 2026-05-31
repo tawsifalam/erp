@@ -23,11 +23,12 @@ Pools separate stock for different purposes without duplicating the movement eng
 
 | Default pool | Code | Used by |
 |--------------|------|---------|
-| Guest / Kitchen | `guest` | POS menu recipes, manual kitchen movements |
+| Guest / Kitchen | `guest` | POS menu recipes, guest inclusion meal BOM |
 | Staff pantry | `staff` | HR staff meal recipes |
+| Housekeeping | `housekeeping` | Guest amenity kit BOM (auto-issue on check-in) |
 
 - **Settings → Inventory pools** — list, rename, add custom pools (e.g. `minibar`), activate/deactivate custom pools
-- System pools (`guest`, `staff`) cannot be deleted or deactivated
+- System pools (`guest`, `staff`, `housekeeping`) cannot be deleted or deactivated
 - Pool `code` is plain text (lowercase slug), not a Postgres enum — add new pools without schema migrations
 - New organizations get default pools automatically
 
@@ -55,6 +56,7 @@ Current stock = SUM(IN movements) − SUM(OUT movements)
 | `SALE` | OUT | POS order completed (recipe auto-deduction) or manual sale |
 | `WASTE` | OUT | Spoilage / damage |
 | `STAFF_MEAL` | OUT | HR staff meal recording |
+| `GUEST_INCLUSION` | OUT | Guest inclusion meals and amenity kits — see [Guest inclusions](./guest-inclusions-module.md) |
 
 ## Low stock
 
@@ -196,6 +198,7 @@ E2E coverage includes item list, create item, record movement, edit/low-stock, a
 
 ## Related docs
 
+- [Guest inclusions](./guest-inclusions-module.md) — meal/amenity kit consumption
 - [Inventory ledger](./inventory-ledger.md) — movement model summary
 - [App workflow guide §4](./app-workflow-guide.md#4-inventory-management) — step-by-step examples
 

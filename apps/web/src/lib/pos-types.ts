@@ -3,6 +3,7 @@ export type MenuItem = {
   name: string;
   price: string;
   isActive?: boolean;
+  isGuestInclusionMeal?: boolean;
   categoryId?: string;
 };
 
@@ -30,6 +31,7 @@ export type Order = {
   tableNumber?: string;
   notes?: string;
   createdAt: string;
+  reservationId?: string | null;
   lines: OrderLine[];
 };
 

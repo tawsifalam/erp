@@ -31,6 +31,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
     name: "",
     price: "",
     isActive: true,
+    isGuestInclusionMeal: false,
   });
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
@@ -118,6 +119,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
         name: itemForm.name,
         price: Number(itemForm.price),
         isActive: itemForm.isActive,
+        isGuestInclusionMeal: itemForm.isGuestInclusionMeal,
       };
       if (editingItemId) {
         await apiFetch(`/pos/menu/items/${editingItemId}`, {
@@ -128,7 +130,13 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
       } else {
         await apiFetch("/pos/menu/items", { method: "POST", tenant, body: JSON.stringify(body) });
       }
-      setItemForm({ categoryId: itemForm.categoryId, name: "", price: "", isActive: true });
+      setItemForm({
+        categoryId: itemForm.categoryId,
+        name: "",
+        price: "",
+        isActive: true,
+        isGuestInclusionMeal: false,
+      });
       setEditingItemId(null);
       load();
     } catch (e) {
@@ -252,6 +260,17 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
             value={itemForm.isActive ? "true" : "false"}
             onValueChange={(v) => setItemForm({ ...itemForm, isActive: v === "true" })}
           />
+          <AppSelect
+            width="200px"
+            items={[
+              { value: "false", label: "Regular item" },
+              { value: "true", label: "Guest inclusion meal" },
+            ]}
+            value={itemForm.isGuestInclusionMeal ? "true" : "false"}
+            onValueChange={(v) =>
+              setItemForm({ ...itemForm, isGuestInclusionMeal: v === "true" })
+            }
+          />
           <Box alignSelf="flex-end">
             <Button size="sm" colorPalette="green" onClick={saveItem}>
               {editingItemId ? "Update" : "Add item"}
@@ -264,7 +283,13 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
                 variant="outline"
                 onClick={() => {
                   setEditingItemId(null);
-                  setItemForm({ categoryId: itemForm.categoryId, name: "", price: "", isActive: true });
+                  setItemForm({
+                    categoryId: itemForm.categoryId,
+                    name: "",
+                    price: "",
+                    isActive: true,
+                    isGuestInclusionMeal: false,
+                  });
                 }}
               >
                 Cancel
@@ -327,6 +352,12 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
                             (inactive)
                           </Text>
                         )}
+                        {item.isGuestInclusionMeal && (
+                          <Text as="span" fontSize="xs" color="blue.600">
+                            {" "}
+                            (inclusion meal)
+                          </Text>
+                        )}
                       </Table.Cell>
                       <Table.Cell>৳{Number(item.price).toLocaleString()}</Table.Cell>
                       <Table.Cell>
@@ -341,6 +372,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
                                 name: item.name,
                                 price: String(item.price),
                                 isActive: item.isActive !== false,
+                                isGuestInclusionMeal: item.isGuestInclusionMeal === true,
                               });
                             }}
                           >

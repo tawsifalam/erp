@@ -68,7 +68,7 @@ export class PosController {
   @RequirePermission(Permission.POS_WRITE)
   createItem(
     @Body()
-    body: { categoryId: string; name: string; price: number; isActive?: boolean },
+    body: { categoryId: string; name: string; price: number; isActive?: boolean; isGuestInclusionMeal?: boolean },
   ) {
     return this.pos.createMenuItem(body);
   }
@@ -78,7 +78,13 @@ export class PosController {
   updateItem(
     @Param("id") id: string,
     @Body()
-    body: { name?: string; price?: number; isActive?: boolean; categoryId?: string },
+    body: {
+      name?: string;
+      price?: number;
+      isActive?: boolean;
+      categoryId?: string;
+      isGuestInclusionMeal?: boolean;
+    },
   ) {
     return this.pos.updateMenuItem(id, body);
   }
@@ -115,6 +121,7 @@ export class PosController {
       lines: { menuItemId: string; quantity: number; unitPrice: number }[];
       tableNumber?: string;
       notes?: string;
+      reservationId?: string;
     },
   ) {
     return this.pos.createOrder(this.branch(t, body.branchId), t.organizationId, body);

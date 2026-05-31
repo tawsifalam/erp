@@ -18,6 +18,7 @@ import { EmptyState, FormField, MoneyText, StatusBadge, TableSkeleton } from "@e
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { CartItem, MenuCategory, Order } from "@/lib/pos-types";
+import type { Reservation } from "@/lib/pms-types";
 import { appToast } from "@/lib/app-toast";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 
@@ -30,6 +31,8 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [tableNumber, setTableNumber] = useState("");
   const [notes, setNotes] = useState("");
+  const [reservationId, setReservationId] = useState("");
+  const [checkedInReservations, setCheckedInReservations] = useState<Reservation[]>([]);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -47,12 +50,14 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
     if (!branchId) return;
     setLoading(true);
     try {
-      const [orderList, menu] = await Promise.all([
+      const [orderList, menu, reservations] = await Promise.all([
         apiFetch<Order[]>(`/pos/orders?branchId=${branchId}`, { tenant }),
         apiFetch<MenuCategory[]>(`/pos/menu/categories?branchId=${branchId}`, { tenant }),
+        apiFetch<Reservation[]>(`/pms/reservations?branchId=${branchId}`, { tenant }),
       ]);
       setOrders(orderList);
       setCategories(menu);
+      setCheckedInReservations(reservations.filter((r) => r.status === "CHECKED_IN"));
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to load orders");
     } finally {
@@ -101,6 +106,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
           branchId,
           tableNumber: tableNumber || undefined,
           notes: notes || undefined,
+          reservationId: reservationId || undefined,
           lines: cart.map((c) => ({
             menuItemId: c.menuItemId,
             quantity: c.quantity,
@@ -111,6 +117,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       setCart([]);
       setTableNumber("");
       setNotes("");
+      setReservationId("");
       setShowNewOrder(false);
       load();
     } catch (e) {
@@ -281,6 +288,20 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
                   mb={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
+                />
+              </FormField>
+              <FormField label="Charge to room" help="Optional — posts comp meals to guest allowance on complete.">
+                <AppSelect
+                  width="100%"
+                  items={[
+                    { value: "", label: "No room charge" },
+                    ...checkedInReservations.map((r) => ({
+                      value: r.id,
+                      label: `${r.room.roomNumber} — ${r.guest.fullName}`,
+                    })),
+                  ]}
+                  value={reservationId}
+                  onValueChange={setReservationId}
                 />
               </FormField>
               {cart.length === 0 ? (

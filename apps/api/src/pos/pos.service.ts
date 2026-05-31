@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { OrderStatus, PaymentStatus } from "@erp/types";
+import { OrderStatus, PaymentStatus, ReservationStatus } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PrismaService, TransactionClient } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -97,6 +97,7 @@ export class PosService {
     name: string;
     price: number;
     isActive?: boolean;
+    isGuestInclusionMeal?: boolean;
   }) {
     if (!data.name?.trim()) throw new BadRequestException("Item name is required");
     if (data.price < 0) throw new BadRequestException("Price cannot be negative");
@@ -110,13 +111,20 @@ export class PosService {
         name: data.name.trim(),
         price: data.price,
         isActive: data.isActive ?? true,
+        isGuestInclusionMeal: data.isGuestInclusionMeal ?? false,
       },
     });
   }
 
   async updateMenuItem(
     itemId: string,
-    data: { name?: string; price?: number; isActive?: boolean; categoryId?: string },
+    data: {
+      name?: string;
+      price?: number;
+      isActive?: boolean;
+      categoryId?: string;
+      isGuestInclusionMeal?: boolean;
+    },
   ) {
     const item = await this.prisma.menuItem.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException("Menu item not found");
@@ -134,6 +142,9 @@ export class PosService {
         ...(data.price !== undefined ? { price: data.price } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
+        ...(data.isGuestInclusionMeal !== undefined
+          ? { isGuestInclusionMeal: data.isGuestInclusionMeal }
+          : {}),
       },
     });
   }
@@ -172,6 +183,7 @@ export class PosService {
       lines: { menuItemId: string; quantity: number; unitPrice: number }[];
       tableNumber?: string;
       notes?: string;
+      reservationId?: string;
     },
   ) {
     if (!data.lines?.length) {
@@ -182,6 +194,16 @@ export class PosService {
       if (line.unitPrice < 0) throw new BadRequestException("Line unitPrice cannot be negative");
     }
 
+    if (data.reservationId) {
+      const reservation = await this.prisma.reservation.findFirst({
+        where: { id: data.reservationId, branchId },
+      });
+      if (!reservation) throw new NotFoundException("Reservation not found");
+      if (reservation.status !== ReservationStatus.CHECKED_IN) {
+        throw new BadRequestException("Only checked-in reservations can be charged to room");
+      }
+    }
+
     const total = data.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
 
     return this.prisma.order.create({
@@ -189,6 +211,7 @@ export class PosService {
         branchId,
         tableNumber: data.tableNumber,
         notes: data.notes,
+        reservationId: data.reservationId ?? null,
         totalAmount: total,
         status: OrderStatus.DRAFT,
         lines: {

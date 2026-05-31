@@ -38,11 +38,21 @@ test.describe("PMS – reservation lifecycle", () => {
     await page.getByRole("button", { name: "Cancel" }).click();
   });
 
-  test("edit room opens modal on Rooms tab", async ({ page }) => {
+  test("checked-in reservation shows inclusions panel", async ({ page }) => {
     await page.goto("/pms");
-    await page.getByRole("tab", { name: "Rooms" }).click();
-    await page.getByRole("button", { name: "Edit" }).first().click();
-    await expect(page.getByText("Edit room")).toBeVisible();
+    const row = page.getByRole("row").filter({ hasText: "Rahim Ahmed" });
+    await row.getByRole("button", { name: "Inclusions" }).click();
+    await expect(page.getByText("Guest inclusions")).toBeVisible();
+    await expect(page.getByText(/meals used/)).toBeVisible();
+    await page.getByRole("button", { name: "Record comp meal (1)" }).click();
+    await expect(page.getByText(/1 \/ 18 meals used/)).toBeVisible({ timeout: 5000 });
+  });
+
+  test("guest packages tab lists demo packages", async ({ page }) => {
+    await page.goto("/pms");
+    await page.getByRole("tab", { name: "Guest packages" }).click();
+    await expect(page.getByText("Full board (3 meals)")).toBeVisible();
+    await expect(page.getByText("Budget (1 meal)")).toBeVisible();
   });
 });
 

@@ -39,6 +39,7 @@ model Organization {
   employees    Employee[]
   menuCategories MenuCategory[]
   inventoryPools InventoryPool[]
+  inclusionPackages InclusionPackage[]
 }
 
 model UserOrganization {
@@ -92,6 +93,7 @@ model Branch {
   staffMealRecipes StaffMealRecipe[]
   staffMeals     StaffMeal[]
   reportJobs     ReportJob[]
+  inclusionRecipes InclusionRecipe[]
 }
 
 model RoomType {
@@ -142,12 +144,20 @@ model Reservation {
   status      String            @default("CONFIRMED")
   totalAmount Decimal           @db.Decimal(12, 2)
   paidAmount  Decimal           @default(0) @db.Decimal(12, 2)
+  adultCount  Int               @default(1)
+  childCount  Int               @default(0)
+  packageId   String?
+  mealsPerGuestPerNightOverride Int?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
   guest  Guest  @relation(fields: [guestId], references: [id])
   room   Room   @relation(fields: [roomId], references: [id])
+  package InclusionPackage? @relation(fields: [packageId], references: [id])
+  orders  Order[]
+  allowances ReservationAllowance[]
+  inclusionConsumptions InclusionConsumption[]
 
   @@index([branchId, checkIn, checkOut])
   @@index([roomId, status])
@@ -171,6 +181,7 @@ model MenuItem {
   name       String
   price      Decimal @db.Decimal(12, 2)
   isActive   Boolean @default(true)
+  isGuestInclusionMeal Boolean @default(false)
 
   category   MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   orderLines OrderLine[]
@@ -184,12 +195,14 @@ model Order {
   paymentStatus String   @default("UNPAID")
   tableNumber   String?
   notes         String?
+  reservationId String?
   totalAmount   Decimal       @default(0) @db.Decimal(12, 2)
   paidAmount    Decimal       @default(0) @db.Decimal(12, 2)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  reservation    Reservation?    @relation(fields: [reservationId], references: [id])
   lines          OrderLine[]
   kitchenTickets KitchenTicket[]
 }
@@ -246,6 +259,7 @@ model InventoryItem {
   movements InventoryMovement[]
   recipeLines RecipeLine[]
   staffMealRecipeLines StaffMealRecipeLine[]
+  inclusionRecipeLines InclusionRecipeLine[]
 
   @@unique([branchId, sku])
 }
@@ -437,4 +451,89 @@ model ReportJob {
   completedAt    DateTime?
 
   branch Branch? @relation(fields: [branchId], references: [id])
+}
+
+model InclusionRecipe {
+  id             String @id @default(uuid())
+  branchId       String
+  name           String
+  inclusionType  String
+
+  branch       Branch                @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  lines        InclusionRecipeLine[]
+  packageRules InclusionPackageRule[]
+  allowances   ReservationAllowance[]
+
+  @@unique([branchId, name])
+}
+
+model InclusionRecipeLine {
+  id              String  @id @default(uuid())
+  recipeId        String
+  inventoryItemId String
+  quantity        Decimal @db.Decimal(12, 4)
+
+  recipe        InclusionRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem   @relation(fields: [inventoryItemId], references: [id])
+}
+
+model InclusionPackage {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rules        InclusionPackageRule[]
+  reservations Reservation[]
+
+  @@unique([organizationId, name])
+}
+
+model InclusionPackageRule {
+  id                       String  @id @default(uuid())
+  packageId                String
+  inclusionType            String
+  inclusionRecipeId        String
+  quantityPerGuestPerNight   Int?
+  quantityPerGuestPerStay    Int?
+  autoIssueOnCheckIn       Boolean @default(false)
+  sortOrder                Int     @default(0)
+
+  package InclusionPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  recipe  InclusionRecipe  @relation(fields: [inclusionRecipeId], references: [id], onDelete: Restrict)
+}
+
+model ReservationAllowance {
+  id                String @id @default(uuid())
+  reservationId     String
+  inclusionType     String
+  inclusionRecipeId String
+  entitledQty       Int
+  consumedQty       Int    @default(0)
+  unitLabel         String
+
+  reservation Reservation     @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  recipe      InclusionRecipe @relation(fields: [inclusionRecipeId], references: [id])
+  consumptions InclusionConsumption[]
+
+  @@unique([reservationId, inclusionType, inclusionRecipeId])
+}
+
+model InclusionConsumption {
+  id            String   @id @default(uuid())
+  reservationId String
+  allowanceId   String
+  branchId      String
+  quantity      Int
+  source        String
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime @default(now())
+
+  reservation Reservation          @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  allowance   ReservationAllowance @relation(fields: [allowanceId], references: [id], onDelete: Cascade)
 }

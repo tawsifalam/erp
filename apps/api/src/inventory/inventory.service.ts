@@ -17,7 +17,8 @@ function directionFor(
   if (
     type === MovementType.SALE ||
     type === MovementType.WASTE ||
-    type === MovementType.STAFF_MEAL
+    type === MovementType.STAFF_MEAL ||
+    type === MovementType.GUEST_INCLUSION
   ) {
     return MovementDirection.OUT;
   }

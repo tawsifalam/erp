@@ -22,7 +22,8 @@ Open **PMS** in the sidebar. Select **organization** and **branch** in the heade
 
 | Tab | Features |
 |-----|----------|
-| **Reservations** | List stays; create CONFIRMED/INQUIRY; **edit** (guest, dates, room, total); confirm inquiry; check-in/out; cancel; record `paidAmount`; **delete** (not while CHECKED_IN) |
+| **Reservations** | List stays; create CONFIRMED/INQUIRY; **adults/children**, **guest package**, optional **meals/night override**; **Inclusions** panel when CHECKED_IN; edit; confirm; check-in/out; cancel; payment; delete |
+| **Guest packages** | Inclusion recipes (meal + amenity BOM) and org packages — see [Guest inclusions](./guest-inclusions-module.md) |
 | **Rooms** | List rooms; create room; **edit** room number, type, price; **delete** (not OCCUPIED / active reservations); housekeeping status buttons; live updates via Socket.IO `room.status` |
 | **Room types** | Create/edit/**delete** types (`maxAdults`, `maxChildren`; delete blocked if rooms use type) |
 | **Guests** | Create/edit/delete guests (delete blocked if active reservations exist) |

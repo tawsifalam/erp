@@ -12,6 +12,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ReservationCheckedInEvent } from "../common/events/reservation-checked-in.event";
 import { ReservationPaymentEvent } from "../common/events/reservation-payment.event";
 import { ReservationCheckedOutEvent } from "../common/events/reservation-checked-out.event";
+import { InclusionsService } from "../inclusions/inclusions.service";
 
 const CANCELLABLE: string[] = [
   ReservationStatus.INQUIRY,
@@ -31,6 +32,7 @@ export class PmsService {
     private readonly availability: AvailabilityService,
     private readonly realtime: RealtimeGateway,
     private readonly events: EventEmitter2,
+    private readonly inclusions: InclusionsService,
   ) {}
 
   listBranches(organizationId: string) {
@@ -253,7 +255,7 @@ export class PmsService {
   listReservations(branchId: string) {
     return this.prisma.reservation.findMany({
       where: { branchId },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
       orderBy: { checkIn: "asc" },
     });
   }
@@ -261,7 +263,7 @@ export class PmsService {
   async getReservation(branchId: string, reservationId: string) {
     const reservation = await this.prisma.reservation.findFirst({
       where: { id: reservationId, branchId },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
     if (!reservation) throw new NotFoundException("Reservation not found");
     return reservation;
@@ -273,6 +275,17 @@ export class PmsService {
     }
     if (checkOut <= checkIn) {
       throw new BadRequestException("checkOut must be after checkIn");
+    }
+  }
+
+  private validateHeadcount(adultCount?: number, childCount?: number) {
+    const adults = adultCount ?? 1;
+    const children = childCount ?? 0;
+    if (!Number.isInteger(adults) || adults < 1) {
+      throw new BadRequestException("adultCount must be at least 1");
+    }
+    if (!Number.isInteger(children) || children < 0) {
+      throw new BadRequestException("childCount cannot be negative");
     }
   }
 
@@ -324,11 +337,33 @@ export class PmsService {
       totalAmount: number;
       paidAmount?: number;
       status?: ReservationStatus;
+      adultCount?: number;
+      childCount?: number;
+      packageId?: string;
+      mealsPerGuestPerNightOverride?: number;
     },
   ) {
     this.validateReservationFields(data);
+    this.validateHeadcount(data.adultCount, data.childCount);
+    if (data.mealsPerGuestPerNightOverride != null) {
+      if (
+        !Number.isInteger(data.mealsPerGuestPerNightOverride) ||
+        data.mealsPerGuestPerNightOverride <= 0
+      ) {
+        throw new BadRequestException("mealsPerGuestPerNightOverride must be a positive integer");
+      }
+    }
+
+    const orgId = await this.organizationIdForBranch(branchId);
+    await this.inclusions.assertPackageInOrg(orgId, data.packageId);
 
     const status = data.status ?? ReservationStatus.CONFIRMED;
+    const inclusionData = {
+      adultCount: data.adultCount ?? 1,
+      childCount: data.childCount ?? 0,
+      packageId: data.packageId ?? null,
+      mealsPerGuestPerNightOverride: data.mealsPerGuestPerNightOverride ?? null,
+    };
 
     if (status === ReservationStatus.INQUIRY) {
       return this.prisma.reservation.create({
@@ -341,8 +376,9 @@ export class PmsService {
           totalAmount: data.totalAmount,
           paidAmount: data.paidAmount ?? 0,
           status: ReservationStatus.INQUIRY,
+          ...inclusionData,
         },
-        include: { guest: true, room: { include: { roomType: true } } },
+        include: { guest: true, room: { include: { roomType: true } }, package: true },
       });
     }
 
@@ -358,8 +394,9 @@ export class PmsService {
         totalAmount: data.totalAmount,
         paidAmount: data.paidAmount ?? 0,
         status,
+        ...inclusionData,
       },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
   }
 
@@ -373,6 +410,10 @@ export class PmsService {
       checkOut?: Date;
       totalAmount?: number;
       paidAmount?: number;
+      adultCount?: number;
+      childCount?: number;
+      packageId?: string | null;
+      mealsPerGuestPerNightOverride?: number | null;
     },
   ) {
     const reservation = await this.getReservation(branchId, reservationId);
@@ -392,6 +433,25 @@ export class PmsService {
           "Checked-in reservations can only update totalAmount or paidAmount",
         );
       }
+    }
+
+    if (data.adultCount !== undefined || data.childCount !== undefined) {
+      this.validateHeadcount(
+        data.adultCount ?? reservation.adultCount,
+        data.childCount ?? reservation.childCount,
+      );
+    }
+    if (data.mealsPerGuestPerNightOverride !== undefined && data.mealsPerGuestPerNightOverride != null) {
+      if (
+        !Number.isInteger(data.mealsPerGuestPerNightOverride) ||
+        data.mealsPerGuestPerNightOverride <= 0
+      ) {
+        throw new BadRequestException("mealsPerGuestPerNightOverride must be a positive integer");
+      }
+    }
+    if (data.packageId) {
+      const orgId = await this.organizationIdForBranch(branchId);
+      await this.inclusions.assertPackageInOrg(orgId, data.packageId);
     }
 
     const checkIn = data.checkIn ?? reservation.checkIn;
@@ -420,8 +480,14 @@ export class PmsService {
         ...(data.checkOut !== undefined ? { checkOut: data.checkOut } : {}),
         ...(data.totalAmount !== undefined ? { totalAmount: data.totalAmount } : {}),
         ...(data.paidAmount !== undefined ? { paidAmount: data.paidAmount } : {}),
+        ...(data.adultCount !== undefined ? { adultCount: data.adultCount } : {}),
+        ...(data.childCount !== undefined ? { childCount: data.childCount } : {}),
+        ...(data.packageId !== undefined ? { packageId: data.packageId } : {}),
+        ...(data.mealsPerGuestPerNightOverride !== undefined
+          ? { mealsPerGuestPerNightOverride: data.mealsPerGuestPerNightOverride }
+          : {}),
       },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
   }
 
@@ -443,7 +509,7 @@ export class PmsService {
     return this.prisma.reservation.update({
       where: { id: reservationId },
       data: { status: ReservationStatus.CONFIRMED },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
   }
 
@@ -469,7 +535,7 @@ export class PmsService {
     const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: { paidAmount },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
 
     if (delta > 0) {
@@ -553,7 +619,7 @@ export class PmsService {
     return this.prisma.reservation.update({
       where: { id: reservationId },
       data: { status: ReservationStatus.CANCELLED },
-      include: { guest: true, room: { include: { roomType: true } } },
+      include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
   }
 

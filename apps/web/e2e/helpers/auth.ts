@@ -42,9 +42,9 @@ import {
   resetReportingState,
 } from "./reporting-state";
 import {
-  handleTenantMutation,
-  resetTenantState,
-} from "./tenant-state";
+  handleInclusionsMutation,
+  resetInclusionsState,
+} from "./inclusions-state";
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -257,6 +257,7 @@ export async function mockApiRoutes(page: Page) {
   resetInventoryState();
   resetAccountingState();
   resetHrState();
+  resetInclusionsState();
   resetReportingState();
   resetTenantState();
 
@@ -399,6 +400,14 @@ export async function mockApiRoutes(page: Page) {
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handlePmsRoomMutation(method, url, body);
+    return fulfillJson(route, result);
+  });
+
+  await page.route("**/localhost:3001/api/inclusions/**", async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleInclusionsMutation(method, url, body);
     return fulfillJson(route, result);
   });
 

@@ -50,6 +50,7 @@ export enum MovementType {
   SALE = "SALE",
   WASTE = "WASTE",
   STAFF_MEAL = "STAFF_MEAL",
+  GUEST_INCLUSION = "GUEST_INCLUSION",
   ADJUSTMENT = "ADJUSTMENT",
 }
 
@@ -74,6 +75,17 @@ export enum AttendanceType {
 export enum EmployeeStatus {
   ACTIVE = "ACTIVE",
   TERMINATED = "TERMINATED",
+}
+
+export enum InclusionType {
+  MEAL = "MEAL",
+  AMENITY_KIT = "AMENITY_KIT",
+}
+
+export enum InclusionConsumptionSource {
+  CHECK_IN = "CHECK_IN",
+  MANUAL = "MANUAL",
+  POS = "POS",
 }
 
 export enum PayrollRunStatus {

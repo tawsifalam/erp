@@ -10,6 +10,7 @@ export interface CreateMenuItemDto {
   name: string;
   price: number;
   isActive?: boolean;
+  isGuestInclusionMeal?: boolean;
 }
 
 export interface CreateOrderLineDto {
@@ -22,6 +23,7 @@ export interface CreateOrderDto {
   lines: CreateOrderLineDto[];
   tableNumber?: string;
   notes?: string;
+  reservationId?: string;
 }
 
 export interface UpdateOrderStatusDto {

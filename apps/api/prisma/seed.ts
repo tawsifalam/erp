@@ -9,6 +9,7 @@ import {
   MovementType,
   MovementDirection,
   AttendanceType,
+  InclusionType,
 } from "@erp/types";
 import { randomUUID } from "crypto";
 
@@ -258,6 +259,7 @@ async function main() {
   const poolDefs = [
     { code: "guest", name: "Guest / Kitchen", isSystem: true, sortOrder: 0 },
     { code: "staff", name: "Staff pantry", isSystem: true, sortOrder: 1 },
+    { code: "housekeeping", name: "Housekeeping", isSystem: true, sortOrder: 2 },
   ];
   const poolIds: Record<string, string> = {};
   for (const p of poolDefs) {
@@ -622,6 +624,128 @@ async function main() {
       },
     });
   }
+
+  // ─── Guest Inclusions (packages, recipes) ───────────────────────────────────
+  const hkInvItems = [
+    { name: "Toiletries Kit", sku: "HK-001", unit: "kit", lowStockThreshold: 10 },
+    { name: "Tissue Box", sku: "HK-002", unit: "box", lowStockThreshold: 20 },
+  ];
+  const hkInventoryIds: Record<string, string> = {};
+  for (const item of hkInvItems) {
+    const inv = await prisma.inventoryItem.upsert({
+      where: { branchId_sku: { branchId: mainBranch.id, sku: item.sku } },
+      update: {},
+      create: { id: sid("inv"), branchId: mainBranch.id, poolId: poolIds.housekeeping, ...item },
+    });
+    hkInventoryIds[item.name] = inv.id;
+    await prisma.inventoryMovement.create({
+      data: {
+        id: sid("im"),
+        itemId: inv.id,
+        branchId: mainBranch.id,
+        direction: MovementDirection.IN,
+        movementType: MovementType.PURCHASE,
+        quantity: 50,
+        notes: "Initial housekeeping stock",
+      },
+    });
+  }
+
+  const guestMealRecipe = await prisma.inclusionRecipe.upsert({
+    where: { branchId_name: { branchId: mainBranch.id, name: "Standard guest meal" } },
+    update: {},
+    create: {
+      id: sid("ir"),
+      branchId: mainBranch.id,
+      name: "Standard guest meal",
+      inclusionType: InclusionType.MEAL,
+      lines: {
+        create: [
+          { id: sid("irl"), inventoryItemId: inventoryIds["Rice"], quantity: 0.15 },
+          { id: sid("irl"), inventoryItemId: inventoryIds["Chicken"], quantity: 0.1 },
+        ],
+      },
+    },
+  });
+
+  const amenityKitRecipe = await prisma.inclusionRecipe.upsert({
+    where: { branchId_name: { branchId: mainBranch.id, name: "Standard amenity kit" } },
+    update: {},
+    create: {
+      id: sid("ir"),
+      branchId: mainBranch.id,
+      name: "Standard amenity kit",
+      inclusionType: InclusionType.AMENITY_KIT,
+      lines: {
+        create: [
+          { id: sid("irl"), inventoryItemId: hkInventoryIds["Toiletries Kit"], quantity: 1 },
+          { id: sid("irl"), inventoryItemId: hkInventoryIds["Tissue Box"], quantity: 1 },
+        ],
+      },
+    },
+  });
+
+  const fullBoardPackage = await prisma.inclusionPackage.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: "Full board (3 meals)" } },
+    update: {},
+    create: {
+      id: sid("ipkg"),
+      organizationId: org.id,
+      name: "Full board (3 meals)",
+      isDefault: true,
+      rules: {
+        create: [
+          {
+            id: sid("ipr"),
+            inclusionType: InclusionType.MEAL,
+            inclusionRecipeId: guestMealRecipe.id,
+            quantityPerGuestPerNight: 3,
+            sortOrder: 0,
+          },
+          {
+            id: sid("ipr"),
+            inclusionType: InclusionType.AMENITY_KIT,
+            inclusionRecipeId: amenityKitRecipe.id,
+            quantityPerGuestPerStay: 1,
+            autoIssueOnCheckIn: true,
+            sortOrder: 1,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.inclusionPackage.upsert({
+    where: { organizationId_name: { organizationId: org.id, name: "Budget (1 meal)" } },
+    update: {},
+    create: {
+      id: sid("ipkg"),
+      organizationId: org.id,
+      name: "Budget (1 meal)",
+      isDefault: false,
+      rules: {
+        create: [
+          {
+            id: sid("ipr"),
+            inclusionType: InclusionType.MEAL,
+            inclusionRecipeId: guestMealRecipe.id,
+            quantityPerGuestPerNight: 1,
+            sortOrder: 0,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.menuItem.update({
+    where: { id: createdMenuItems["Chicken Biryani"] },
+    data: { isGuestInclusionMeal: true },
+  });
+
+  await prisma.reservation.updateMany({
+    where: { branchId: mainBranch.id, status: ReservationStatus.CHECKED_IN },
+    data: { adultCount: 2, childCount: 0, packageId: fullBoardPackage.id },
+  });
 
   // ─── Waste Record ──────────────────────────────────────────────────────────
   await prisma.inventoryMovement.create({

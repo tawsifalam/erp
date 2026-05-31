@@ -185,6 +185,23 @@ describe("InventoryService", () => {
       });
     });
 
+    it("assigns direction OUT for GUEST_INCLUSION", async () => {
+      mockPrisma.inventoryMovement.create.mockResolvedValue({});
+
+      await service.createMovement({
+        itemId: "item-1",
+        branchId: "branch-1",
+        movementType: MovementType.GUEST_INCLUSION,
+        quantity: 1,
+      });
+
+      expect(mockPrisma.inventoryMovement.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          direction: MovementDirection.OUT,
+        }),
+      });
+    });
+
     it("assigns direction IN for ADJUSTMENT with positive quantity", async () => {
       mockPrisma.inventoryMovement.create.mockResolvedValue({});
 

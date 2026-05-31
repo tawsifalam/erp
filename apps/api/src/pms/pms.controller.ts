@@ -213,6 +213,10 @@ export class PmsController {
       totalAmount: number;
       paidAmount?: number;
       status?: ReservationStatus;
+      adultCount?: number;
+      childCount?: number;
+      packageId?: string;
+      mealsPerGuestPerNightOverride?: number;
     },
   ) {
     return this.pms.createReservation(body.branchId || t.branchId!, {
@@ -223,6 +227,10 @@ export class PmsController {
       totalAmount: body.totalAmount,
       paidAmount: body.paidAmount,
       status: body.status,
+      adultCount: body.adultCount,
+      childCount: body.childCount,
+      packageId: body.packageId,
+      mealsPerGuestPerNightOverride: body.mealsPerGuestPerNightOverride,
     });
   }
 
@@ -240,6 +248,10 @@ export class PmsController {
       checkOut?: string;
       totalAmount?: number;
       paidAmount?: number;
+      adultCount?: number;
+      childCount?: number;
+      packageId?: string | null;
+      mealsPerGuestPerNightOverride?: number | null;
     },
   ) {
     return this.pms.updateReservation(this.branchId(t, branchId), id, {

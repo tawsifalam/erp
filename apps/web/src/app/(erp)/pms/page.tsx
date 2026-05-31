@@ -9,6 +9,7 @@ import { ReservationsTab } from "./reservations-tab";
 import { RoomsTab } from "./rooms-tab";
 import { RoomTypesTab } from "./room-types-tab";
 import { GuestsTab } from "./guests-tab";
+import { InclusionsTab } from "./inclusions-tab";
 
 export default function PmsPage() {
   const tenant = useTenantHeaders();
@@ -23,6 +24,7 @@ export default function PmsPage() {
           <Tabs.Trigger value="rooms">Rooms</Tabs.Trigger>
           <Tabs.Trigger value="room-types">Room types</Tabs.Trigger>
           <Tabs.Trigger value="guests">Guests</Tabs.Trigger>
+          <Tabs.Trigger value="inclusions">Guest packages</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="reservations">
           <ReservationsTab tenant={tenant} />
@@ -35,6 +37,9 @@ export default function PmsPage() {
         </Tabs.Content>
         <Tabs.Content value="guests">
           <GuestsTab tenant={tenant} />
+        </Tabs.Content>
+        <Tabs.Content value="inclusions">
+          <InclusionsTab tenant={tenant} />
         </Tabs.Content>
       </Tabs.Root>
     </DashboardShell>

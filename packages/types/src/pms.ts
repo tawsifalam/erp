@@ -31,6 +31,10 @@ export interface CreateReservationDto {
   checkOut: string;
   totalAmount: number;
   status?: ReservationStatus;
+  adultCount?: number;
+  childCount?: number;
+  packageId?: string;
+  mealsPerGuestPerNightOverride?: number;
 }
 
 export interface AvailabilityQuery {

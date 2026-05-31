@@ -108,8 +108,9 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
         </Button>
       </Flex>
       <Text fontSize="sm" color="fg.muted" mb={3}>
-        Separate stock for guest kitchen, staff pantry, and custom pools. Pool codes are text slugs
-        (e.g. minibar).
+        Separate stock for guest kitchen, staff pantry, housekeeping (amenity kits), and custom
+        pools. Pool codes are text slugs (e.g. minibar). System pools are added automatically when
+        missing.
       </Text>
 
       {showForm && (

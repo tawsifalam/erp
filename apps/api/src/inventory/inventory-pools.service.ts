@@ -33,7 +33,8 @@ export class InventoryPoolsService {
     }
   }
 
-  listPools(organizationId: string, activeOnly = false) {
+  async listPools(organizationId: string, activeOnly = false) {
+    await this.seedDefaultPools(organizationId);
     return this.prisma.inventoryPool.findMany({
       where: {
         organizationId,
@@ -52,6 +53,7 @@ export class InventoryPoolsService {
   }
 
   async getPoolByCode(organizationId: string, code: string) {
+    await this.seedDefaultPools(organizationId);
     const pool = await this.prisma.inventoryPool.findFirst({
       where: { organizationId, code: normalizePoolCode(code) },
     });

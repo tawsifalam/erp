@@ -40,11 +40,21 @@ describe("InventoryPoolsService", () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it("seeds default guest and staff pools", async () => {
+  it("seeds default guest, staff, and housekeeping pools", async () => {
     mockPrisma.inventoryPool.upsert.mockResolvedValue({});
 
     await service.seedDefaultPools("org-1");
 
-    expect(mockPrisma.inventoryPool.upsert).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.inventoryPool.upsert).toHaveBeenCalledTimes(3);
+  });
+
+  it("backfills missing default pools when listing", async () => {
+    mockPrisma.inventoryPool.upsert.mockResolvedValue({});
+    mockPrisma.inventoryPool.findMany.mockResolvedValue([]);
+
+    await service.listPools("org-1");
+
+    expect(mockPrisma.inventoryPool.upsert).toHaveBeenCalledTimes(3);
+    expect(mockPrisma.inventoryPool.findMany).toHaveBeenCalled();
   });
 });

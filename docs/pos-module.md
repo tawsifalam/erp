@@ -23,8 +23,8 @@ Select **organization** and **branch** in the header first.
 
 | Tab | Features |
 |-----|----------|
-| **Orders** | List orders (filter active/all/status); **new order** cart (menu pick, table #, notes, qty +/-); Send to Kitchen; **Complete & Pay** (full or partial); **Cancel** (DRAFT or SUBMITTED); **Delete** (DRAFT or CANCELLED); link to Accounting journals |
-| **Menu** | Create/edit/**delete** categories; create/edit/**delete** items; **active/inactive** toggle |
+| **Orders** | List orders; **new order** cart; optional **Charge to room** (checked-in reservation); table #, notes; Send to Kitchen; Complete & Pay; Cancel; Delete |
+| **Menu** | Categories and items; **Guest inclusion meal** flag for comp board items linked to stay allowances |
 
 ### `/pos/kitchen` (Kitchen display)
 

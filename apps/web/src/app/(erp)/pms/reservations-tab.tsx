@@ -18,6 +18,8 @@ import type { TenantHeaders } from "@/lib/api-client";
 import type { Guest, Reservation, Room } from "@/lib/pms-types";
 import { appToast } from "@/lib/app-toast";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
+import { ReservationInclusionsPanel } from "./reservation-inclusions-panel";
+import type { InclusionPackageOption } from "@/lib/pms-types";
 
 export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const { ask, dialog } = useConfirmDialog();
@@ -35,7 +37,13 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     totalAmount: "",
     status: "CONFIRMED" as "CONFIRMED" | "INQUIRY",
     paidAmount: "",
+    adultCount: "1",
+    childCount: "0",
+    packageId: "",
+    mealsPerGuestPerNightOverride: "",
   });
+  const [packages, setPackages] = useState<InclusionPackageOption[]>([]);
+  const [inclusionsReservationId, setInclusionsReservationId] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
@@ -52,12 +60,14 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     if (!tenant.organizationId || !branchId) return;
     setLoading(true);
     try {
-      const [resData, guestData] = await Promise.all([
+      const [resData, guestData, pkgData] = await Promise.all([
         apiFetch<Reservation[]>(`/pms/reservations?branchId=${branchId}`, { tenant }),
         apiFetch<Guest[]>("/pms/guests", { tenant }),
+        apiFetch<InclusionPackageOption[]>("/inclusions/packages", { tenant }),
       ]);
       setReservations(resData);
       setGuests(guestData);
+      setPackages(pkgData.map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault })));
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to load reservations");
     } finally {
@@ -192,6 +202,12 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
           totalAmount: Number(form.totalAmount),
           paidAmount: form.paidAmount ? Number(form.paidAmount) : undefined,
           status: form.status,
+          adultCount: Number(form.adultCount) || 1,
+          childCount: Number(form.childCount) || 0,
+          packageId: form.packageId || undefined,
+          mealsPerGuestPerNightOverride: form.mealsPerGuestPerNightOverride
+            ? Number(form.mealsPerGuestPerNightOverride)
+            : undefined,
         }),
       });
       setShowForm(false);
@@ -203,6 +219,10 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
         totalAmount: "",
         status: "CONFIRMED",
         paidAmount: "",
+        adultCount: "1",
+        childCount: "0",
+        packageId: "",
+        mealsPerGuestPerNightOverride: "",
       });
       load();
     } catch (e) {
@@ -359,6 +379,52 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
                   onChange={(e) => setForm({ ...form, paidAmount: e.target.value })}
                 />
               </FormField>
+              <FormField label="Adults">
+                <Input
+                  size="sm"
+                  w="70px"
+                  type="number"
+                  min={1}
+                  value={form.adultCount}
+                  onChange={(e) => setForm({ ...form, adultCount: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Children">
+                <Input
+                  size="sm"
+                  w="70px"
+                  type="number"
+                  min={0}
+                  value={form.childCount}
+                  onChange={(e) => setForm({ ...form, childCount: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Package">
+                <AppSelect
+                  width="180px"
+                  items={[
+                    { value: "", label: "Default package" },
+                    ...packages.map((p) => ({
+                      value: p.id,
+                      label: p.isDefault ? `${p.name} (default)` : p.name,
+                    })),
+                  ]}
+                  value={form.packageId}
+                  onValueChange={(v) => setForm({ ...form, packageId: v })}
+                />
+              </FormField>
+              <FormField label="Meals/guest/night override">
+                <Input
+                  size="sm"
+                  w="80px"
+                  type="number"
+                  placeholder="—"
+                  value={form.mealsPerGuestPerNightOverride}
+                  onChange={(e) =>
+                    setForm({ ...form, mealsPerGuestPerNightOverride: e.target.value })
+                  }
+                />
+              </FormField>
             </Flex>
             {form.status === "INQUIRY" && (
               <InquiryRoomPicker
@@ -434,6 +500,15 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
                           onClick={() => handleAction(r.id, "check-in")}
                         >
                           Check in
+                        </Button>
+                      )}
+                      {r.status === "CHECKED_IN" && (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => setInclusionsReservationId(r.id)}
+                        >
+                          Inclusions
                         </Button>
                       )}
                       {r.status === "CHECKED_IN" && (
@@ -608,6 +683,15 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
             </Flex>
           </Box>
         </Box>
+      )}
+
+      {inclusionsReservationId && branchId && (
+        <ReservationInclusionsPanel
+          tenant={tenant}
+          branchId={branchId}
+          reservationId={inclusionsReservationId}
+          onClose={() => setInclusionsReservationId(null)}
+        />
       )}
     </Box>
     </>

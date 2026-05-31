@@ -138,6 +138,9 @@ importers:
       '@erp/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@erp/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@propelauth/nextjs':
         specifier: ^0.3.16
         version: 0.3.17(next@15.5.18(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)

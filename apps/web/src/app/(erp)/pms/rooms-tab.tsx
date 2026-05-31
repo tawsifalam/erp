@@ -6,10 +6,10 @@ import {
   Button,
   Flex,
   Input,
-  NativeSelect,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { EmptyState, LoadingState, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -163,19 +163,16 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
             value={form.roomNumber}
             onChange={(e) => setForm({ ...form, roomNumber: e.target.value })}
           />
-          <NativeSelect.Root size="sm" w="180px">
-            <NativeSelect.Field
-              value={form.roomTypeId}
-              onChange={(e) => setForm({ ...form, roomTypeId: e.target.value })}
-            >
-              <option value="">Room type</option>
-              {roomTypes.map((rt) => (
-                <option key={rt.id} value={rt.id}>
-                  {rt.name}
-                </option>
-              ))}
-            </NativeSelect.Field>
-          </NativeSelect.Root>
+          <AppSelect
+            width="180px"
+            items={[
+              { value: "", label: "Room type" },
+              ...roomTypes.map((rt) => ({ value: rt.id, label: rt.name })),
+            ]}
+            value={form.roomTypeId}
+            onValueChange={(v) => setForm({ ...form, roomTypeId: v })}
+            placeholder="Room type"
+          />
           <Input
             size="sm"
             w="120px"
@@ -289,19 +286,15 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
                 value={editForm.roomNumber}
                 onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value })}
               />
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={editForm.roomTypeId}
-                  onChange={(e) => setEditForm({ ...editForm, roomTypeId: e.target.value })}
-                >
-                  <option value="">Room type</option>
-                  {roomTypes.map((rt) => (
-                    <option key={rt.id} value={rt.id}>
-                      {rt.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                items={[
+                  { value: "", label: "Room type" },
+                  ...roomTypes.map((rt) => ({ value: rt.id, label: rt.name })),
+                ]}
+                value={editForm.roomTypeId}
+                onValueChange={(v) => setEditForm({ ...editForm, roomTypeId: v })}
+                placeholder="Room type"
+              />
               <Input
                 size="sm"
                 type="number"

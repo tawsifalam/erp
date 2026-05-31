@@ -6,11 +6,11 @@ import {
   Button,
   Flex,
   Input,
-  NativeSelect,
   Stack,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { EmptyState, LoadingState, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -260,33 +260,30 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
         <Box bg="white" borderRadius="md" p={4} mb={4}>
           <Stack gap={3}>
             <Flex gap={2} wrap="wrap">
-              <NativeSelect.Root size="sm" w="160px">
-                <NativeSelect.Field
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      status: e.target.value as "CONFIRMED" | "INQUIRY",
-                    })
-                  }
-                >
-                  <option value="CONFIRMED">Confirmed</option>
-                  <option value="INQUIRY">Inquiry (hold)</option>
-                </NativeSelect.Field>
-              </NativeSelect.Root>
-              <NativeSelect.Root size="sm" w="200px">
-                <NativeSelect.Field
-                  value={form.guestId}
-                  onChange={(e) => setForm({ ...form, guestId: e.target.value })}
-                >
-                  <option value="">Guest</option>
-                  {guests.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.fullName}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                width="160px"
+                items={[
+                  { value: "CONFIRMED", label: "Confirmed" },
+                  { value: "INQUIRY", label: "Inquiry (hold)" },
+                ]}
+                value={form.status}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    status: v as "CONFIRMED" | "INQUIRY",
+                  })
+                }
+              />
+              <AppSelect
+                width="200px"
+                items={[
+                  { value: "", label: "Guest" },
+                  ...guests.map((g) => ({ value: g.id, label: g.fullName })),
+                ]}
+                value={form.guestId}
+                onValueChange={(v) => setForm({ ...form, guestId: v })}
+                placeholder="Guest"
+              />
               <Input
                 size="sm"
                 w="150px"
@@ -302,19 +299,19 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
                 onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
               />
               {form.status === "CONFIRMED" && (
-                <NativeSelect.Root size="sm" w="220px">
-                  <NativeSelect.Field
-                    value={form.roomId}
-                    onChange={(e) => setForm({ ...form, roomId: e.target.value })}
-                  >
-                    <option value="">Available room</option>
-                    {roomOptions.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.roomNumber} — {r.roomType.name}
-                      </option>
-                    ))}
-                  </NativeSelect.Field>
-                </NativeSelect.Root>
+                <AppSelect
+                  width="220px"
+                  items={[
+                    { value: "", label: "Available room" },
+                    ...roomOptions.map((r) => ({
+                      value: r.id,
+                      label: `${r.roomNumber} — ${r.roomType.name}`,
+                    })),
+                  ]}
+                  value={form.roomId}
+                  onValueChange={(v) => setForm({ ...form, roomId: v })}
+                  placeholder="Available room"
+                />
               )}
               <Input
                 size="sm"
@@ -491,19 +488,15 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
               Edit reservation
             </Text>
             <Stack gap={3}>
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={editForm.guestId}
-                  onChange={(e) => setEditForm({ ...editForm, guestId: e.target.value })}
-                >
-                  <option value="">Guest</option>
-                  {guests.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.fullName}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                items={[
+                  { value: "", label: "Guest" },
+                  ...guests.map((g) => ({ value: g.id, label: g.fullName })),
+                ]}
+                value={editForm.guestId}
+                onValueChange={(v) => setEditForm({ ...editForm, guestId: v })}
+                placeholder="Guest"
+              />
               <Flex gap={2}>
                 <Input
                   size="sm"
@@ -518,19 +511,18 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
                   onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
                 />
               </Flex>
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={editForm.roomId}
-                  onChange={(e) => setEditForm({ ...editForm, roomId: e.target.value })}
-                >
-                  <option value="">Available room</option>
-                  {editRooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.roomNumber} — {room.roomType.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                items={[
+                  { value: "", label: "Available room" },
+                  ...editRooms.map((room) => ({
+                    value: room.id,
+                    label: `${room.roomNumber} — ${room.roomType.name}`,
+                  })),
+                ]}
+                value={editForm.roomId}
+                onValueChange={(v) => setEditForm({ ...editForm, roomId: v })}
+                placeholder="Available room"
+              />
               <Input
                 size="sm"
                 type="number"
@@ -607,15 +599,18 @@ function InquiryRoomPicker({
   }, [branchId, tenant.organizationId]);
 
   return (
-    <NativeSelect.Root size="sm" w="220px">
-      <NativeSelect.Field value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Select room for inquiry</option>
-        {rooms.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.roomNumber} — {r.roomType.name} ({r.status})
-          </option>
-        ))}
-      </NativeSelect.Field>
-    </NativeSelect.Root>
+    <AppSelect
+      width="220px"
+      items={[
+        { value: "", label: "Select room for inquiry" },
+        ...rooms.map((r) => ({
+          value: r.id,
+          label: `${r.roomNumber} — ${r.roomType.name} (${r.status})`,
+        })),
+      ]}
+      value={value}
+      onValueChange={onChange}
+      placeholder="Select room for inquiry"
+    />
   );
 }

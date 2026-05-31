@@ -8,9 +8,9 @@ import {
   Text,
   Input,
   Flex,
-  NativeSelect,
   Stack,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { EmptyState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -205,19 +205,16 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         <Button size="sm" onClick={load}>
           Refresh
         </Button>
-        <NativeSelect.Root size="sm" w="200px">
-          <NativeSelect.Field
-            value={poolFilter}
-            onChange={(e) => setPoolFilter(e.target.value)}
-          >
-            <option value="">All pools</option>
-            {pools.map((p) => (
-              <option key={p.id} value={p.code}>
-                {p.name}
-              </option>
-            ))}
-          </NativeSelect.Field>
-        </NativeSelect.Root>
+        <AppSelect
+          width="200px"
+          items={[
+            { value: "", label: "All pools" },
+            ...pools.map((p) => ({ value: p.code, label: p.name })),
+          ]}
+          value={poolFilter}
+          onValueChange={setPoolFilter}
+          placeholder="All pools"
+        />
         <Button size="sm" variant="outline" onClick={() => setShowItemForm(!showItemForm)}>
           {showItemForm ? "Cancel" : "+ New Item"}
         </Button>
@@ -261,18 +258,13 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
                   setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
                 }
               />
-              <NativeSelect.Root size="sm" w="180px">
-                <NativeSelect.Field
-                  value={itemForm.poolId}
-                  onChange={(e) => setItemForm({ ...itemForm, poolId: e.target.value })}
-                >
-                  {pools.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                width="180px"
+                items={pools.map((p) => ({ value: p.id, label: p.name }))}
+                value={itemForm.poolId}
+                onValueChange={(v) => setItemForm({ ...itemForm, poolId: v })}
+                placeholder="Pool"
+              />
             </Flex>
             <Button size="sm" colorPalette="green" w="fit-content" onClick={handleCreateItem}>
               Create Item
@@ -285,43 +277,38 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         <Box bg="white" borderRadius="md" p={4} mb={4}>
           <Stack gap={3}>
             <Flex gap={3} wrap="wrap">
-              <NativeSelect.Root size="sm" w="200px">
-                <NativeSelect.Field
-                  value={movForm.itemId}
-                  onChange={(e) => setMovForm({ ...movForm, itemId: e.target.value })}
-                >
-                  <option value="">Select Item</option>
-                  {items.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name} ({i.sku})
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
-              <NativeSelect.Root size="sm" w="160px">
-                <NativeSelect.Field
-                  value={movForm.movementType}
-                  onChange={(e) => setMovForm({ ...movForm, movementType: e.target.value })}
-                >
-                  <option value="PURCHASE">Purchase (IN)</option>
-                  <option value="SALE">Sale (OUT)</option>
-                  <option value="WASTE">Waste (OUT)</option>
-                  <option value="STAFF_MEAL">Staff Meal (OUT)</option>
-                  <option value="ADJUSTMENT">Adjustment</option>
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                width="200px"
+                items={[
+                  { value: "", label: "Select Item" },
+                  ...items.map((i) => ({ value: i.id, label: `${i.name} (${i.sku})` })),
+                ]}
+                value={movForm.itemId}
+                onValueChange={(v) => setMovForm({ ...movForm, itemId: v })}
+                placeholder="Select Item"
+              />
+              <AppSelect
+                width="160px"
+                items={[
+                  { value: "PURCHASE", label: "Purchase (IN)" },
+                  { value: "SALE", label: "Sale (OUT)" },
+                  { value: "WASTE", label: "Waste (OUT)" },
+                  { value: "STAFF_MEAL", label: "Staff Meal (OUT)" },
+                  { value: "ADJUSTMENT", label: "Adjustment" },
+                ]}
+                value={movForm.movementType}
+                onValueChange={(v) => setMovForm({ ...movForm, movementType: v })}
+              />
               {movForm.movementType === "ADJUSTMENT" && (
-                <NativeSelect.Root size="sm" w="120px">
-                  <NativeSelect.Field
-                    value={movForm.adjustmentDirection}
-                    onChange={(e) =>
-                      setMovForm({ ...movForm, adjustmentDirection: e.target.value })
-                    }
-                  >
-                    <option value="IN">Adjust IN</option>
-                    <option value="OUT">Adjust OUT</option>
-                  </NativeSelect.Field>
-                </NativeSelect.Root>
+                <AppSelect
+                  width="120px"
+                  items={[
+                    { value: "IN", label: "Adjust IN" },
+                    { value: "OUT", label: "Adjust OUT" },
+                  ]}
+                  value={movForm.adjustmentDirection}
+                  onValueChange={(v) => setMovForm({ ...movForm, adjustmentDirection: v })}
+                />
               )}
               <Input
                 size="sm"

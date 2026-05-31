@@ -6,12 +6,12 @@ import {
   Button,
   Flex,
   Input,
-  NativeSelect,
   Stack,
   Table,
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader, MoneyText, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -196,18 +196,18 @@ export default function AccountingPage() {
                 value={accountForm.name}
                 onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
               />
-              <NativeSelect.Root size="sm" w="140px">
-                <NativeSelect.Field
-                  value={accountForm.type}
-                  onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value })}
-                >
-                  <option value="ASSET">Asset</option>
-                  <option value="LIABILITY">Liability</option>
-                  <option value="EQUITY">Equity</option>
-                  <option value="REVENUE">Revenue</option>
-                  <option value="EXPENSE">Expense</option>
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                width="140px"
+                items={[
+                  { value: "ASSET", label: "Asset" },
+                  { value: "LIABILITY", label: "Liability" },
+                  { value: "EQUITY", label: "Equity" },
+                  { value: "REVENUE", label: "Revenue" },
+                  { value: "EXPENSE", label: "Expense" },
+                ]}
+                value={accountForm.type}
+                onValueChange={(v) => setAccountForm({ ...accountForm, type: v })}
+              />
               <Button size="sm" colorPalette="blue" onClick={handleCreateAccount}>
                 Add
               </Button>
@@ -251,19 +251,20 @@ export default function AccountingPage() {
               />
               {journalForm.lines.map((line, i) => (
                 <Flex key={i} gap={2} wrap="wrap">
-                  <NativeSelect.Root size="sm" flex="1" minW="200px">
-                    <NativeSelect.Field
-                      value={line.accountId}
-                      onChange={(e) => updateLine(i, { accountId: e.target.value })}
-                    >
-                      <option value="">Account</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} — {a.name}
-                        </option>
-                      ))}
-                    </NativeSelect.Field>
-                  </NativeSelect.Root>
+                  <AppSelect
+                    flex={1}
+                    minWidth="200px"
+                    items={[
+                      { value: "", label: "Account" },
+                      ...accounts.map((a) => ({
+                        value: a.id,
+                        label: `${a.code} — ${a.name}`,
+                      })),
+                    ]}
+                    value={line.accountId}
+                    onValueChange={(v) => updateLine(i, { accountId: v })}
+                    placeholder="Account"
+                  />
                   <Input
                     size="sm"
                     w="100px"

@@ -6,12 +6,12 @@ import {
   Button,
   Flex,
   Input,
-  NativeSelect,
   Stack,
   Table,
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader, MoneyText, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -332,28 +332,23 @@ export default function HrPage() {
           )}
           <Box bg="white" borderRadius="md" p={4} maxW="480px" mb={4}>
             <Stack gap={3}>
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={clockEmployeeId}
-                  onChange={(e) => setClockEmployeeId(e.target.value)}
-                >
-                  <option value="">Select employee</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={clockType}
-                  onChange={(e) => setClockType(e.target.value as "CLOCK_IN" | "CLOCK_OUT")}
-                >
-                  <option value="CLOCK_IN">Clock in</option>
-                  <option value="CLOCK_OUT">Clock out</option>
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                items={[
+                  { value: "", label: "Select employee" },
+                  ...employees.map((e) => ({ value: e.id, label: e.name })),
+                ]}
+                value={clockEmployeeId}
+                onValueChange={setClockEmployeeId}
+                placeholder="Select employee"
+              />
+              <AppSelect
+                items={[
+                  { value: "CLOCK_IN", label: "Clock in" },
+                  { value: "CLOCK_OUT", label: "Clock out" },
+                ]}
+                value={clockType}
+                onValueChange={(v) => setClockType(v as "CLOCK_IN" | "CLOCK_OUT")}
+              />
               <Button size="sm" colorPalette="green" w="fit-content" onClick={handleClock}>
                 Record attendance
               </Button>
@@ -418,23 +413,23 @@ export default function HrPage() {
               />
               {recipeForm.lines.map((line, idx) => (
                 <Flex key={idx} gap={2}>
-                  <NativeSelect.Root size="sm" flex={1}>
-                    <NativeSelect.Field
-                      value={line.inventoryItemId}
-                      onChange={(e) => {
-                        const lines = [...recipeForm.lines];
-                        lines[idx] = { ...lines[idx], inventoryItemId: e.target.value };
-                        setRecipeForm({ ...recipeForm, lines });
-                      }}
-                    >
-                      <option value="">Ingredient</option>
-                      {inventoryItems.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name} ({i.unit})
-                        </option>
-                      ))}
-                    </NativeSelect.Field>
-                  </NativeSelect.Root>
+                  <AppSelect
+                    flex={1}
+                    items={[
+                      { value: "", label: "Ingredient" },
+                      ...inventoryItems.map((i) => ({
+                        value: i.id,
+                        label: `${i.name} (${i.unit})`,
+                      })),
+                    ]}
+                    value={line.inventoryItemId}
+                    onValueChange={(v) => {
+                      const lines = [...recipeForm.lines];
+                      lines[idx] = { ...lines[idx], inventoryItemId: v };
+                      setRecipeForm({ ...recipeForm, lines });
+                    }}
+                    placeholder="Ingredient"
+                  />
                   <Input
                     size="sm"
                     w="120px"
@@ -478,34 +473,24 @@ export default function HrPage() {
               Select employee and meal recipe. Enter how many meals consumed.
             </Text>
             <Stack gap={3}>
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={mealForm.employeeId}
-                  onChange={(e) => setMealForm({ ...mealForm, employeeId: e.target.value })}
-                >
-                  <option value="">Employee</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={mealForm.staffMealRecipeId}
-                  onChange={(e) =>
-                    setMealForm({ ...mealForm, staffMealRecipeId: e.target.value })
-                  }
-                >
-                  <option value="">Meal recipe</option>
-                  {mealRecipes.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                items={[
+                  { value: "", label: "Employee" },
+                  ...employees.map((e) => ({ value: e.id, label: e.name })),
+                ]}
+                value={mealForm.employeeId}
+                onValueChange={(v) => setMealForm({ ...mealForm, employeeId: v })}
+                placeholder="Employee"
+              />
+              <AppSelect
+                items={[
+                  { value: "", label: "Meal recipe" },
+                  ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+                value={mealForm.staffMealRecipeId}
+                onValueChange={(v) => setMealForm({ ...mealForm, staffMealRecipeId: v })}
+                placeholder="Meal recipe"
+              />
               <Input
                 size="sm"
                 type="number"
@@ -515,20 +500,16 @@ export default function HrPage() {
                 value={mealForm.mealCount}
                 onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
               />
-              <NativeSelect.Root size="sm">
-                <NativeSelect.Field
-                  value={mealForm.deductFromPayroll ? "yes" : "no"}
-                  onChange={(e) =>
-                    setMealForm({
-                      ...mealForm,
-                      deductFromPayroll: e.target.value === "yes",
-                    })
-                  }
-                >
-                  <option value="no">Do not deduct from payroll</option>
-                  <option value="yes">Deduct from next payroll</option>
-                </NativeSelect.Field>
-              </NativeSelect.Root>
+              <AppSelect
+                items={[
+                  { value: "no", label: "Do not deduct from payroll" },
+                  { value: "yes", label: "Deduct from next payroll" },
+                ]}
+                value={mealForm.deductFromPayroll ? "yes" : "no"}
+                onValueChange={(v) =>
+                  setMealForm({ ...mealForm, deductFromPayroll: v === "yes" })
+                }
+              />
               <Button size="sm" colorPalette="green" w="fit-content" onClick={handleStaffMeal}>
                 Record meal
               </Button>

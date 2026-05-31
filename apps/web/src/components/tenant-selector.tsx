@@ -1,14 +1,33 @@
 "use client";
 
-import { Flex, NativeSelect, Text } from "@chakra-ui/react";
+import { Flex, Text } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { useTenant } from "@/lib/tenant-context";
 import { getBranchesForOrg } from "@/lib/tenant";
+import { useMemo } from "react";
 
 export function TenantSelector() {
   const tenant = useTenant();
   const branches = tenant.organizationId
     ? getBranchesForOrg(tenant.memberships, tenant.organizationId)
     : [];
+
+  const orgItems = useMemo(
+    () =>
+      tenant.memberships.map((m) => ({
+        value: m.organizationId,
+        label: m.organization.name,
+      })),
+    [tenant.memberships],
+  );
+
+  const branchItems = useMemo(
+    () =>
+      branches.length === 0
+        ? [{ value: "", label: "No branches" }]
+        : branches.map((b) => ({ value: b.id, label: b.name })),
+    [branches],
+  );
 
   if (tenant.loading) {
     return (
@@ -32,43 +51,28 @@ export function TenantSelector() {
         <Text fontSize="xs" color="fg.muted">
           Organization
         </Text>
-        <NativeSelect.Root size="sm" w="200px">
-          <NativeSelect.Field
-            data-testid="tenant-org-select"
-            aria-label="Organization"
-            value={tenant.organizationId ?? ""}
-            onChange={(e) => tenant.setOrganizationId(e.target.value)}
-          >
-            {tenant.memberships.map((m) => (
-              <option key={m.organizationId} value={m.organizationId}>
-                {m.organization.name}
-              </option>
-            ))}
-          </NativeSelect.Field>
-        </NativeSelect.Root>
+        <AppSelect
+          items={orgItems}
+          value={tenant.organizationId ?? ""}
+          onValueChange={tenant.setOrganizationId}
+          aria-label="Organization"
+          data-testid="tenant-org-select"
+          width="200px"
+        />
       </Flex>
       <Flex direction="column" gap={1}>
         <Text fontSize="xs" color="fg.muted">
           Branch
         </Text>
-        <NativeSelect.Root size="sm" w="180px" disabled={branches.length === 0}>
-          <NativeSelect.Field
-            data-testid="tenant-branch-select"
-            aria-label="Branch"
-            value={tenant.branchId ?? ""}
-            onChange={(e) => tenant.setBranchId(e.target.value)}
-          >
-            {branches.length === 0 ? (
-              <option value="">No branches</option>
-            ) : (
-              branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))
-            )}
-          </NativeSelect.Field>
-        </NativeSelect.Root>
+        <AppSelect
+          items={branchItems}
+          value={tenant.branchId ?? ""}
+          onValueChange={tenant.setBranchId}
+          aria-label="Branch"
+          data-testid="tenant-branch-select"
+          width="180px"
+          disabled={branches.length === 0}
+        />
       </Flex>
     </Flex>
   );

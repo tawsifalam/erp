@@ -7,11 +7,11 @@ import {
   Flex,
   Input,
   Link,
-  NativeSelect,
   Stack,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import NextLink from "next/link";
 import { EmptyState, LoadingState, MoneyText, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -193,21 +193,21 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
         <Button size="sm" colorPalette="blue" onClick={() => setShowNewOrder(!showNewOrder)}>
           {showNewOrder ? "Cancel" : "+ New Order"}
         </Button>
-        <NativeSelect.Root size="sm" w="160px">
-          <NativeSelect.Field
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="active">Active orders</option>
-            <option value="all">All orders</option>
-            <option value="DRAFT">Draft</option>
-            <option value="SUBMITTED">Submitted</option>
-            <option value="PREPARING">Preparing</option>
-            <option value="READY">Ready</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </NativeSelect.Field>
-        </NativeSelect.Root>
+        <AppSelect
+          width="160px"
+          items={[
+            { value: "active", label: "Active orders" },
+            { value: "all", label: "All orders" },
+            { value: "DRAFT", label: "Draft" },
+            { value: "SUBMITTED", label: "Submitted" },
+            { value: "PREPARING", label: "Preparing" },
+            { value: "READY", label: "Ready" },
+            { value: "COMPLETED", label: "Completed" },
+            { value: "CANCELLED", label: "Cancelled" },
+          ]}
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+        />
         <Link asChild fontSize="sm" color="blue.600">
           <NextLink href="/accounting">View journals →</NextLink>
         </Link>

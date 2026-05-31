@@ -6,11 +6,11 @@ import {
   Button,
   Flex,
   Input,
-  NativeSelect,
   Stack,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -143,39 +143,37 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
             sold; multiplied by order line qty on complete.
           </Text>
 
-          <NativeSelect.Root size="sm" maxW="400px" mb={4}>
-            <NativeSelect.Field
-              value={menuItemId}
-              onChange={(e) => loadRecipe(e.target.value)}
-            >
-              <option value="">Select menu item</option>
-              {menuItems.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.categoryName} — {i.name}
-                </option>
-              ))}
-            </NativeSelect.Field>
-          </NativeSelect.Root>
+          <AppSelect
+            maxWidth="400px"
+            items={[
+              { value: "", label: "Select menu item" },
+              ...menuItems.map((i) => ({
+                value: i.id,
+                label: `${i.categoryName} — ${i.name}`,
+              })),
+            ]}
+            value={menuItemId}
+            onValueChange={loadRecipe}
+            placeholder="Select menu item"
+          />
 
           {menuItemId && (
-            <Stack gap={3}>
+            <Stack gap={3} mt={4}>
               {lines.map((line, idx) => (
                 <Flex key={idx} gap={2} wrap="wrap" align="center">
-                  <NativeSelect.Root size="sm" w="240px">
-                    <NativeSelect.Field
-                      value={line.inventoryItemId}
-                      onChange={(e) =>
-                        updateLine(idx, { inventoryItemId: e.target.value })
-                      }
-                    >
-                      <option value="">Inventory item</option>
-                      {invItems.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name} ({i.unit})
-                        </option>
-                      ))}
-                    </NativeSelect.Field>
-                  </NativeSelect.Root>
+                  <AppSelect
+                    width="240px"
+                    items={[
+                      { value: "", label: "Inventory item" },
+                      ...invItems.map((i) => ({
+                        value: i.id,
+                        label: `${i.name} (${i.unit})`,
+                      })),
+                    ]}
+                    value={line.inventoryItemId}
+                    onValueChange={(v) => updateLine(idx, { inventoryItemId: v })}
+                    placeholder="Inventory item"
+                  />
                   <Input
                     size="sm"
                     w="100px"

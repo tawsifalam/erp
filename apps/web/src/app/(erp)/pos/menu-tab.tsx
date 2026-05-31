@@ -6,11 +6,11 @@ import {
   Button,
   Flex,
   Input,
-  NativeSelect,
   Stack,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -190,19 +190,16 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
           {editingItemId ? "Edit menu item" : "New menu item"}
         </Text>
         <Flex gap={2} wrap="wrap" mb={2}>
-          <NativeSelect.Root size="sm" w="180px">
-            <NativeSelect.Field
-              value={itemForm.categoryId}
-              onChange={(e) => setItemForm({ ...itemForm, categoryId: e.target.value })}
-            >
-              <option value="">Category</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </NativeSelect.Field>
-          </NativeSelect.Root>
+          <AppSelect
+            width="180px"
+            items={[
+              { value: "", label: "Category" },
+              ...categories.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+            value={itemForm.categoryId}
+            onValueChange={(v) => setItemForm({ ...itemForm, categoryId: v })}
+            placeholder="Category"
+          />
           <Input
             size="sm"
             w="180px"
@@ -218,17 +215,15 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
             value={itemForm.price}
             onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
           />
-          <NativeSelect.Root size="sm" w="120px">
-            <NativeSelect.Field
-              value={itemForm.isActive ? "true" : "false"}
-              onChange={(e) =>
-                setItemForm({ ...itemForm, isActive: e.target.value === "true" })
-              }
-            >
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </NativeSelect.Field>
-          </NativeSelect.Root>
+          <AppSelect
+            width="120px"
+            items={[
+              { value: "true", label: "Active" },
+              { value: "false", label: "Inactive" },
+            ]}
+            value={itemForm.isActive ? "true" : "false"}
+            onValueChange={(v) => setItemForm({ ...itemForm, isActive: v === "true" })}
+          />
           <Button size="sm" colorPalette="green" onClick={saveItem}>
             {editingItemId ? "Update" : "Add item"}
           </Button>

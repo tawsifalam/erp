@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Button, Flex, NativeSelect, Table, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Table, Text } from "@chakra-ui/react";
+import { AppSelect } from "@/components/app-select";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader, EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
@@ -94,15 +95,13 @@ export default function ReportsPage() {
       )}
 
       <Flex gap={2} mb={4} wrap="wrap" align="center">
-        <NativeSelect.Root size="sm" w="220px">
-          <NativeSelect.Field value={exportType} onChange={(e) => setExportType(e.target.value)}>
-            {types.map((t) => (
-              <option key={t.code} value={t.code}>
-                {t.label}
-              </option>
-            ))}
-          </NativeSelect.Field>
-        </NativeSelect.Root>
+        <AppSelect
+          items={types.map((t) => ({ value: t.code, label: t.label }))}
+          value={exportType}
+          onValueChange={setExportType}
+          width="220px"
+          placeholder="Report type"
+        />
         <Button size="sm" colorPalette="blue" onClick={exportCsv}>
           Export CSV
         </Button>

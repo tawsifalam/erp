@@ -22,7 +22,9 @@ import {
   ContentCard,
   ListSkeleton,
   TableSkeleton,
+  TableScrollArea,
 } from "@erp/ui";
+import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -267,12 +269,14 @@ export default function HrPage() {
       <ModulePageHeader />
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
-        <Tabs.List>
-          <Tabs.Trigger value="employees">Employees</Tabs.Trigger>
-          <Tabs.Trigger value="attendance">Attendance</Tabs.Trigger>
-          <Tabs.Trigger value="meals">Staff meals</Tabs.Trigger>
-          <Tabs.Trigger value="payroll">Payroll</Tabs.Trigger>
-        </Tabs.List>
+        <ScrollableTabsList>
+          <Tabs.List>
+            <Tabs.Trigger value="employees">Employees</Tabs.Trigger>
+            <Tabs.Trigger value="attendance">Attendance</Tabs.Trigger>
+            <Tabs.Trigger value="meals">Staff meals</Tabs.Trigger>
+            <Tabs.Trigger value="payroll">Payroll</Tabs.Trigger>
+          </Tabs.List>
+        </ScrollableTabsList>
 
         <Tabs.Content value="employees" pt={4}>
           <ContentCard mb={4}>
@@ -318,26 +322,28 @@ export default function HrPage() {
               <TableSkeleton rows={5} columns={3} />
             ) : (
               <>
-                <Table.Root size="sm">
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.ColumnHeader>Name</Table.ColumnHeader>
-                      <Table.ColumnHeader>Designation</Table.ColumnHeader>
-                      <Table.ColumnHeader>Salary</Table.ColumnHeader>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {employees.map((e) => (
-                      <Table.Row key={e.id}>
-                        <Table.Cell>{e.name}</Table.Cell>
-                        <Table.Cell>{e.designation}</Table.Cell>
-                        <Table.Cell>
-                          <MoneyText amount={Number(e.salary)} />
-                        </Table.Cell>
+                <TableScrollArea>
+                  <Table.Root size="sm">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader>Name</Table.ColumnHeader>
+                        <Table.ColumnHeader>Designation</Table.ColumnHeader>
+                        <Table.ColumnHeader>Salary</Table.ColumnHeader>
                       </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Root>
+                    </Table.Header>
+                    <Table.Body>
+                      {employees.map((e) => (
+                        <Table.Row key={e.id}>
+                          <Table.Cell>{e.name}</Table.Cell>
+                          <Table.Cell>{e.designation}</Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(e.salary)} />
+                          </Table.Cell>
+                        </Table.Row>
+                      ))}
+                    </Table.Body>
+                  </Table.Root>
+                </TableScrollArea>
                 {employees.length === 0 && (
                   <EmptyState
                     title="No employees yet"
@@ -351,7 +357,7 @@ export default function HrPage() {
 
         <Tabs.Content value="attendance" pt={4}>
           {!tenant.branchId && <BranchRequiredNotice />}
-          <ContentCard maxW="480px" mb={4}>
+          <ContentCard maxW={{ base: "full", md: "480px" }} mb={4}>
             <Stack gap={3}>
               <FormField
                 label="Employee"
@@ -443,7 +449,7 @@ export default function HrPage() {
                 </Stack>
               )
             )}
-            <Stack gap={2} maxW="640px">
+            <Stack gap={2} maxW={{ base: "full", md: "640px" }}>
               <FormField label="Recipe name" help="e.g. Staff Lunch">
                 <Input
                   size="sm"
@@ -512,7 +518,7 @@ export default function HrPage() {
             </Stack>
           </ContentCard>
 
-          <ContentCard maxW="560px" mb={4}>
+          <ContentCard maxW={{ base: "full", md: "560px" }} mb={4}>
             <Text fontWeight="semibold" mb={2}>
               Record consumption
             </Text>
@@ -603,7 +609,7 @@ export default function HrPage() {
         </Tabs.Content>
 
         <Tabs.Content value="payroll" pt={4}>
-          <Text fontSize="sm" color="fg.muted" mb={3} maxW="560px">
+          <Text fontSize="sm" color="fg.muted" mb={3} maxW={{ base: "full", md: "560px" }}>
             Run payroll to calculate gross pay, deductions, and net pay for all employees in the
             current calendar month. Results appear below once processing completes.
           </Text>
@@ -616,7 +622,7 @@ export default function HrPage() {
             <>
               {payrollRuns.map((run) => (
                 <ContentCard key={run.id} mb={4}>
-                  <Flex justify="space-between" mb={2}>
+                  <Flex justify="space-between" mb={2} wrap="wrap" gap={2}>
                     <Text fontWeight="semibold">
                       {formatDateTime(run.periodStart)} — {formatDateTime(run.periodEnd)}
                     </Text>
@@ -624,32 +630,34 @@ export default function HrPage() {
                       {run.status}
                     </Text>
                   </Flex>
-                  <Table.Root size="sm">
-                    <Table.Header>
-                      <Table.Row>
-                        <Table.ColumnHeader>Employee</Table.ColumnHeader>
-                        <Table.ColumnHeader>Gross</Table.ColumnHeader>
-                        <Table.ColumnHeader>Deductions</Table.ColumnHeader>
-                        <Table.ColumnHeader>Net</Table.ColumnHeader>
-                      </Table.Row>
-                    </Table.Header>
-                    <Table.Body>
-                      {run.lines.map((l, i) => (
-                        <Table.Row key={i}>
-                          <Table.Cell>{l.employee.name}</Table.Cell>
-                          <Table.Cell>
-                            <MoneyText amount={Number(l.grossPay)} />
-                          </Table.Cell>
-                          <Table.Cell>
-                            <MoneyText amount={Number(l.deductions)} />
-                          </Table.Cell>
-                          <Table.Cell>
-                            <MoneyText amount={Number(l.netPay)} />
-                          </Table.Cell>
+                  <TableScrollArea>
+                    <Table.Root size="sm">
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.ColumnHeader>Employee</Table.ColumnHeader>
+                          <Table.ColumnHeader>Gross</Table.ColumnHeader>
+                          <Table.ColumnHeader>Deductions</Table.ColumnHeader>
+                          <Table.ColumnHeader>Net</Table.ColumnHeader>
                         </Table.Row>
-                      ))}
-                    </Table.Body>
-                  </Table.Root>
+                      </Table.Header>
+                      <Table.Body>
+                        {run.lines.map((l, i) => (
+                          <Table.Row key={i}>
+                            <Table.Cell>{l.employee.name}</Table.Cell>
+                            <Table.Cell>
+                              <MoneyText amount={Number(l.grossPay)} />
+                            </Table.Cell>
+                            <Table.Cell>
+                              <MoneyText amount={Number(l.deductions)} />
+                            </Table.Cell>
+                            <Table.Cell>
+                              <MoneyText amount={Number(l.netPay)} />
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Root>
+                  </TableScrollArea>
                 </ContentCard>
               ))}
               {payrollRuns.length === 0 && (

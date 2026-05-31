@@ -13,7 +13,8 @@ import {
 } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
-import { ContextBanner, ContentCard, EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { ContextBanner, ContentCard, EmptyState, FormField, TableSkeleton, TableScrollArea } from "@erp/ui";
+import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { apiFetch } from "@/lib/api-client";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -175,11 +176,13 @@ export default function SettingsPage() {
 
       {isAdmin && (
         <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)}>
-          <Tabs.List mb={4}>
-            <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
-            <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
-            <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
-          </Tabs.List>
+          <ScrollableTabsList>
+            <Tabs.List mb={4}>
+              <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
+              <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
+              <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
+            </Tabs.List>
+          </ScrollableTabsList>
 
           <Tabs.Content value="organization" pt={2}>
             <Flex gap={2} mb={4}>
@@ -293,21 +296,23 @@ export default function SettingsPage() {
                 <TableSkeleton rows={4} columns={4} />
               ) : (
                 <>
-                  <Table.Root size="sm">
-                    <Table.Header>
-                      <Table.Row>
-                        <Table.ColumnHeader>Name</Table.ColumnHeader>
-                        <Table.ColumnHeader>Timezone</Table.ColumnHeader>
-                        <Table.ColumnHeader>ID</Table.ColumnHeader>
-                        <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                      </Table.Row>
-                    </Table.Header>
-                    <Table.Body>
-                      {branches.map((b) => (
-                        <BranchRow key={b.id} branch={b} onSave={updateBranch} />
-                      ))}
-                    </Table.Body>
-                  </Table.Root>
+                  <TableScrollArea>
+                    <Table.Root size="sm">
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.ColumnHeader>Name</Table.ColumnHeader>
+                          <Table.ColumnHeader>Timezone</Table.ColumnHeader>
+                          <Table.ColumnHeader>ID</Table.ColumnHeader>
+                          <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                        </Table.Row>
+                      </Table.Header>
+                      <Table.Body>
+                        {branches.map((b) => (
+                          <BranchRow key={b.id} branch={b} onSave={updateBranch} />
+                        ))}
+                      </Table.Body>
+                    </Table.Root>
+                  </TableScrollArea>
                   {branches.length === 0 && (
                     <EmptyState
                       title="No branches yet"

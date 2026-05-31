@@ -6,6 +6,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { getModuleMeta } from "@/lib/module-meta";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { TenantSelector } from "@/components/tenant-selector";
+import { MobileNavButton } from "@/lib/mobile-nav-context";
 import { useTenant } from "@/lib/tenant-context";
 
 export function DashboardShell({
@@ -30,16 +31,17 @@ export function DashboardShell({
   return (
     <>
       <Flex
-        px={6}
-        py={4}
-        gap={4}
+        px={{ base: 4, md: 6 }}
+        py={{ base: 3, md: 4 }}
+        gap={3}
         align="center"
         wrap="wrap"
         borderBottomWidth="1px"
         borderColor="gray.200"
         bg="white"
       >
-        <Box flex="1" minW="200px">
+        <MobileNavButton />
+        <Box flex="1" minW="0">
           <Text fontSize="xl" fontWeight="semibold" lineHeight="short">
             {headerTitle}
           </Text>
@@ -54,7 +56,7 @@ export function DashboardShell({
         </Box>
         <TenantSelector />
       </Flex>
-      <Box flex="1" p={6} overflow="auto">
+      <Box flex="1" p={{ base: 4, md: 6 }} overflow="auto">
         {children}
       </Box>
     </>

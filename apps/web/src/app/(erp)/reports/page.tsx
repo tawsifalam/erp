@@ -13,6 +13,7 @@ import {
   SelectSkeleton,
   StatusBadge,
   TableSkeleton,
+  TableScrollArea,
 } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
@@ -136,41 +137,43 @@ export default function ReportsPage() {
           <TableSkeleton rows={5} columns={4} />
         ) : (
           <>
-            <Table.Root size="sm">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeader>Type</Table.ColumnHeader>
-              <Table.ColumnHeader>Status</Table.ColumnHeader>
-              <Table.ColumnHeader>Created</Table.ColumnHeader>
-              <Table.ColumnHeader>Download</Table.ColumnHeader>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {jobs.map((j) => (
-              <Table.Row key={j.id}>
-                <Table.Cell>{j.type}</Table.Cell>
-                <Table.Cell>
-                  <StatusBadge status={j.status} />
-                  {j.status === "FAILED" && j.errorMessage && (
-                    <Text fontSize="xs" color="red.500">
-                      {j.errorMessage}
-                    </Text>
-                  )}
-                </Table.Cell>
-                <Table.Cell>{formatDateTime(j.createdAt)}</Table.Cell>
-                <Table.Cell>
-                  {j.fileUrl ? (
-                    <a href={j.fileUrl} target="_blank" rel="noreferrer">
-                      Download
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-            </Table.Root>
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Type</Table.ColumnHeader>
+                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader>Created</Table.ColumnHeader>
+                    <Table.ColumnHeader>Download</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {jobs.map((j) => (
+                    <Table.Row key={j.id}>
+                      <Table.Cell>{j.type}</Table.Cell>
+                      <Table.Cell>
+                        <StatusBadge status={j.status} />
+                        {j.status === "FAILED" && j.errorMessage && (
+                          <Text fontSize="xs" color="red.500">
+                            {j.errorMessage}
+                          </Text>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>{formatDateTime(j.createdAt)}</Table.Cell>
+                      <Table.Cell>
+                        {j.fileUrl ? (
+                          <a href={j.fileUrl} target="_blank" rel="noreferrer">
+                            Download
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
             {jobs.length === 0 && (
               <EmptyState
                 title="No report jobs yet"

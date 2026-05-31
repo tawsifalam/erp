@@ -48,8 +48,8 @@ export function TenantSelector() {
   }
 
   return (
-    <Flex gap={3} align="center" wrap="wrap" data-testid="tenant-selector">
-      <Flex direction="column" gap={1}>
+    <Flex gap={3} align="center" wrap="wrap" w={{ base: "full", md: "auto" }} data-testid="tenant-selector">
+      <Flex direction="column" gap={1} flex={{ base: "1 1 100%", sm: "0 0 auto" }} minW={0} w={{ sm: "200px" }}>
         <Text fontSize="xs" color="fg.muted">
           Organization
         </Text>
@@ -59,10 +59,10 @@ export function TenantSelector() {
           onValueChange={tenant.setOrganizationId}
           aria-label="Organization"
           data-testid="tenant-org-select"
-          width="200px"
+          width="100%"
         />
       </Flex>
-      <Flex direction="column" gap={1}>
+      <Flex direction="column" gap={1} flex={{ base: "1 1 100%", sm: "0 0 auto" }} minW={0} w={{ sm: "180px" }}>
         <Text fontSize="xs" color="fg.muted">
           Branch
         </Text>
@@ -72,7 +72,7 @@ export function TenantSelector() {
           onValueChange={tenant.setBranchId}
           aria-label="Branch"
           data-testid="tenant-branch-select"
-          width="180px"
+          width="100%"
           disabled={branches.length === 0}
         />
         {branches.length > 0 && !tenant.branchId && (

@@ -11,7 +11,7 @@ import {
 } from "@chakra-ui/react";
 import { Role } from "@erp/types";
 import { AppSelect } from "@/components/app-select";
-import { EmptyState, ContentCard, FormField, TableSkeleton } from "@erp/ui";
+import { EmptyState, ContentCard, FormField, TableSkeleton, TableScrollArea } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
@@ -220,65 +220,67 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
               description="When staff request to join using your organization code, they will appear here for approval."
             />
           ) : (
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>User</Table.ColumnHeader>
-                  <Table.ColumnHeader>Message</Table.ColumnHeader>
-                  <Table.ColumnHeader>Role</Table.ColumnHeader>
-                  <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {joinRequests.map((req) => (
-                  <Table.Row key={req.id}>
-                    <Table.Cell>
-                      <Text fontSize="sm">{req.user.name ?? req.user.email}</Text>
-                      <Text fontSize="xs" color="fg.muted">
-                        {req.user.email}
-                      </Text>
-                    </Table.Cell>
-                    <Table.Cell fontSize="sm">{req.message ?? "—"}</Table.Cell>
-                    <Table.Cell>
-                      <FormField
-                        label="Assign role"
-                        help="Role granted when you approve this request."
-                      >
-                        <AppSelect
-                          items={ROLE_OPTIONS}
-                          value={approveRoles[req.id] ?? Role.FRONT_DESK}
-                          onValueChange={(v) =>
-                            setApproveRoles((prev) => ({ ...prev, [req.id]: v }))
-                          }
-                          width="160px"
-                          aria-label="Assign role"
-                        />
-                      </FormField>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Flex gap={2}>
-                        <Button
-                          size="xs"
-                          colorPalette="green"
-                          onClick={() => approve(req.id)}
-                          loading={acting === req.id}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => confirmReject(req)}
-                          loading={acting === req.id}
-                        >
-                          Reject
-                        </Button>
-                      </Flex>
-                    </Table.Cell>
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>User</Table.ColumnHeader>
+                    <Table.ColumnHeader>Message</Table.ColumnHeader>
+                    <Table.ColumnHeader>Role</Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
                   </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
+                </Table.Header>
+                <Table.Body>
+                  {joinRequests.map((req) => (
+                    <Table.Row key={req.id}>
+                      <Table.Cell>
+                        <Text fontSize="sm">{req.user.name ?? req.user.email}</Text>
+                        <Text fontSize="xs" color="fg.muted">
+                          {req.user.email}
+                        </Text>
+                      </Table.Cell>
+                      <Table.Cell fontSize="sm">{req.message ?? "—"}</Table.Cell>
+                      <Table.Cell>
+                        <FormField
+                          label="Assign role"
+                          help="Role granted when you approve this request."
+                        >
+                          <AppSelect
+                            items={ROLE_OPTIONS}
+                            value={approveRoles[req.id] ?? Role.FRONT_DESK}
+                            onValueChange={(v) =>
+                              setApproveRoles((prev) => ({ ...prev, [req.id]: v }))
+                            }
+                            width="160px"
+                            aria-label="Assign role"
+                          />
+                        </FormField>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Flex gap={2} wrap="wrap">
+                          <Button
+                            size="xs"
+                            colorPalette="green"
+                            onClick={() => approve(req.id)}
+                            loading={acting === req.id}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => confirmReject(req)}
+                            loading={acting === req.id}
+                          >
+                            Reject
+                          </Button>
+                        </Flex>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
           )}
         </ContentCard>
 
@@ -286,63 +288,65 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
           <Text fontWeight="semibold" mb={3}>
             Team members
           </Text>
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader>User</Table.ColumnHeader>
-                <Table.ColumnHeader>Role</Table.ColumnHeader>
-                <Table.ColumnHeader>Actions</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {members.map((m) => (
-                <Table.Row key={m.id}>
-                  <Table.Cell>
-                    <Flex align="center" gap={2}>
-                      <Box>
-                        <Text fontSize="sm">{m.user.name ?? m.user.email}</Text>
+          <TableScrollArea>
+            <Table.Root size="sm">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeader>User</Table.ColumnHeader>
+                  <Table.ColumnHeader>Role</Table.ColumnHeader>
+                  <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {members.map((m) => (
+                  <Table.Row key={m.id}>
+                    <Table.Cell>
+                      <Flex align="center" gap={2}>
+                        <Box>
+                          <Text fontSize="sm">{m.user.name ?? m.user.email}</Text>
+                          <Text fontSize="xs" color="fg.muted">
+                            {m.user.email}
+                          </Text>
+                        </Box>
+                        {m.isFounder && (
+                          <Text fontSize="xs" color="blue.600" fontWeight="medium">
+                            Founder
+                          </Text>
+                        )}
+                      </Flex>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <AppSelect
+                        items={ROLE_OPTIONS}
+                        value={m.role}
+                        onValueChange={(v) => changeRole(m.user.id, v)}
+                        width="160px"
+                        disabled={acting === m.user.id}
+                        aria-label="Member role"
+                      />
+                    </Table.Cell>
+                    <Table.Cell>
+                      {!m.isFounder ? (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          colorPalette="red"
+                          onClick={() => confirmRemoveMember(m)}
+                          loading={acting === m.user.id}
+                        >
+                          Remove
+                        </Button>
+                      ) : (
                         <Text fontSize="xs" color="fg.muted">
-                          {m.user.email}
-                        </Text>
-                      </Box>
-                      {m.isFounder && (
-                        <Text fontSize="xs" color="blue.600" fontWeight="medium">
-                          Founder
+                          —
                         </Text>
                       )}
-                    </Flex>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <AppSelect
-                      items={ROLE_OPTIONS}
-                      value={m.role}
-                      onValueChange={(v) => changeRole(m.user.id, v)}
-                      width="160px"
-                      disabled={acting === m.user.id}
-                      aria-label="Member role"
-                    />
-                  </Table.Cell>
-                  <Table.Cell>
-                    {!m.isFounder ? (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        colorPalette="red"
-                        onClick={() => confirmRemoveMember(m)}
-                        loading={acting === m.user.id}
-                      >
-                        Remove
-                      </Button>
-                    ) : (
-                      <Text fontSize="xs" color="fg.muted">
-                        —
-                      </Text>
-                    )}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </TableScrollArea>
           {members.length === 0 && (
             <EmptyState
               title="No team members found"

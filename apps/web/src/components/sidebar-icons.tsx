@@ -105,4 +105,10 @@ export const LogOutIcon = (props: SidebarIconProps) => (
   </SidebarIcon>
 );
 
+export const MenuIcon = (props: SidebarIconProps) => (
+  <SidebarIcon {...props}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </SidebarIcon>
+);
+
 export type SidebarIconComponent = (props: SidebarIconProps) => ReactElement;

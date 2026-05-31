@@ -20,7 +20,9 @@ import {
   ContentCard,
   CardSkeleton,
   TableSkeleton,
+  TableScrollArea,
 } from "@erp/ui";
+import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -145,11 +147,13 @@ export default function AccountingPage() {
       <ModulePageHeader />
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
-        <Tabs.List>
-          <Tabs.Trigger value="journals">Journal entries</Tabs.Trigger>
-          <Tabs.Trigger value="accounts">Chart of accounts</Tabs.Trigger>
-          <Tabs.Trigger value="new-journal">New journal</Tabs.Trigger>
-        </Tabs.List>
+        <ScrollableTabsList>
+          <Tabs.List>
+            <Tabs.Trigger value="journals">Journal entries</Tabs.Trigger>
+            <Tabs.Trigger value="accounts">Chart of accounts</Tabs.Trigger>
+            <Tabs.Trigger value="new-journal">New journal</Tabs.Trigger>
+          </Tabs.List>
+        </ScrollableTabsList>
 
         <Tabs.Content value="journals" pt={4}>
           {journalsQuery.loading ? (
@@ -175,28 +179,30 @@ export default function AccountingPage() {
                   <Text fontWeight="semibold" mb={2}>
                     {j.description ?? j.id} — {formatDateTime(j.createdAt)}
                   </Text>
-                  <Table.Root size="sm">
-                    <Table.Header>
-                      <Table.Row>
-                        <Table.ColumnHeader>Account</Table.ColumnHeader>
-                        <Table.ColumnHeader>Debit</Table.ColumnHeader>
-                        <Table.ColumnHeader>Credit</Table.ColumnHeader>
-                      </Table.Row>
-                    </Table.Header>
-                    <Table.Body>
-                      {j.lines.map((l, i) => (
-                        <Table.Row key={i}>
-                          <Table.Cell>{l.account.name}</Table.Cell>
-                          <Table.Cell>
-                            {Number(l.debit) > 0 && <MoneyText amount={Number(l.debit)} />}
-                          </Table.Cell>
-                          <Table.Cell>
-                            {Number(l.credit) > 0 && <MoneyText amount={Number(l.credit)} />}
-                          </Table.Cell>
+                  <TableScrollArea>
+                    <Table.Root size="sm">
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.ColumnHeader>Account</Table.ColumnHeader>
+                          <Table.ColumnHeader>Debit</Table.ColumnHeader>
+                          <Table.ColumnHeader>Credit</Table.ColumnHeader>
                         </Table.Row>
-                      ))}
-                    </Table.Body>
-                  </Table.Root>
+                      </Table.Header>
+                      <Table.Body>
+                        {j.lines.map((l, i) => (
+                          <Table.Row key={i}>
+                            <Table.Cell>{l.account.name}</Table.Cell>
+                            <Table.Cell>
+                              {Number(l.debit) > 0 && <MoneyText amount={Number(l.debit)} />}
+                            </Table.Cell>
+                            <Table.Cell>
+                              {Number(l.credit) > 0 && <MoneyText amount={Number(l.credit)} />}
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Root>
+                  </TableScrollArea>
                 </ContentCard>
               ))}
             </>
@@ -256,24 +262,26 @@ export default function AccountingPage() {
                 description="Add at least two accounts above before posting journal entries."
               />
             ) : (
-              <Table.Root size="sm">
-                <Table.Header>
-                  <Table.Row>
-                    <Table.ColumnHeader>Code</Table.ColumnHeader>
-                    <Table.ColumnHeader>Name</Table.ColumnHeader>
-                    <Table.ColumnHeader>Type</Table.ColumnHeader>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {accounts.map((a) => (
-                    <Table.Row key={a.id}>
-                      <Table.Cell fontFamily="mono">{a.code}</Table.Cell>
-                      <Table.Cell>{a.name}</Table.Cell>
-                      <Table.Cell>{a.type}</Table.Cell>
+              <TableScrollArea>
+                <Table.Root size="sm">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeader>Code</Table.ColumnHeader>
+                      <Table.ColumnHeader>Name</Table.ColumnHeader>
+                      <Table.ColumnHeader>Type</Table.ColumnHeader>
                     </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Root>
+                  </Table.Header>
+                  <Table.Body>
+                    {accounts.map((a) => (
+                      <Table.Row key={a.id}>
+                        <Table.Cell fontFamily="mono">{a.code}</Table.Cell>
+                        <Table.Cell>{a.name}</Table.Cell>
+                        <Table.Cell>{a.type}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Root>
+              </TableScrollArea>
             )}
           </ContentCard>
         </Tabs.Content>

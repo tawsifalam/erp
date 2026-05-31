@@ -9,7 +9,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
-import { ContentCard, EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { ContentCard, EmptyState, FormField, TableSkeleton, TableScrollArea } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
@@ -114,7 +114,7 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
 
       {showForm && (
         <ContentCard mb={4}>
-          <Stack gap={3} maxW="480px">
+          <Stack gap={3} maxW={{ base: "full", md: "480px" }}>
             <FormField label="Code" help="Text slug (e.g. minibar). Cannot be changed later.">
               <Input
                 size="sm"
@@ -143,26 +143,28 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
           <TableSkeleton rows={4} columns={4} />
         ) : (
           <>
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>Code</Table.ColumnHeader>
-                  <Table.ColumnHeader>Name</Table.ColumnHeader>
-                  <Table.ColumnHeader>Status</Table.ColumnHeader>
-                  <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {pools.map((p) => (
-                  <PoolRow
-                    key={p.id}
-                    pool={p}
-                    onSave={updatePool}
-                    onToggleActive={confirmToggleActive}
-                  />
-                ))}
-              </Table.Body>
-            </Table.Root>
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Code</Table.ColumnHeader>
+                    <Table.ColumnHeader>Name</Table.ColumnHeader>
+                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {pools.map((p) => (
+                    <PoolRow
+                      key={p.id}
+                      pool={p}
+                      onSave={updatePool}
+                      onToggleActive={confirmToggleActive}
+                    />
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
             {pools.length === 0 && (
               <EmptyState
                 title="No inventory pools"

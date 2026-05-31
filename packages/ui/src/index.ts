@@ -13,3 +13,4 @@ export * from "./components/StatCardSkeleton";
 export * from "./components/CardSkeleton";
 export * from "./components/ListSkeleton";
 export * from "./components/SelectSkeleton";
+export * from "./components/TableScrollArea";

@@ -11,7 +11,7 @@ import {
 } from "@chakra-ui/react";
 import { Role } from "@erp/types";
 import { AppSelect } from "@/components/app-select";
-import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { EmptyState, ContentCard, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
@@ -192,7 +192,7 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
       {dialog}
       <Stack gap={6}>
         {org && (
-          <Box bg="white" borderRadius="md" p={4}>
+          <ContentCard>
             <Text fontWeight="semibold" mb={2}>
               Organization join code
             </Text>
@@ -207,15 +207,18 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
                 Copy
               </Button>
             </Flex>
-          </Box>
+          </ContentCard>
         )}
 
-        <Box bg="white" borderRadius="md" p={4}>
+        <ContentCard>
           <Text fontWeight="semibold" mb={3}>
             Pending join requests
           </Text>
           {joinRequests.length === 0 ? (
-            <EmptyState message="No pending join requests." />
+            <EmptyState
+              title="No pending join requests"
+              description="When staff request to join using your organization code, they will appear here for approval."
+            />
           ) : (
             <Table.Root size="sm">
               <Table.Header>
@@ -277,9 +280,9 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
               </Table.Body>
             </Table.Root>
           )}
-        </Box>
+        </ContentCard>
 
-        <Box bg="white" borderRadius="md" p={4}>
+        <ContentCard>
           <Text fontWeight="semibold" mb={3}>
             Team members
           </Text>
@@ -340,8 +343,13 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
               ))}
             </Table.Body>
           </Table.Root>
-          {members.length === 0 && <EmptyState message="No members found." />}
-        </Box>
+          {members.length === 0 && (
+            <EmptyState
+              title="No team members found"
+              description="Approved join requests and organization founders appear here."
+            />
+          )}
+        </ContentCard>
       </Stack>
     </>
   );

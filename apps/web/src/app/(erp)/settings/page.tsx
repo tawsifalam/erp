@@ -13,7 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
-import { ContextBanner, EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { ContextBanner, ContentCard, EmptyState, FormField, TableSkeleton } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -192,7 +192,7 @@ export default function SettingsPage() {
             </Flex>
 
             {showNewOrgForm && (
-              <Box bg="white" borderRadius="md" p={4} mb={4}>
+              <ContentCard mb={4}>
                 <Text fontWeight="semibold" mb={3}>
                   Create organization
                 </Text>
@@ -223,12 +223,12 @@ export default function SettingsPage() {
                 <Button size="sm" colorPalette="blue" onClick={createOrganization}>
                   Create organization
                 </Button>
-              </Box>
+              </ContentCard>
             )}
 
             {loading && !org && <TableSkeleton rows={3} columns={2} />}
-            {!loading && org && (
-              <Box bg="white" borderRadius="md" p={4} mb={6}>
+            {org && (
+              <ContentCard mb={6}>
                 <Text fontWeight="semibold" mb={2}>
                   Current organization
                 </Text>
@@ -248,7 +248,7 @@ export default function SettingsPage() {
                     Save name
                   </Button>
                 </Flex>
-              </Box>
+              </ContentCard>
             )}
 
             <Flex justify="space-between" align="center" mb={3}>
@@ -259,7 +259,7 @@ export default function SettingsPage() {
             </Flex>
 
             {showBranchForm && (
-              <Box bg="white" borderRadius="md" p={4} mb={4}>
+              <ContentCard mb={4}>
                 <Stack gap={3}>
                   <Flex gap={2} wrap="wrap">
                     <FormField label="Branch name" required>
@@ -285,10 +285,10 @@ export default function SettingsPage() {
                     Create branch
                   </Button>
                 </Stack>
-              </Box>
+              </ContentCard>
             )}
 
-            <Box bg="white" borderRadius="md" p={4}>
+            <ContentCard>
               {loading ? (
                 <TableSkeleton rows={4} columns={4} />
               ) : (
@@ -317,7 +317,7 @@ export default function SettingsPage() {
                   )}
                 </>
               )}
-            </Box>
+            </ContentCard>
           </Tabs.Content>
 
           <Tabs.Content value="team" pt={2}>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Box,
   Button,
   Flex,
   Input,
@@ -18,6 +17,7 @@ import {
   MoneyText,
   EmptyState,
   FormField,
+  ContentCard,
   CardSkeleton,
   TableSkeleton,
 } from "@erp/ui";
@@ -113,13 +113,18 @@ export default function AccountingPage() {
   };
 
   const handleCreateAccount = async () => {
-    await apiFetch("/accounting/accounts", {
-      method: "POST",
-      tenant,
-      body: JSON.stringify(accountForm),
-    });
-    setAccountForm({ code: "", name: "", type: "ASSET" });
-    accountsQuery.reload();
+    try {
+      await apiFetch("/accounting/accounts", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify(accountForm),
+      });
+      setAccountForm({ code: "", name: "", type: "ASSET" });
+      accountsQuery.reload();
+      appToast.success("Account created");
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to create account");
+    }
   };
 
   const accounts = accountsQuery.data ?? [];
@@ -155,10 +160,18 @@ export default function AccountingPage() {
           ) : (
             <>
               {journals.length === 0 && (
-                <EmptyState message="No journal entries yet." />
+                <EmptyState
+                  title="No journal entries yet"
+                  description="Post a balanced double-entry journal to record revenue, expenses, and transfers."
+                  action={
+                    <Button size="sm" colorPalette="blue" onClick={() => setTab("new-journal")}>
+                      Post your first entry
+                    </Button>
+                  }
+                />
               )}
               {journals.map((j) => (
-                <Box key={j.id} mb={6} bg="white" borderRadius="md" p={4}>
+                <ContentCard key={j.id} mb={6}>
                   <Text fontWeight="semibold" mb={2}>
                     {j.description ?? j.id} — {formatDateTime(j.createdAt)}
                   </Text>
@@ -184,14 +197,14 @@ export default function AccountingPage() {
                       ))}
                     </Table.Body>
                   </Table.Root>
-                </Box>
+                </ContentCard>
               ))}
             </>
           )}
         </Tabs.Content>
 
         <Tabs.Content value="accounts" pt={4}>
-          <Box bg="white" borderRadius="md" p={4} mb={4}>
+          <ContentCard mb={4}>
             <Text fontWeight="semibold" mb={3}>
               Add account
             </Text>
@@ -200,21 +213,22 @@ export default function AccountingPage() {
                 <Input
                   size="sm"
                   w="100px"
-                  placeholder="Code"
                   value={accountForm.code}
                   onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
                 />
               </FormField>
-              <FormField label="Name">
+              <FormField label="Name" help="Human-readable name shown on journal lines.">
                 <Input
                   size="sm"
                   w="200px"
-                  placeholder="Name"
                   value={accountForm.name}
                   onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
                 />
               </FormField>
-              <FormField label="Type">
+              <FormField
+                label="Type"
+                help="Asset, Liability, Equity, Revenue, or Expense — determines balance sheet vs P&L."
+              >
                 <AppSelect
                   width="140px"
                   items={[
@@ -232,10 +246,15 @@ export default function AccountingPage() {
                 Add
               </Button>
             </Flex>
-          </Box>
-          <Box bg="white" borderRadius="md" p={4}>
+          </ContentCard>
+          <ContentCard>
             {accountsQuery.loading ? (
               <TableSkeleton rows={5} columns={3} />
+            ) : accounts.length === 0 ? (
+              <EmptyState
+                title="No accounts yet"
+                description="Add at least two accounts above before posting journal entries."
+              />
             ) : (
               <Table.Root size="sm">
                 <Table.Header>
@@ -256,51 +275,68 @@ export default function AccountingPage() {
                 </Table.Body>
               </Table.Root>
             )}
-          </Box>
+          </ContentCard>
         </Tabs.Content>
 
         <Tabs.Content value="new-journal" pt={4}>
-          <Box bg="white" borderRadius="md" p={4}>
+          <ContentCard>
             <Stack gap={3}>
               <FormField label="Description" help="Optional memo for this journal entry.">
                 <Input
-                  placeholder="Description"
                   value={journalForm.description}
                   onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })}
                 />
               </FormField>
               {journalForm.lines.map((line, i) => (
-                <Flex key={i} gap={2} wrap="wrap">
-                  <AppSelect
-                    flex={1}
-                    minWidth="200px"
-                    items={[
-                      { value: "", label: "Account" },
-                      ...accounts.map((a) => ({
-                        value: a.id,
-                        label: `${a.code} — ${a.name}`,
-                      })),
-                    ]}
-                    value={line.accountId}
-                    onValueChange={(v) => updateLine(i, { accountId: v })}
-                    placeholder="Account"
-                  />
-                  <Input
-                    size="sm"
-                    w="100px"
-                    type="number"
-                    placeholder="Debit"
-                    value={line.debit}
-                    onChange={(e) => updateLine(i, { debit: e.target.value })}
-                  />
-                  <Input
-                    size="sm"
-                    w="100px"
-                    type="number"
-                    placeholder="Credit"
-                    value={line.credit}
-                    onChange={(e) => updateLine(i, { credit: e.target.value })}
-                  />
+                <Flex key={i} gap={2} wrap="wrap" align="flex-end">
+                  <FormField
+                    label={i === 0 ? "Account" : "Account"}
+                    help={
+                      i === 0
+                        ? "Pick the ledger account for this side of the entry."
+                        : undefined
+                    }
+                  >
+                    <AppSelect
+                      flex={1}
+                      minWidth="200px"
+                      items={[
+                        { value: "", label: "Select account" },
+                        ...accounts.map((a) => ({
+                          value: a.id,
+                          label: `${a.code} — ${a.name}`,
+                        })),
+                      ]}
+                      value={line.accountId}
+                      onValueChange={(v) => updateLine(i, { accountId: v })}
+                      placeholder="Select account"
+                    />
+                  </FormField>
+                  <FormField
+                    label={i === 0 ? "Debit" : "Debit"}
+                    help={
+                      i === 0
+                        ? "Enter amount on one side only — debit or credit, not both."
+                        : undefined
+                    }
+                  >
+                    <Input
+                      size="sm"
+                      w="100px"
+                      type="number"
+                      value={line.debit}
+                      onChange={(e) => updateLine(i, { debit: e.target.value })}
+                    />
+                  </FormField>
+                  <FormField label={i === 0 ? "Credit" : "Credit"}>
+                    <Input
+                      size="sm"
+                      w="100px"
+                      type="number"
+                      value={line.credit}
+                      onChange={(e) => updateLine(i, { credit: e.target.value })}
+                    />
+                  </FormField>
                 </Flex>
               ))}
               <FormField
@@ -328,7 +364,7 @@ export default function AccountingPage() {
                 </Button>
               </Flex>
             </Stack>
-          </Box>
+          </ContentCard>
         </Tabs.Content>
       </Tabs.Root>
     </DashboardShell>

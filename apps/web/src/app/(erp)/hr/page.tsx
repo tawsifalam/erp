@@ -19,6 +19,7 @@ import {
   MoneyText,
   EmptyState,
   FormField,
+  ContentCard,
   ListSkeleton,
   TableSkeleton,
 } from "@erp/ui";
@@ -274,7 +275,7 @@ export default function HrPage() {
         </Tabs.List>
 
         <Tabs.Content value="employees" pt={4}>
-          <Box bg="white" borderRadius="md" p={4} mb={4}>
+          <ContentCard mb={4}>
             <Text fontWeight="semibold" mb={3}>
               Add employee
             </Text>
@@ -283,7 +284,6 @@ export default function HrPage() {
                 <Input
                   size="sm"
                   w="180px"
-                  placeholder="Name"
                   value={empForm.name}
                   onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })}
                 />
@@ -292,17 +292,18 @@ export default function HrPage() {
                 <Input
                   size="sm"
                   w="160px"
-                  placeholder="Designation"
                   value={empForm.designation}
                   onChange={(e) => setEmpForm({ ...empForm, designation: e.target.value })}
                 />
               </FormField>
-              <FormField label="Salary">
+              <FormField
+                label="Salary"
+                help="Base monthly gross pay before meal deductions and payroll adjustments."
+              >
                 <Input
                   size="sm"
                   w="120px"
                   type="number"
-                  placeholder="Salary"
                   value={empForm.salary}
                   onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })}
                 />
@@ -311,8 +312,8 @@ export default function HrPage() {
                 Add
               </Button>
             </Flex>
-          </Box>
-          <Box bg="white" borderRadius="md" p={4}>
+          </ContentCard>
+          <ContentCard>
             {employeesQuery.loading ? (
               <TableSkeleton rows={5} columns={3} />
             ) : (
@@ -321,7 +322,7 @@ export default function HrPage() {
                   <Table.Header>
                     <Table.Row>
                       <Table.ColumnHeader>Name</Table.ColumnHeader>
-                      <Table.ColumnHeader>Role</Table.ColumnHeader>
+                      <Table.ColumnHeader>Designation</Table.ColumnHeader>
                       <Table.ColumnHeader>Salary</Table.ColumnHeader>
                     </Table.Row>
                   </Table.Header>
@@ -337,17 +338,26 @@ export default function HrPage() {
                     ))}
                   </Table.Body>
                 </Table.Root>
-                {employees.length === 0 && <EmptyState message="No employees yet." />}
+                {employees.length === 0 && (
+                  <EmptyState
+                    title="No employees yet"
+                    description="Add staff above to track attendance, meals, and payroll."
+                  />
+                )}
               </>
             )}
-          </Box>
+          </ContentCard>
         </Tabs.Content>
 
         <Tabs.Content value="attendance" pt={4}>
           {!tenant.branchId && <BranchRequiredNotice />}
-          <Box bg="white" borderRadius="md" p={4} maxW="480px" mb={4}>
+          <ContentCard maxW="480px" mb={4}>
             <Stack gap={3}>
-              <FormField label="Employee" required>
+              <FormField
+                label="Employee"
+                required
+                help="Select branch in the header first. Clock-in/out feeds payroll and attendance history."
+              >
                 <AppSelect
                   items={[
                     { value: "", label: "Select employee" },
@@ -358,7 +368,10 @@ export default function HrPage() {
                   placeholder="Select employee"
                 />
               </FormField>
-              <FormField label="Action">
+              <FormField
+                label="Action"
+                help="Clock in at shift start; clock out when the shift ends."
+              >
                 <AppSelect
                   items={[
                     { value: "CLOCK_IN", label: "Clock in" },
@@ -372,8 +385,8 @@ export default function HrPage() {
                 Record attendance
               </Button>
             </Stack>
-          </Box>
-          <Box bg="white" borderRadius="md" p={4}>
+          </ContentCard>
+          <ContentCard>
             <Text fontWeight="semibold" mb={2}>
               Recent attendance
             </Text>
@@ -382,7 +395,10 @@ export default function HrPage() {
             ) : (
               <>
                 {attendance.length === 0 && (
-                  <EmptyState message="No attendance records yet." />
+                  <EmptyState
+                    title="No attendance records yet"
+                    description="Record clock-in and clock-out above once employees are added."
+                  />
                 )}
                 <Stack gap={1}>
                   {attendance.map((a) => (
@@ -396,13 +412,13 @@ export default function HrPage() {
                 </Stack>
               </>
             )}
-          </Box>
+          </ContentCard>
         </Tabs.Content>
 
         <Tabs.Content value="meals" pt={4}>
           {!tenant.branchId && <BranchRequiredNotice />}
 
-          <Box bg="white" borderRadius="md" p={4} mb={4}>
+          <ContentCard mb={4}>
             <Text fontWeight="semibold" mb={2}>
               Meal recipes
             </Text>
@@ -431,43 +447,49 @@ export default function HrPage() {
               <FormField label="Recipe name" help="e.g. Staff Lunch">
                 <Input
                   size="sm"
-                  placeholder="Recipe name (e.g. Staff Lunch)"
                   value={recipeForm.name}
                   onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
                 />
               </FormField>
               {recipeForm.lines.map((line, idx) => (
-                <Flex key={idx} gap={2}>
-                  <AppSelect
-                    flex={1}
-                    items={[
-                      { value: "", label: "Ingredient" },
-                      ...inventoryItems.map((i) => ({
-                        value: i.id,
-                        label: `${i.name} (${i.unit})`,
-                      })),
-                    ]}
-                    value={line.inventoryItemId}
-                    onValueChange={(v) => {
-                      const lines = [...recipeForm.lines];
-                      lines[idx] = { ...lines[idx], inventoryItemId: v };
-                      setRecipeForm({ ...recipeForm, lines });
-                    }}
-                    placeholder="Ingredient"
-                  />
-                  <Input
-                    size="sm"
-                    w="120px"
-                    type="number"
-                    step="0.001"
-                    placeholder="Qty / meal"
-                    value={line.quantity}
-                    onChange={(e) => {
-                      const lines = [...recipeForm.lines];
-                      lines[idx] = { ...lines[idx], quantity: e.target.value };
-                      setRecipeForm({ ...recipeForm, lines });
-                    }}
-                  />
+                <Flex key={idx} gap={2} align="flex-end" wrap="wrap">
+                  <FormField label={idx === 0 ? "Ingredient" : "Ingredient"}>
+                    <AppSelect
+                      flex={1}
+                      minWidth="200px"
+                      items={[
+                        { value: "", label: "Select ingredient" },
+                        ...inventoryItems.map((i) => ({
+                          value: i.id,
+                          label: `${i.name} (${i.unit})`,
+                        })),
+                      ]}
+                      value={line.inventoryItemId}
+                      onValueChange={(v) => {
+                        const lines = [...recipeForm.lines];
+                        lines[idx] = { ...lines[idx], inventoryItemId: v };
+                        setRecipeForm({ ...recipeForm, lines });
+                      }}
+                      placeholder="Select ingredient"
+                    />
+                  </FormField>
+                  <FormField
+                    label={idx === 0 ? "Qty per meal" : "Qty per meal"}
+                    help={idx === 0 ? "Amount of this ingredient used for one staff meal." : undefined}
+                  >
+                    <Input
+                      size="sm"
+                      w="120px"
+                      type="number"
+                      step="0.001"
+                      value={line.quantity}
+                      onChange={(e) => {
+                        const lines = [...recipeForm.lines];
+                        lines[idx] = { ...lines[idx], quantity: e.target.value };
+                        setRecipeForm({ ...recipeForm, lines });
+                      }}
+                    />
+                  </FormField>
                 </Flex>
               ))}
               <Flex gap={2}>
@@ -488,9 +510,9 @@ export default function HrPage() {
                 </Button>
               </Flex>
             </Stack>
-          </Box>
+          </ContentCard>
 
-          <Box bg="white" borderRadius="md" p={4} maxW="560px" mb={4}>
+          <ContentCard maxW="560px" mb={4}>
             <Text fontWeight="semibold" mb={2}>
               Record consumption
             </Text>
@@ -520,13 +542,15 @@ export default function HrPage() {
                   placeholder="Meal recipe"
                 />
               </FormField>
-              <FormField label="Meals consumed">
+              <FormField
+                label="Meals consumed"
+                help="Number of staff meals served — inventory is deducted by recipe × count."
+              >
                 <Input
                   size="sm"
                   type="number"
                   min={1}
                   step={1}
-                  placeholder="Meals consumed"
                   value={mealForm.mealCount}
                   onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
                 />
@@ -547,9 +571,9 @@ export default function HrPage() {
                 Record meal
               </Button>
             </Stack>
-          </Box>
+          </ContentCard>
 
-          <Box bg="white" borderRadius="md" p={4}>
+          <ContentCard>
             <Text fontWeight="semibold" mb={2}>
               Recent consumption
             </Text>
@@ -558,7 +582,10 @@ export default function HrPage() {
             ) : (
               <>
                 {staffMeals.length === 0 && (
-                  <EmptyState message="No staff meals recorded yet." />
+                  <EmptyState
+                    title="No staff meals recorded yet"
+                    description="Save a meal recipe above, then record consumption when staff eat."
+                  />
                 )}
                 <Stack gap={1}>
                   {staffMeals.map((m) => (
@@ -572,7 +599,7 @@ export default function HrPage() {
                 </Stack>
               </>
             )}
-          </Box>
+          </ContentCard>
         </Tabs.Content>
 
         <Tabs.Content value="payroll" pt={4}>
@@ -588,7 +615,7 @@ export default function HrPage() {
           ) : (
             <>
               {payrollRuns.map((run) => (
-                <Box key={run.id} bg="white" borderRadius="md" p={4} mb={4}>
+                <ContentCard key={run.id} mb={4}>
                   <Flex justify="space-between" mb={2}>
                     <Text fontWeight="semibold">
                       {formatDateTime(run.periodStart)} — {formatDateTime(run.periodEnd)}
@@ -623,10 +650,18 @@ export default function HrPage() {
                       ))}
                     </Table.Body>
                   </Table.Root>
-                </Box>
+                </ContentCard>
               ))}
               {payrollRuns.length === 0 && (
-                <EmptyState message="No payroll runs yet." />
+                <EmptyState
+                  title="No payroll runs yet"
+                  description="Run payroll for the current month to calculate pay for all employees."
+                  action={
+                    <Button size="sm" colorPalette="blue" onClick={confirmRunPayroll}>
+                      Run payroll
+                    </Button>
+                  }
+                />
               )}
             </>
           )}

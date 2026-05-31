@@ -16,6 +16,9 @@ const COLORS: Record<string, string> = {
   COMPLETED: "green",
   UNPAID: "red",
   PAID: "green",
+  PENDING: "gray",
+  PROCESSING: "orange",
+  FAILED: "red",
 };
 
 export function StatusBadge({ status }: { status: string }) {

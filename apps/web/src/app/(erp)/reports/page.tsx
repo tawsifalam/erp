@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Button, Flex, Table, Text } from "@chakra-ui/react";
+import { Button, Flex, Table, Text } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { ModulePageHeader } from "@/components/module-page-header";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import {
+  ContentCard,
+  EmptyState,
+  FormField,
+  SelectSkeleton,
+  StatusBadge,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
@@ -88,25 +95,43 @@ export default function ReportsPage() {
 
       {!tenant.branchId && <BranchRequiredNotice />}
 
+      <Text fontSize="sm" color="fg.muted" mb={3}>
+        Exports run in the background — completed files appear in the table below.
+      </Text>
+
       <Flex gap={2} mb={4} wrap="wrap" align="flex-end">
         <FormField label="Report type" help="Branch-scoped reports require a branch in the header.">
-          <AppSelect
-            items={types.map((t) => ({ value: t.code, label: t.label }))}
-            value={exportType}
-            onValueChange={setExportType}
-            width="220px"
-            placeholder="Report type"
-          />
+          {typesQuery.loading ? (
+            <SelectSkeleton width="220px" />
+          ) : (
+            <AppSelect
+              items={types.map((t) => ({ value: t.code, label: t.label }))}
+              value={exportType}
+              onValueChange={setExportType}
+              width="220px"
+              placeholder="Report type"
+            />
+          )}
         </FormField>
-        <Button size="sm" colorPalette="blue" onClick={exportCsv}>
+        <Button
+          size="sm"
+          colorPalette="blue"
+          onClick={exportCsv}
+          disabled={typesQuery.loading}
+        >
           Export CSV
         </Button>
-        <Button size="sm" variant="outline" onClick={() => jobsQuery.reload()}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => jobsQuery.reload()}
+          disabled={typesQuery.loading}
+        >
           Refresh
         </Button>
       </Flex>
 
-      <Box bg="white" borderRadius="md" p={4}>
+      <ContentCard>
         {jobsQuery.loading ? (
           <TableSkeleton rows={5} columns={4} />
         ) : (
@@ -125,7 +150,7 @@ export default function ReportsPage() {
               <Table.Row key={j.id}>
                 <Table.Cell>{j.type}</Table.Cell>
                 <Table.Cell>
-                  {j.status}
+                  <StatusBadge status={j.status} />
                   {j.status === "FAILED" && j.errorMessage && (
                     <Text fontSize="xs" color="red.500">
                       {j.errorMessage}
@@ -147,11 +172,24 @@ export default function ReportsPage() {
           </Table.Body>
             </Table.Root>
             {jobs.length === 0 && (
-              <EmptyState message="No report jobs yet. Export a report to get started." />
+              <EmptyState
+                title="No report jobs yet"
+                description="Export a CSV report to generate a downloadable file. Jobs appear here while processing."
+                action={
+                  <Button
+                    size="sm"
+                    colorPalette="blue"
+                    onClick={exportCsv}
+                    disabled={typesQuery.loading}
+                  >
+                    Export CSV
+                  </Button>
+                }
+              />
             )}
           </>
         )}
-      </Box>
+      </ContentCard>
     </DashboardShell>
   );
 }

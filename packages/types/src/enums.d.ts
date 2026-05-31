@@ -7,6 +7,12 @@ export declare enum Role {
     ACCOUNTANT = "ACCOUNTANT",
     HR = "HR"
 }
+export declare enum JoinRequestStatus {
+    PENDING = "PENDING",
+    APPROVED = "APPROVED",
+    REJECTED = "REJECTED",
+    CANCELLED = "CANCELLED"
+}
 export declare enum RoomStatus {
     VACANT = "VACANT",
     OCCUPIED = "OCCUPIED",

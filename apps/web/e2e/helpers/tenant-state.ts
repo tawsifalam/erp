@@ -8,6 +8,7 @@ type MockOrgCurrent = {
   id: string;
   name: string;
   propelAuthOrgId: string;
+  joinCode: string;
   branches: MockBranch[];
 };
 
@@ -33,6 +34,7 @@ export function getCurrentOrganization(): MockOrgCurrent {
     id: "org-test-001",
     name: orgName,
     propelAuthOrgId: "demo-org-propelauth",
+    joinCode: "ov_testcode",
     branches: getTenantBranches(),
   };
 }

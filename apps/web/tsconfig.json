@@ -18,7 +18,8 @@
       "@/*": ["./src/*"],
       "@erp/config": ["../../packages/config/src"],
       "@erp/types": ["../../packages/types/src"],
-      "@erp/ui": ["../../packages/ui/src"]
+      "@erp/ui": ["../../packages/ui/src"],
+      "@erp/utils": ["../../packages/utils/src"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

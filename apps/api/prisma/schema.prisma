@@ -16,6 +16,8 @@ model User {
   updatedAt     DateTime @updatedAt
 
   memberships UserOrganization[]
+  joinRequests OrganizationJoinRequest[] @relation("JoinRequestUser")
+  reviewedJoinRequests OrganizationJoinRequest[] @relation("JoinRequestReviewer")
   employee    Employee?
   auditLogs   AuditLog[]
 }
@@ -24,10 +26,12 @@ model Organization {
   id           String   @id @default(uuid())
   propelAuthOrgId String   @unique
   name         String
+  joinCode     String   @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   memberships  UserOrganization[]
+  joinRequests OrganizationJoinRequest[]
   branches     Branch[]
   roomTypes    RoomType[]
   guests       Guest[]
@@ -48,6 +52,26 @@ model UserOrganization {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
+}
+
+model OrganizationJoinRequest {
+  id               String    @id @default(uuid())
+  organizationId   String
+  userId           String
+  status           String    @default("PENDING")
+  message          String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  assignedRole     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("JoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("JoinRequestReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([userId, status])
 }
 
 model Branch {

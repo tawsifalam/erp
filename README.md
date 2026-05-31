@@ -27,7 +27,7 @@ cp .env.example .env   # if needed — set PropelAuth keys
 docker compose up -d postgres redis minio
 docker compose build
 docker compose up -d api web
-pnpm db:migrate
+pnpm db:reset
 ```
 
 Use the root [docker-compose.yml](docker-compose.yml) (do **not** pass `-f infra/docker/...` alone — that makes Compose look for `.env` under `infra/docker/`).
@@ -86,9 +86,25 @@ sudo systemctl start redis-server
 ### Finish setup (both options)
 
 ```bash
+pnpm db:reset      # Creates all tables + demo seed (recommended for fresh setup)
+```
+
+Use `pnpm db:migrate` only when adding new migrations after the init schema.
+
+```bash
+# Or manually:
 pnpm db:migrate    # Creates all tables
 pnpm db:seed       # Loads demo data (see below)
 pnpm dev           # Starts API (3001) + Web (3000)
+```
+
+If you already have a database with an old migration history:
+
+```bash
+docker compose down -v   # optional: wipe Postgres volume
+docker compose up -d postgres redis minio
+pnpm db:reset
+pnpm dev
 ```
 
 - Web: http://localhost:3000
@@ -136,6 +152,7 @@ pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
 - [Settings Module](docs/settings-module.md) — organizations, branches, inventory pools
 - [ERP Completeness Roadmap](docs/erp-completeness-roadmap.md) — path from Phase 1 to full hospitality ERP
 - [SaaS Launch Guide](docs/saas-launch-guide.md) — monetization, billing design, and launch checklists
+- [Organization Onboarding](docs/organization-onboarding.md) — create/join org, roles, join approval
 - [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
 - [Deployment](docs/deployment.md) — production deployment summary
 - [Cloud Deployment Guide](docs/cloud-deployment.md) — step-by-step cloud deploy for Phase 1

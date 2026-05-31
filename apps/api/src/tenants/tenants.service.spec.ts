@@ -2,8 +2,15 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { TenantsService } from "./tenants.service";
 
 const mockPrisma = {
-  userOrganization: { findMany: jest.fn() },
-  organization: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+  userOrganization: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn() },
+  organization: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn() },
+  organizationJoinRequest: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+  },
   branch: {
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -91,6 +98,7 @@ describe("TenantsService", () => {
   });
 
   it("createOrganization seeds default inventory pools", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue(null);
     mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
       const tx = {
         organization: {
@@ -124,5 +132,33 @@ describe("TenantsService", () => {
     await expect(
       service.createOrganization("user_1", { name: "Test", timezone: "" }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it("approveJoinRequest creates membership with assigned role", async () => {
+    mockPrisma.organizationJoinRequest.findFirst.mockResolvedValue({
+      id: "ojr_1",
+      userId: "usr_2",
+      organizationId: "org_1",
+      status: "PENDING",
+      user: { id: "usr_2" },
+    });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
+      const tx = {
+        userOrganization: { create: jest.fn().mockResolvedValue({}) },
+        organizationJoinRequest: {
+          update: jest.fn().mockResolvedValue({ id: "ojr_1", status: "APPROVED" }),
+          updateMany: jest.fn().mockResolvedValue({}),
+        },
+      };
+      return fn(tx as never);
+    });
+
+    await service.approveJoinRequest("usr_admin", "org_1", "ojr_1", "FRONT_DESK");
+    expect(mockPrisma.$transaction).toHaveBeenCalled();
+  });
+
+  it("searchOrganizations requires min 2 chars", () => {
+    expect(() => service.searchOrganizations("a")).toThrow(BadRequestException);
   });
 });

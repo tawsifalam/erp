@@ -167,6 +167,8 @@ Each endpoint is protected by a `PermissionGuard` with specific permissions like
 
 ## 1b. Organization & Branch Management
 
+**New users:** After PropelAuth login, users without an ERP membership are sent to `/onboarding` to create an organization or request to join one. See [Organization onboarding](organization-onboarding.md).
+
 Organizations and branches are the **tenant boundary** for all operational data. Every module scopes records by `organizationId` and usually by `branchId`.
 
 ### Data model
@@ -210,6 +212,7 @@ Open **Settings** (`/settings`) in the sidebar (OWNER / ADMIN only for managemen
 | **Rename organization** | Updates display `name` in the local database. |
 | **Add branch** | Creates a new `Branch` under the current organization. |
 | **Edit branch** | Updates branch `name` and `timezone`. |
+| **Team & access** | Approve join requests (with role), manage members, copy join code. |
 | **Inventory pools** | View/edit guest & staff pools; add custom pools (codes as text slugs). |
 
 After changes, the app refreshes memberships so the header **Organization / Branch** dropdowns stay in sync.
@@ -280,7 +283,7 @@ curl -s -X POST "$BASE/tenants/organizations" \
   -d '{"name":"New Property Co","timezone":"Asia/Dhaka"}' | jq
 ```
 
-> **PropelAuth note:** On login, `AuthService.syncUser` can also create or link an `Organization` from your PropelAuth org id. The Settings UI is for managing branches and display names in the ERP database without leaving the app.
+> **Auth sync:** `POST /auth/sync` upserts the ERP user only. Organization membership comes from onboarding (create org or approved join request), not from PropelAuth org JWT. See [Organization onboarding](organization-onboarding.md).
 
 ### PMS overlap
 

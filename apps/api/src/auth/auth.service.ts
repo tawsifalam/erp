@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Role } from "@erp/types";
+import { JoinRequestStatus } from "@erp/types";
 import type { AuthUserPayload } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -7,7 +7,7 @@ import { PrismaService } from "../prisma/prisma.service";
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async syncUser(claims: AuthUserPayload, propelAuthOrgId?: string) {
+  async syncUser(claims: AuthUserPayload) {
     const name =
       [claims.firstName, claims.lastName].filter(Boolean).join(" ") || undefined;
     const email = claims.email ?? `${claims.userId}@unknown.local`;
@@ -22,33 +22,33 @@ export class AuthService {
       },
     });
 
-    const orgExternalId = propelAuthOrgId ?? claims.orgId;
-    if (orgExternalId) {
-      const org = await this.prisma.organization.upsert({
-        where: { propelAuthOrgId: orgExternalId },
-        update: {},
-        create: {
-          propelAuthOrgId: orgExternalId,
-          name: "Organization",
-        },
-      });
+    const membershipCount = await this.prisma.userOrganization.count({
+      where: { userId: user.id },
+    });
 
-      await this.prisma.userOrganization.upsert({
-        where: {
-          userId_organizationId: { userId: user.id, organizationId: org.id },
-        },
-        update: {},
-        create: {
-          userId: user.id,
-          organizationId: org.id,
-          role: Role.ADMIN,
-        },
-      });
-    }
+    const pendingJoinRequest = await this.prisma.organizationJoinRequest.findFirst({
+      where: { userId: user.id, status: JoinRequestStatus.PENDING },
+      include: { organization: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+    });
 
-    return this.prisma.user.findUnique({
+    const fullUser = await this.prisma.user.findUnique({
       where: { id: user.id },
       include: { memberships: { include: { organization: true } } },
     });
+
+    return {
+      user: fullUser,
+      hasActiveMembership: membershipCount > 0,
+      pendingJoinRequest: pendingJoinRequest
+        ? {
+            id: pendingJoinRequest.id,
+            organizationId: pendingJoinRequest.organizationId,
+            organizationName: pendingJoinRequest.organization.name,
+            message: pendingJoinRequest.message,
+            createdAt: pendingJoinRequest.createdAt,
+          }
+        : null,
+    };
   }
 }

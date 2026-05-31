@@ -238,16 +238,16 @@ async assertCanAddBranch(orgId: string) {
 ### Path B (self-serve)
 
 ```
-propelauth.com/signup → /dashboard
-  → If no org: /onboarding
-      Step 1: Property name + timezone
-      Step 2: First branch
-      Step 3: Stripe checkout (or start trial)
-      Step 4: Checklist (rooms, menu, CoA seed)
-  → /dashboard
+propelauth.com/signup → POST /auth/sync (user only)
+  → If no membership: /onboarding
+      Create org (name + timezone) OR join by search / join code
+      → Pending: /onboarding/pending until admin approves with role
+  → Role-scoped app (e.g. FRONT_DESK → /pms only)
 ```
 
-**PropelAuth org creation:** align `propelAuthOrgId` on signup with `TenantsService.createOrganization` so default branch + inventory pools are seeded (same as Settings today).
+See [Organization onboarding](organization-onboarding.md) for API and RBAC details.
+
+**Additional orgs:** OWNER/ADMIN can create org #2+ from Settings. Join codes are shown under **Team & access**.
 
 ---
 

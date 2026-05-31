@@ -18,6 +18,7 @@ import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
 import { shortId } from "@/lib/format";
 import { InventoryPoolsSection } from "./inventory-pools-section";
+import { TeamAccessSection } from "./team-access-section";
 
 type Branch = {
   id: string;
@@ -30,6 +31,7 @@ type OrganizationDetail = {
   id: string;
   name: string;
   propelAuthOrgId: string;
+  joinCode?: string;
   branches: Branch[];
 };
 
@@ -190,6 +192,7 @@ export default function SettingsPage() {
         <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)}>
           <Tabs.List mb={4}>
             <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
+            <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
             <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
           </Tabs.List>
 
@@ -310,6 +313,14 @@ export default function SettingsPage() {
                 <EmptyState message="No branches yet. Add one to use PMS, POS, and inventory." />
               )}
             </Box>
+          </Tabs.Content>
+
+          <Tabs.Content value="team" pt={2}>
+            <TeamAccessSection
+              tenant={tenantHeaders}
+              onMessage={setMessage}
+              onError={setError}
+            />
           </Tabs.Content>
 
           <Tabs.Content value="pools" pt={2}>

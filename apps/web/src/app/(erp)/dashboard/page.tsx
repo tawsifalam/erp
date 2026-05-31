@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Box, SimpleGrid, Stack, Stat, Text } from "@chakra-ui/react";
-import { useUser } from "@propelauth/nextjs/client";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
-import { syncUserAfterLogin } from "@/lib/auth";
 
 type Dashboard = {
   occupancyPct: number;
@@ -24,20 +22,10 @@ type Dashboard = {
 };
 
 export default function DashboardPage() {
-  const { loading: authLoading, accessToken } = useUser();
   const tenant = useTenantHeaders();
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [synced, setSynced] = useState(false);
-
-  useEffect(() => {
-    if (authLoading || synced || !accessToken) return;
-    syncUserAfterLogin(undefined, accessToken)
-      .catch(console.error)
-      .finally(() => setSynced(true));
-  }, [authLoading, accessToken, synced]);
-
   useEffect(() => {
     if (!tenant.organizationId || !tenant.branchId) return;
     setLoading(true);

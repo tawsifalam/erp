@@ -8,6 +8,13 @@ export enum Role {
   HR = "HR",
 }
 
+export enum JoinRequestStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  CANCELLED = "CANCELLED",
+}
+
 export enum RoomStatus {
   VACANT = "VACANT",
   OCCUPIED = "OCCUPIED",

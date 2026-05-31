@@ -17,12 +17,14 @@ import { useUser } from "@propelauth/nextjs/client";
 import { signOut } from "@/lib/auth";
 import {
   BOTTOM_NAV,
+  filterNavGroups,
+  filterNavLinks,
   isNavActive,
-  NAV_GROUPS,
   TOP_NAV,
   type NavGroup,
   type NavLinkItem,
 } from "./nav-config";
+import { useTenant } from "@/lib/tenant-context";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -214,8 +216,13 @@ function SidebarGroup({
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, loading } = useUser();
+  const { role } = useTenant();
   const [collapsed, setCollapsed] = useState(readCollapsedPreference);
   const [animateWidth, setAnimateWidth] = useState(false);
+
+  const topNav = filterNavLinks(role, TOP_NAV);
+  const navGroups = filterNavGroups(role);
+  const bottomNav = filterNavLinks(role, BOTTOM_NAV);
 
   const toggleCollapsed = () => {
     setAnimateWidth(true);
@@ -282,7 +289,7 @@ export function AppSidebar() {
       </Flex>
 
       <Stack flex="1" gap={1} px={2} py={2} overflowY="auto">
-        {TOP_NAV.map((item) => (
+        {topNav.map((item) => (
           <SidebarLink
             key={item.href}
             item={item}
@@ -291,7 +298,7 @@ export function AppSidebar() {
           />
         ))}
 
-        {NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <Box key={group.id} mt={2}>
             <SidebarGroup
               group={group}
@@ -304,7 +311,7 @@ export function AppSidebar() {
       </Stack>
 
       <Stack gap={1} px={2} py={3} borderTopWidth="1px" borderColor="whiteAlpha.200">
-        {BOTTOM_NAV.map((item) => (
+        {bottomNav.map((item) => (
           <SidebarLink
             key={item.href}
             item={item}

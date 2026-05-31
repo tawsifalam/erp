@@ -28,6 +28,7 @@ async function main() {
       id: sid("org", "00000000-0000-0000-0000-000000000100"),
       propelAuthOrgId: "demo-org-propelauth",
       name: "Boulevard Hospitality Group",
+      joinCode: "ov_demoseed",
     },
   });
 

@@ -101,7 +101,11 @@ export async function mockAuth(page: Page) {
 
   // 3. Intercept /api/auth/sync (called by syncUserAfterLogin)
   await page.route("**/api/auth/sync", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ hasActiveMembership: true, pendingJoinRequest: null }),
+    }),
   );
 
   // 4. Set the PropelAuth access-token cookie so Next.js middleware passes
@@ -262,6 +266,32 @@ export async function mockApiRoutes(page: Page) {
       contentType: "application/json",
       body: JSON.stringify(body),
     });
+
+  await page.route("**/localhost:3001/api/tenants/onboarding/status**", (route) =>
+    fulfillJson(route, {
+      hasMembership: true,
+      canAccessApp: true,
+      pendingRequest: null,
+    }),
+  );
+
+  await page.route("**/localhost:3001/api/tenants/join-requests**", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") return fulfillJson(route, []);
+    return fulfillJson(route, {});
+  });
+
+  await page.route("**/localhost:3001/api/tenants/members**", (route) =>
+    fulfillJson(route, []),
+  );
+
+  await page.route("**/localhost:3001/api/tenants/organizations/search**", (route) =>
+    fulfillJson(route, []),
+  );
+
+  await page.route("**/localhost:3001/api/tenants/organizations/by-join-code/**", (route) =>
+    fulfillJson(route, null),
+  );
 
   await page.route("**/localhost:3001/api/tenants/organizations/current**", async (route) => {
     const method = route.request().method();

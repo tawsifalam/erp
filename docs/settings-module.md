@@ -26,6 +26,17 @@ Web UI: `/settings` (sidebar). Management actions require **OWNER** or **ADMIN**
 
 Non-admin users see a read-only notice and can still switch org/branch from the header.
 
+### Team & access
+
+| Action | What it does |
+|--------|----------------|
+| **View join code** | Copy org `joinCode` for staff onboarding |
+| **Approve join request** | Creates `UserOrganization` with selected role (required) |
+| **Reject join request** | Marks request rejected |
+| **Change member role** | Updates `UserOrganization.role` (cannot demote last OWNER) |
+
+See [Organization onboarding](organization-onboarding.md) for the full join flow and role matrix.
+
 ### Inventory pools
 
 Configure stock pools (see [Inventory module](inventory-module.md)). System pools `guest` and `staff` are seeded on org create and cannot be deleted.
@@ -49,6 +60,13 @@ Base path: `/api/tenants`. Requires `Authorization`. Branch/org mutations requir
 | GET | `/tenants/branches` | List branches |
 | POST | `/tenants/branches` | Create branch |
 | PATCH | `/tenants/branches/:id` | Update branch |
+| GET | `/tenants/members` | List members + roles |
+| PATCH | `/tenants/members/:userId/role` | Change member role |
+| GET | `/tenants/join-requests` | Pending join requests (admin) |
+| POST | `/tenants/join-requests/:id/approve` | Approve with `{ role }` |
+| POST | `/tenants/join-requests/:id/reject` | Reject request |
+
+Onboarding endpoints: see [Organization onboarding](organization-onboarding.md).
 
 Inventory pools: `/api/inventory/pools` (documented in [Inventory module](inventory-module.md)).
 

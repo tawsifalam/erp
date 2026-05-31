@@ -2,9 +2,11 @@
 
 ## Hierarchy
 
-- **Organization** — maps to PropelAuth org (`propelAuthOrgId`)
+- **Organization** — maps to PropelAuth org (`propelAuthOrgId`); includes shareable `joinCode` for onboarding
 - **Branch** — property/location within an org
 - **User** — maps to PropelAuth user; linked via `UserOrganization` with a `Role`
+
+New users must complete [organization onboarding](organization-onboarding.md) (create org or approved join request) before accessing ERP modules. UI navigation is filtered by org role — see onboarding doc § Org roles & RBAC.
 
 ## Request context
 
@@ -33,7 +35,7 @@ See `packages/utils/src/rbac.ts` for the matrix.
 
 | Surface | Purpose |
 |---------|---------|
-| **Web → Settings** (`/settings`) | Create organizations, rename org, add/edit branches, manage inventory pools (OWNER / ADMIN) |
+| **Web → Settings** (`/settings`) | Create organizations, rename org, add/edit branches, **Team & access** (join requests, members, join code), inventory pools (OWNER / ADMIN) |
 | **Header selectors** | Switch active org/branch for all modules; persisted in `localStorage` (`erp:tenant`) |
 | **API → `/api/tenants`** | CRUD for branches; create org; PATCH org name |
 

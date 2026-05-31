@@ -10,11 +10,8 @@ export class AuthController {
 
   @Post("sync")
   @UseGuards(PropelAuthGuard)
-  async sync(
-    @CurrentUser() user: AuthUserPayload,
-    @Body() body?: { orgId?: string },
-  ) {
-    return this.authService.syncUser(user, body?.orgId ?? user.orgId);
+  async sync(@CurrentUser() user: AuthUserPayload) {
+    return this.authService.syncUser(user);
   }
 
   @Post("me")

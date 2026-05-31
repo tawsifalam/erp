@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 const MODEL_PREFIXES: Record<string, string> = {
   User: "usr",
   Organization: "org",
+  OrganizationJoinRequest: "ojr",
   UserOrganization: "uo",
   Branch: "br",
   RoomType: "rt",
@@ -44,6 +45,16 @@ export function generateId(model: string): string {
     throw new Error(`No ID prefix defined for model: ${model}`);
   }
   return `${prefix}_${randomUUID()}`;
+}
+
+/** Generate a short shareable organization join code (e.g. ov_a1b2c3d4). */
+export function generateJoinCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let suffix = "";
+  for (let i = 0; i < 8; i++) {
+    suffix += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `ov_${suffix}`;
 }
 
 /** Generate an ID with a specific prefix string (e.g. "org", "rm"). */

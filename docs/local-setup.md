@@ -37,7 +37,13 @@ docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
 
 ## 4. Database
 
-Single initial migration (`20260101000000_init`) — full Phase 1 schema. No prior migration history.
+Single initial migration (`20260101000000_init`) — full schema including org onboarding (`joinCode`, join requests).
+
+```bash
+pnpm db:reset    # drop DB, apply init migration, run seed
+```
+
+Or step by step:
 
 ```bash
 pnpm db:migrate
@@ -49,8 +55,7 @@ pnpm db:seed
 ```bash
 docker compose -f infra/docker/docker-compose.yml down -v   # removes volumes
 docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
-pnpm db:migrate
-pnpm db:seed
+pnpm db:reset
 ```
 
 Demo seed uses `propelAuthOrgId` `demo-org-propelauth` and user `demo-admin-propelauth`. After PropelAuth login, the dashboard syncs your real user via `POST /api/auth/sync`.

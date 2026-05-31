@@ -18,6 +18,7 @@
     "@erp/config": "workspace:*",
     "@erp/types": "workspace:*",
     "@erp/ui": "workspace:*",
+    "@erp/utils": "workspace:*",
     "next": "^15.3.3",
     "next-themes": "^0.4.6",
     "@propelauth/nextjs": "^0.3.16",

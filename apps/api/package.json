@@ -12,6 +12,7 @@
     "test:unit": "jest",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "db:push": "prisma db push"
   },

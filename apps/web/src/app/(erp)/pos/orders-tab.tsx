@@ -17,13 +17,13 @@ import { EmptyState, LoadingState, MoneyText, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { CartItem, MenuCategory, Order } from "@/lib/pos-types";
+import { appToast } from "@/lib/app-toast";
 
 export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   const branchId = tenant.branchId;
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [tableNumber, setTableNumber] = useState("");
   const [notes, setNotes] = useState("");
@@ -43,7 +43,6 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   const load = useCallback(async () => {
     if (!branchId) return;
     setLoading(true);
-    setError(null);
     try {
       const [orderList, menu] = await Promise.all([
         apiFetch<Order[]>(`/pos/orders?branchId=${branchId}`, { tenant }),
@@ -52,7 +51,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       setOrders(orderList);
       setCategories(menu);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load orders");
+      appToast.error(e instanceof Error ? e.message : "Failed to load orders");
     } finally {
       setLoading(false);
     }
@@ -112,7 +111,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       setShowNewOrder(false);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create order");
+      appToast.error(e instanceof Error ? e.message : "Failed to create order");
     }
   };
 
@@ -124,7 +123,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit order");
+      appToast.error(e instanceof Error ? e.message : "Failed to submit order");
     }
   };
 
@@ -144,7 +143,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       setPaymentId(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to complete order");
+      appToast.error(e instanceof Error ? e.message : "Failed to complete order");
     }
   };
 
@@ -157,7 +156,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cannot cancel order");
+      appToast.error(e instanceof Error ? e.message : "Cannot cancel order");
     }
   };
 
@@ -170,7 +169,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
       });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cannot delete order");
+      appToast.error(e instanceof Error ? e.message : "Cannot delete order");
     }
   };
 
@@ -180,11 +179,6 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
 
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>

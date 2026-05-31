@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
 import { formatDateTime } from "@/lib/format";
+import { appToast } from "@/lib/app-toast";
 
 type ReportJob = {
   id: string;
@@ -29,8 +30,6 @@ type ReportType = {
 export default function ReportsPage() {
   const tenant = useTenantHeaders();
   const [exportType, setExportType] = useState("branch_summary");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const typesQuery = useAsync(
     () => apiFetch<ReportType[]>("/reporting/types", { tenant }),
@@ -56,22 +55,25 @@ export default function ReportsPage() {
     return () => clearInterval(t);
   }, [jobsQuery.data, jobsQuery.reload]);
 
+  useEffect(() => {
+    if (jobsQuery.error) appToast.error(jobsQuery.error);
+  }, [jobsQuery.error]);
+
   const exportCsv = async () => {
     if (!tenant.branchId) {
-      setError("Select a branch in the header to export branch reports.");
+      appToast.error("Select a branch in the header to export branch reports.");
       return;
     }
-    setError(null);
     try {
       await apiFetch<{ id: string }>("/reporting/export", {
         method: "POST",
         tenant,
         body: JSON.stringify({ type: exportType, branchId: tenant.branchId }),
       });
-      setMessage("Export queued — refresh or wait for completion");
+      appToast.success("Export queued — refresh or wait for completion");
       jobsQuery.reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export failed");
+      appToast.error(e instanceof Error ? e.message : "Export failed");
     }
   };
 
@@ -85,12 +87,6 @@ export default function ReportsPage() {
       {!tenant.branchId && (
         <Text mb={3} fontSize="sm" color="orange.600">
           Select a branch in the header to run branch-scoped exports.
-        </Text>
-      )}
-
-      {error && (
-        <Text color="red.500" mb={2} fontSize="sm">
-          {error}
         </Text>
       )}
 
@@ -111,11 +107,6 @@ export default function ReportsPage() {
       </Flex>
 
       {jobsQuery.loading && <LoadingState />}
-      {jobsQuery.error && (
-        <Text color="red.500" mb={2}>
-          {jobsQuery.error}
-        </Text>
-      )}
 
       <Box bg="white" borderRadius="md" p={4}>
         <Table.Root size="sm">
@@ -157,12 +148,6 @@ export default function ReportsPage() {
           <EmptyState message="No report jobs yet. Export a report to get started." />
         )}
       </Box>
-
-      {message && (
-        <Text mt={4} fontSize="sm" color="green.600">
-          {message}
-        </Text>
-      )}
     </DashboardShell>
   );
 }

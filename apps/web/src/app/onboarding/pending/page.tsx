@@ -9,6 +9,7 @@ import { syncUserAfterLogin } from "@/lib/auth";
 import { useTenant } from "@/lib/tenant-context";
 import { getDefaultRouteForRole } from "@erp/utils";
 import { Role } from "@erp/types";
+import { appToast } from "@/lib/app-toast";
 
 type OnboardingStatus = {
   hasMembership: boolean;
@@ -29,7 +30,6 @@ export default function OnboardingPendingPage() {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
     if (!accessToken) return;
@@ -66,14 +66,13 @@ export default function OnboardingPendingPage() {
   const cancelRequest = async () => {
     if (!status?.pendingRequest) return;
     setCancelling(true);
-    setError(null);
     try {
       await apiFetch(`/tenants/join-requests/${status.pendingRequest.id}`, {
         method: "DELETE",
       });
       router.replace("/onboarding");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to cancel request");
+      appToast.error(e instanceof Error ? e.message : "Failed to cancel request");
     } finally {
       setCancelling(false);
     }
@@ -101,12 +100,6 @@ export default function OnboardingPendingPage() {
         </Text>{" "}
         is pending. An organization admin will review it and assign your role.
       </Text>
-
-      {error && (
-        <Text color="red.500" fontSize="sm" mb={4}>
-          {error}
-        </Text>
-      )}
 
       <Stack gap={3}>
         <Text fontSize="xs" color="fg.muted">

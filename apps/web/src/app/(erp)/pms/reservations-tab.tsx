@@ -15,6 +15,7 @@ import { EmptyState, LoadingState, StatusBadge } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { Guest, Reservation, Room } from "@/lib/pms-types";
+import { appToast } from "@/lib/app-toast";
 
 export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const branchId = tenant.branchId;
@@ -22,7 +23,6 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     guestId: "",
@@ -48,7 +48,6 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const load = useCallback(async () => {
     if (!tenant.organizationId || !branchId) return;
     setLoading(true);
-    setError(null);
     try {
       const [resData, guestData] = await Promise.all([
         apiFetch<Reservation[]>(`/pms/reservations?branchId=${branchId}`, { tenant }),
@@ -57,7 +56,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
       setReservations(resData);
       setGuests(guestData);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load reservations");
+      appToast.error(e instanceof Error ? e.message : "Failed to load reservations");
     } finally {
       setLoading(false);
     }
@@ -132,7 +131,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const saveEdit = async () => {
     if (!branchId || !editId) return;
     if (!editForm.guestId || !editForm.roomId || !editForm.checkIn || !editForm.checkOut) {
-      setError("Guest, room, and dates are required.");
+      appToast.error("Guest, room, and dates are required.");
       return;
     }
     try {
@@ -150,7 +149,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
       setEditId(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update reservation");
+      appToast.error(e instanceof Error ? e.message : "Failed to update reservation");
     }
   };
 
@@ -170,14 +169,13 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const handleCreate = async () => {
     if (!branchId) return;
     if (!form.guestId || !form.roomId || !form.checkIn || !form.checkOut) {
-      setError("Guest, room, check-in, and check-out are required.");
+      appToast.error("Guest, room, check-in, and check-out are required.");
       return;
     }
     if (form.checkOut <= form.checkIn) {
-      setError("Check-out must be after check-in.");
+      appToast.error("Check-out must be after check-in.");
       return;
     }
-    setError(null);
     try {
       await apiFetch("/pms/reservations", {
         method: "POST",
@@ -205,7 +203,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
       });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create reservation");
+      appToast.error(e instanceof Error ? e.message : "Failed to create reservation");
     }
   };
 
@@ -242,11 +240,6 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
       <Flex gap={2} mb={4}>
         <Button size="sm" onClick={load}>
           Refresh
@@ -452,7 +445,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
                               );
                               load();
                             } catch (e) {
-                              setError(
+                              appToast.error(
                                 e instanceof Error ? e.message : "Cannot delete reservation",
                               );
                             }

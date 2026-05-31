@@ -14,6 +14,7 @@ import { AppSelect } from "@/components/app-select";
 import { EmptyState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
+import { appToast } from "@/lib/app-toast";
 
 type Item = {
   id: string;
@@ -62,14 +63,13 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
     quantity: "",
     notes: "",
   });
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!tenant.branchId) return;
     const poolQuery = poolFilter ? `&pool=${poolFilter}` : "";
     apiFetch<Item[]>(`/inventory/items?branchId=${tenant.branchId}${poolQuery}`, { tenant })
       .then(setItems)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load items"));
+      .catch((e) => appToast.error(e instanceof Error ? e.message : "Failed to load items"));
     apiFetch<InventoryPool[]>("/inventory/pools?activeOnly=true", { tenant })
       .then((data) => {
         setPools(data);
@@ -100,7 +100,6 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
 
   const handleCreateItem = async () => {
     try {
-      setError(null);
       await apiFetch("/inventory/items", {
         method: "POST",
         tenant,
@@ -125,14 +124,13 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
       setShowItemForm(false);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create item");
+      appToast.error(e instanceof Error ? e.message : "Failed to create item");
     }
   };
 
   const handleUpdateItem = async () => {
     if (!editingItem) return;
     try {
-      setError(null);
       await apiFetch(
         `/inventory/items/${editingItem.id}?branchId=${tenant.branchId}`,
         {
@@ -150,13 +148,12 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
       load();
       if (selectedItem) loadMovements(selectedItem);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update item");
+      appToast.error(e instanceof Error ? e.message : "Failed to update item");
     }
   };
 
   const handleAddMovement = async () => {
     try {
-      setError(null);
       const body: Record<string, unknown> = {
         itemId: movForm.itemId,
         branchId: tenant.branchId,
@@ -183,7 +180,7 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
       load();
       if (selectedItem) loadMovements(selectedItem);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to record movement");
+      appToast.error(e instanceof Error ? e.message : "Failed to record movement");
     }
   };
 
@@ -195,11 +192,6 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
 
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>

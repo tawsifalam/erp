@@ -6,22 +6,21 @@ import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { RoomType } from "@/lib/pms-types";
+import { appToast } from "@/lib/app-toast";
 
 export function RoomTypesTab({ tenant }: { tenant: TenantHeaders }) {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", maxAdults: 2, maxChildren: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!tenant.organizationId) return;
     setLoading(true);
-    setError(null);
     try {
       setRoomTypes(await apiFetch<RoomType[]>("/pms/room-types", { tenant }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load room types");
+      appToast.error(e instanceof Error ? e.message : "Failed to load room types");
     } finally {
       setLoading(false);
     }
@@ -54,11 +53,6 @@ export function RoomTypesTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
       <Box bg="white" borderRadius="md" p={4} mb={4}>
         <Text fontWeight="semibold" mb={3}>
           {editingId ? "Edit room type" : "New room type"}
@@ -139,7 +133,7 @@ export function RoomTypesTab({ tenant }: { tenant: TenantHeaders }) {
                             });
                             load();
                           } catch (e) {
-                            setError(e instanceof Error ? e.message : "Cannot delete room type");
+                            appToast.error(e instanceof Error ? e.message : "Cannot delete room type");
                           }
                         }}
                       >

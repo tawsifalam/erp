@@ -15,6 +15,7 @@ import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { MenuCategory } from "@/lib/pos-types";
+import { appToast } from "@/lib/app-toast";
 
 type InvItem = { id: string; name: string; sku: string; unit: string };
 
@@ -35,8 +36,6 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
   const [menuItemId, setMenuItemId] = useState("");
   const [lines, setLines] = useState<RecipeLine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const menuItems = categories.flatMap((c) =>
     c.items.map((i) => ({ ...i, categoryName: c.name })),
@@ -45,7 +44,6 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
   const loadMeta = useCallback(async () => {
     if (!branchId) return;
     setLoading(true);
-    setError(null);
     try {
       const [menu, items] = await Promise.all([
         apiFetch<MenuCategory[]>(`/pos/menu/categories?branchId=${branchId}`, { tenant }),
@@ -54,7 +52,7 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
       setCategories(menu);
       setInvItems(items);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load data");
+      appToast.error(e instanceof Error ? e.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -66,7 +64,6 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
 
   const loadRecipe = async (itemId: string) => {
     setMenuItemId(itemId);
-    setSaved(false);
     if (!itemId) {
       setLines([]);
       return;
@@ -109,9 +106,9 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
         tenant,
         body: JSON.stringify({ menuItemId, lines: valid }),
       });
-      setSaved(true);
+      appToast.success("Recipe saved. POS order completion will deduct these ingredients.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save recipe");
+      appToast.error(e instanceof Error ? e.message : "Failed to save recipe");
     }
   };
 
@@ -121,17 +118,6 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
-      {saved && (
-        <Text color="green.600" mb={3} fontSize="sm">
-          Recipe saved. POS order completion will deduct these ingredients.
-        </Text>
-      )}
-
       {loading && <LoadingState label="Loading menu and inventory…" />}
       {!loading && (
         <Box bg="white" borderRadius="md" p={4}>

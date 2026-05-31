@@ -6,23 +6,22 @@ import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { Guest } from "@/lib/pms-types";
+import { appToast } from "@/lib/app-toast";
 
 export function GuestsTab({ tenant }: { tenant: TenantHeaders }) {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ fullName: "", phone: "", email: "" });
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!tenant.organizationId) return;
     setLoading(true);
-    setError(null);
     try {
       const data = await apiFetch<Guest[]>("/pms/guests", { tenant });
       setGuests(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load guests");
+      appToast.error(e instanceof Error ? e.message : "Failed to load guests");
     } finally {
       setLoading(false);
     }
@@ -68,17 +67,12 @@ export function GuestsTab({ tenant }: { tenant: TenantHeaders }) {
       await apiFetch(`/pms/guests/${id}`, { method: "DELETE", tenant });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cannot delete guest");
+      appToast.error(e instanceof Error ? e.message : "Cannot delete guest");
     }
   };
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
       <Box bg="white" borderRadius="md" p={4} mb={4}>
         <Text fontWeight="semibold" mb={3}>
           {editingId ? "Edit guest" : "New guest"}

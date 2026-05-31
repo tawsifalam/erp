@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -18,6 +18,7 @@ import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
 import { formatDateTime } from "@/lib/format";
+import { appToast } from "@/lib/app-toast";
 
 type Account = { id: string; code: string; name: string; type: string };
 type Journal = {
@@ -37,7 +38,6 @@ export default function AccountingPage() {
     lines: [{ accountId: "", debit: "", credit: "" }] as JournalLineForm[],
   });
   const [accountForm, setAccountForm] = useState({ code: "", name: "", type: "ASSET" });
-  const [journalError, setJournalError] = useState<string | null>(null);
 
   const accountsQuery = useAsync(
     () => apiFetch<Account[]>("/accounting/accounts", { tenant }),
@@ -48,6 +48,10 @@ export default function AccountingPage() {
     () => apiFetch<Journal[]>("/accounting/journals", { tenant }),
     [tenant.organizationId],
   );
+
+  useEffect(() => {
+    if (journalsQuery.error) appToast.error(journalsQuery.error);
+  }, [journalsQuery.error]);
 
   const addJournalLine = () => {
     setJournalForm((f) => ({
@@ -64,7 +68,6 @@ export default function AccountingPage() {
   };
 
   const handleCreateJournal = async () => {
-    setJournalError(null);
     const lines = journalForm.lines
       .filter((l) => l.accountId)
       .map((l) => ({
@@ -76,11 +79,11 @@ export default function AccountingPage() {
     const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
     const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
     if (lines.length < 2) {
-      setJournalError("At least two lines with accounts are required.");
+      appToast.error("At least two lines with accounts are required.");
       return;
     }
     if (totalDebit !== totalCredit) {
-      setJournalError(`Entry not balanced: debits ${totalDebit} ≠ credits ${totalCredit}`);
+      appToast.error(`Entry not balanced: debits ${totalDebit} ≠ credits ${totalCredit}`);
       return;
     }
 
@@ -97,7 +100,7 @@ export default function AccountingPage() {
       journalsQuery.reload();
       setTab("journals");
     } catch (e) {
-      setJournalError(e instanceof Error ? e.message : "Failed to post journal");
+      appToast.error(e instanceof Error ? e.message : "Failed to post journal");
     }
   };
 
@@ -137,11 +140,6 @@ export default function AccountingPage() {
 
         <Tabs.Content value="journals" pt={4}>
           {journalsQuery.loading && <LoadingState />}
-          {journalsQuery.error && (
-            <Text color="red.500" mb={2}>
-              {journalsQuery.error}
-            </Text>
-          )}
           {!journalsQuery.loading && journals.length === 0 && (
             <EmptyState message="No journal entries yet." />
           )}
@@ -239,11 +237,6 @@ export default function AccountingPage() {
         <Tabs.Content value="new-journal" pt={4}>
           <Box bg="white" borderRadius="md" p={4}>
             <Stack gap={3}>
-              {journalError && (
-                <Text color="red.500" fontSize="sm">
-                  {journalError}
-                </Text>
-              )}
               <Input
                 placeholder="Description"
                 value={journalForm.description}

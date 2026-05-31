@@ -18,6 +18,7 @@ import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
 import { formatDateTime } from "@/lib/format";
+import { appToast } from "@/lib/app-toast";
 
 type Employee = { id: string; name: string; designation: string; salary: string };
 type PayrollRun = {
@@ -73,8 +74,6 @@ export default function HrPage() {
     name: "",
     lines: [{ inventoryItemId: "", quantity: "" }],
   });
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const employeesQuery = useAsync(
     () => apiFetch<Employee[]>("/hr/employees", { tenant }),
@@ -137,7 +136,6 @@ export default function HrPage() {
   const inventoryItems = inventoryQuery.data ?? [];
 
   const handleAddEmployee = async () => {
-    setError(null);
     try {
       await apiFetch("/hr/employees", {
         method: "POST",
@@ -151,31 +149,29 @@ export default function HrPage() {
       });
       setEmpForm({ name: "", designation: "", salary: "" });
       employeesQuery.reload();
-      setMessage("Employee added");
+      appToast.success("Employee added");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add employee");
+      appToast.error(e instanceof Error ? e.message : "Failed to add employee");
     }
   };
 
   const handleClock = async () => {
     if (!clockEmployeeId || !tenant.branchId) return;
-    setError(null);
     try {
       await apiFetch("/hr/attendance/clock", {
         method: "POST",
         tenant,
         body: JSON.stringify({ employeeId: clockEmployeeId, type: clockType }),
       });
-      setMessage(`${clockType === "CLOCK_IN" ? "Clocked in" : "Clocked out"} successfully`);
+      appToast.success(`${clockType === "CLOCK_IN" ? "Clocked in" : "Clocked out"} successfully`);
       reloadAttendance();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to record attendance");
+      appToast.error(e instanceof Error ? e.message : "Failed to record attendance");
     }
   };
 
   const handleSaveRecipe = async () => {
     if (!tenant.branchId) return;
-    setError(null);
     try {
       await apiFetch("/hr/staff-meal-recipes", {
         method: "POST",
@@ -192,15 +188,14 @@ export default function HrPage() {
       });
       setRecipeForm({ name: "", lines: [{ inventoryItemId: "", quantity: "" }] });
       mealRecipesQuery.reload();
-      setMessage("Staff meal recipe saved");
+      appToast.success("Staff meal recipe saved");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save recipe");
+      appToast.error(e instanceof Error ? e.message : "Failed to save recipe");
     }
   };
 
   const handleStaffMeal = async () => {
     if (!tenant.branchId) return;
-    setError(null);
     try {
       await apiFetch("/hr/staff-meals", {
         method: "POST",
@@ -219,14 +214,13 @@ export default function HrPage() {
         deductFromPayroll: false,
       });
       staffMealsQuery.reload();
-      setMessage("Staff meal recorded (recipe ingredients deducted)");
+      appToast.success("Staff meal recorded (recipe ingredients deducted)");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to record staff meal");
+      appToast.error(e instanceof Error ? e.message : "Failed to record staff meal");
     }
   };
 
   const runPayroll = async () => {
-    setError(null);
     try {
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -238,22 +232,16 @@ export default function HrPage() {
           periodEnd: now.toISOString(),
         }),
       });
-      setMessage(`Payroll run queued: ${job.id}`);
+      appToast.success(`Payroll run queued: ${job.id}`);
       payrollQuery.reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to queue payroll run");
+      appToast.error(e instanceof Error ? e.message : "Failed to queue payroll run");
     }
   };
 
   return (
     <DashboardShell title="HR">
       <PageHeader title="Human Resources" description="Employees, attendance, staff meals, and payroll" />
-
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
         <Tabs.List>
@@ -585,12 +573,6 @@ export default function HrPage() {
           )}
         </Tabs.Content>
       </Tabs.Root>
-
-      {message && (
-        <Text mt={4} fontSize="sm" color="green.600">
-          {message}
-        </Text>
-      )}
     </DashboardShell>
   );
 }

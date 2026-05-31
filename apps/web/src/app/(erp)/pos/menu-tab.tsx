@@ -15,12 +15,12 @@ import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { MenuCategory } from "@/lib/pos-types";
+import { appToast } from "@/lib/app-toast";
 
 export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
   const branchId = tenant.branchId;
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [catForm, setCatForm] = useState({ name: "", sortOrder: 0 });
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [itemForm, setItemForm] = useState({
@@ -34,7 +34,6 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
   const load = useCallback(async () => {
     if (!branchId) return;
     setLoading(true);
-    setError(null);
     try {
       const data = await apiFetch<MenuCategory[]>(
         `/pos/menu/categories?branchId=${branchId}`,
@@ -45,7 +44,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
         setItemForm((f) => ({ ...f, categoryId: data[0].id }));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load menu");
+      appToast.error(e instanceof Error ? e.message : "Failed to load menu");
     } finally {
       setLoading(false);
     }
@@ -82,7 +81,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
       setEditingCatId(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save category");
+      appToast.error(e instanceof Error ? e.message : "Failed to save category");
     }
   };
 
@@ -95,7 +94,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
       });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cannot delete category");
+      appToast.error(e instanceof Error ? e.message : "Cannot delete category");
     }
   };
 
@@ -121,7 +120,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
       setEditingItemId(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save item");
+      appToast.error(e instanceof Error ? e.message : "Failed to save item");
     }
   };
 
@@ -131,7 +130,7 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
       await apiFetch(`/pos/menu/items/${id}`, { method: "DELETE", tenant });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cannot delete item");
+      appToast.error(e instanceof Error ? e.message : "Cannot delete item");
     }
   };
 
@@ -141,11 +140,6 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
 
       <Box bg="white" borderRadius="md" p={4} mb={4}>
         <Text fontWeight="semibold" mb={3}>

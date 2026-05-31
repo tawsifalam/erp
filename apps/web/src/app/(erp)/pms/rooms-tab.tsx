@@ -15,6 +15,7 @@ import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { Room, RoomType } from "@/lib/pms-types";
 import { getSocket, joinBranch } from "@/lib/socket";
+import { appToast } from "@/lib/app-toast";
 
 const HOUSEKEEPING: Record<string, string[]> = {
   DIRTY: ["VACANT"],
@@ -27,7 +28,6 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     roomNumber: "",
     roomTypeId: "",
@@ -43,7 +43,6 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
   const load = useCallback(async () => {
     if (!tenant.organizationId || !branchId) return;
     setLoading(true);
-    setError(null);
     try {
       const [roomData, typeData] = await Promise.all([
         apiFetch<Room[]>(`/pms/rooms?branchId=${branchId}`, { tenant }),
@@ -52,7 +51,7 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
       setRooms(roomData);
       setRoomTypes(typeData);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load rooms");
+      appToast.error(e instanceof Error ? e.message : "Failed to load rooms");
     } finally {
       setLoading(false);
     }
@@ -104,7 +103,7 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
       });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Status update failed");
+      appToast.error(e instanceof Error ? e.message : "Status update failed");
     }
   };
 
@@ -132,7 +131,7 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
       setEditId(null);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update room");
+      appToast.error(e instanceof Error ? e.message : "Failed to update room");
     }
   };
 
@@ -146,11 +145,6 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Box>
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
       <Box bg="white" borderRadius="md" p={4} mb={4}>
         <Text fontWeight="semibold" mb={3}>
           Add room
@@ -248,7 +242,7 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
                               );
                               load();
                             } catch (e) {
-                              setError(e instanceof Error ? e.message : "Cannot delete room");
+                              appToast.error(e instanceof Error ? e.message : "Cannot delete room");
                             }
                           }}
                         >

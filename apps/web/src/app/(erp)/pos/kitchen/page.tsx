@@ -11,6 +11,7 @@ import { erpTheme, EmptyState } from "@erp/ui";
 import { TenantSelector } from "@/components/tenant-selector";
 import { shortId } from "@/lib/format";
 import type { Order } from "@/lib/pos-types";
+import { appToast } from "@/lib/app-toast";
 
 type KitchenCard = {
   id: string;
@@ -25,7 +26,6 @@ export default function KitchenPage() {
   const tenant = useTenant();
   const headers = useTenantHeaders();
   const [cards, setCards] = useState<KitchenCard[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   const branchName = useMemo(() => {
     if (!tenant.organizationId || !tenant.branchId) return null;
@@ -52,7 +52,7 @@ export default function KitchenPage() {
           })),
         );
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load queue"));
+      .catch((e) => appToast.error(e instanceof Error ? e.message : "Failed to load queue"));
   }, [headers.branchId, headers.organizationId]);
 
   useEffect(loadOrders, [loadOrders]);
@@ -80,7 +80,7 @@ export default function KitchenPage() {
       });
       loadOrders();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update status");
+      appToast.error(e instanceof Error ? e.message : "Failed to update status");
     }
   };
 
@@ -104,12 +104,6 @@ export default function KitchenPage() {
           </Link>
         </Flex>
       </Flex>
-
-      {error && (
-        <Text color="red.300" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
 
       {!headers.branchId && (
         <Text color="orange.200" mb={3} fontSize="sm">

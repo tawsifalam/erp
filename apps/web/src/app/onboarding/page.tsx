@@ -19,6 +19,7 @@ import { syncUserAfterLogin } from "@/lib/auth";
 import { useTenant } from "@/lib/tenant-context";
 import { getDefaultRouteForRole } from "@erp/utils";
 import { Role } from "@erp/types";
+import { appToast } from "@/lib/app-toast";
 
 type OnboardingStatus = {
   hasMembership: boolean;
@@ -51,7 +52,6 @@ export default function OnboardingPage() {
   const [joinCode, setJoinCode] = useState("");
   const [joinMessage, setJoinMessage] = useState("");
   const [selectedOrg, setSelectedOrg] = useState<OrgSearchResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const checkStatus = useCallback(async () => {
@@ -78,37 +78,34 @@ export default function OnboardingPage() {
   }, [authLoading, accessToken, checkStatus]);
 
   const searchOrgs = async () => {
-    setError(null);
     try {
       const results = await apiFetch<OrgSearchResult[]>(
         `/tenants/organizations/search?q=${encodeURIComponent(searchQuery)}`,
       );
       setSearchResults(results);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      appToast.error(e instanceof Error ? e.message : "Search failed");
     }
   };
 
   const lookupJoinCode = async () => {
-    setError(null);
     setSelectedOrg(null);
     try {
       const org = await apiFetch<OrgSearchResult | null>(
         `/tenants/organizations/by-join-code/${encodeURIComponent(joinCode.trim())}`,
       );
       if (!org) {
-        setError("No organization found for this join code");
+        appToast.error("No organization found for this join code");
         return;
       }
       setSelectedOrg(org);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Invalid join code");
+      appToast.error(e instanceof Error ? e.message : "Invalid join code");
     }
   };
 
   const createOrg = async () => {
     setSubmitting(true);
-    setError(null);
     try {
       const result = await apiFetch<{
         organization: { id: string; branches: { id: string }[] };
@@ -125,7 +122,7 @@ export default function OnboardingPage() {
       }
       router.replace(getDefaultRouteForRole(Role.OWNER));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create organization");
+      appToast.error(e instanceof Error ? e.message : "Failed to create organization");
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +130,6 @@ export default function OnboardingPage() {
 
   const requestJoin = async (org: OrgSearchResult) => {
     setSubmitting(true);
-    setError(null);
     try {
       await apiFetch("/tenants/join-requests", {
         method: "POST",
@@ -144,7 +140,7 @@ export default function OnboardingPage() {
       });
       router.replace("/onboarding/pending");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to submit join request");
+      appToast.error(e instanceof Error ? e.message : "Failed to submit join request");
     } finally {
       setSubmitting(false);
     }
@@ -172,12 +168,6 @@ export default function OnboardingPage() {
         Create your organization or request to join an existing one. An admin must approve join
         requests before you can access the app.
       </Text>
-
-      {error && (
-        <Text color="red.500" fontSize="sm" mb={4}>
-          {error}
-        </Text>
-      )}
 
       <Tabs.Root defaultValue="create">
         <Tabs.List mb={4}>

@@ -13,6 +13,7 @@ import { Role } from "@erp/types";
 import { AppSelect } from "@/components/app-select";
 import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
+import { appToast } from "@/lib/app-toast";
 import type { TenantHeaders } from "@/lib/api-client";
 
 type JoinRequest = {
@@ -40,15 +41,7 @@ const ROLE_OPTIONS = Object.values(Role).map((r) => ({
   label: r.replace(/_/g, " "),
 }));
 
-export function TeamAccessSection({
-  tenant,
-  onMessage,
-  onError,
-}: {
-  tenant: TenantHeaders | undefined;
-  onMessage: (msg: string) => void;
-  onError: (msg: string) => void;
-}) {
+export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefined }) {
   const [loading, setLoading] = useState(true);
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
@@ -62,7 +55,6 @@ export function TeamAccessSection({
       return;
     }
     setLoading(true);
-    onError("");
     try {
       const [orgData, requests, memberList] = await Promise.all([
         apiFetch<OrganizationDetail>("/tenants/organizations/current", { tenant }),
@@ -78,11 +70,11 @@ export function TeamAccessSection({
       }
       setApproveRoles(defaults);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to load team data");
+      appToast.error(e instanceof Error ? e.message : "Failed to load team data");
     } finally {
       setLoading(false);
     }
-  }, [tenant, onError]);
+  }, [tenant]);
 
   useEffect(() => {
     load();
@@ -91,24 +83,23 @@ export function TeamAccessSection({
   const copyJoinCode = async () => {
     if (!org?.joinCode) return;
     await navigator.clipboard.writeText(org.joinCode);
-    onMessage("Join code copied to clipboard");
+    appToast.success("Join code copied to clipboard");
   };
 
   const approve = async (requestId: string) => {
     if (!tenant) return;
     const role = approveRoles[requestId] ?? Role.FRONT_DESK;
     setActing(requestId);
-    onError("");
     try {
       await apiFetch(`/tenants/join-requests/${requestId}/approve`, {
         method: "POST",
         tenant,
         body: JSON.stringify({ role }),
       });
-      onMessage("Join request approved");
+      appToast.success("Join request approved");
       load();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to approve request");
+      appToast.error(e instanceof Error ? e.message : "Failed to approve request");
     } finally {
       setActing(null);
     }
@@ -117,17 +108,16 @@ export function TeamAccessSection({
   const reject = async (requestId: string) => {
     if (!tenant) return;
     setActing(requestId);
-    onError("");
     try {
       await apiFetch(`/tenants/join-requests/${requestId}/reject`, {
         method: "POST",
         tenant,
         body: JSON.stringify({}),
       });
-      onMessage("Join request rejected");
+      appToast.success("Join request rejected");
       load();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to reject request");
+      appToast.error(e instanceof Error ? e.message : "Failed to reject request");
     } finally {
       setActing(null);
     }
@@ -136,17 +126,16 @@ export function TeamAccessSection({
   const changeRole = async (userId: string, role: string) => {
     if (!tenant) return;
     setActing(userId);
-    onError("");
     try {
       await apiFetch(`/tenants/members/${userId}/role`, {
         method: "PATCH",
         tenant,
         body: JSON.stringify({ role }),
       });
-      onMessage("Member role updated");
+      appToast.success("Member role updated");
       load();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to update role");
+      appToast.error(e instanceof Error ? e.message : "Failed to update role");
     } finally {
       setActing(null);
     }
@@ -158,16 +147,15 @@ export function TeamAccessSection({
       return;
     }
     setActing(member.user.id);
-    onError("");
     try {
       await apiFetch(`/tenants/members/${member.user.id}`, {
         method: "DELETE",
         tenant,
       });
-      onMessage("Member removed");
+      appToast.success("Member removed");
       load();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Failed to remove member");
+      appToast.error(e instanceof Error ? e.message : "Failed to remove member");
     } finally {
       setActing(null);
     }

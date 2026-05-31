@@ -17,6 +17,7 @@ import { apiFetch } from "@/lib/api-client";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantHeaders } from "@/lib/api-client";
 import { shortId } from "@/lib/format";
+import { appToast } from "@/lib/app-toast";
 import { InventoryPoolsSection } from "./inventory-pools-section";
 import { TeamAccessSection } from "./team-access-section";
 
@@ -55,8 +56,6 @@ export default function SettingsPage() {
   const [newOrgForm, setNewOrgForm] = useState({ name: "", timezone: "Asia/Dhaka" });
   const [showBranchForm, setShowBranchForm] = useState(false);
   const [showNewOrgForm, setShowNewOrgForm] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const isAdmin = canManageTenants(tenant.role);
   const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
@@ -67,7 +66,6 @@ export default function SettingsPage() {
       return;
     }
     setLoading(true);
-    setError(null);
     try {
       const [orgData, branchData] = await Promise.all([
         apiFetch<OrganizationDetail>("/tenants/organizations/current", { tenant: tenantHeaders }),
@@ -77,7 +75,7 @@ export default function SettingsPage() {
       setOrgName(orgData.name);
       setBranches(branchData);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load settings");
+      appToast.error(e instanceof Error ? e.message : "Failed to load settings");
     } finally {
       setLoading(false);
     }
@@ -89,24 +87,22 @@ export default function SettingsPage() {
 
   const saveOrgName = async () => {
     if (!tenantHeaders) return;
-    setError(null);
     try {
       await apiFetch("/tenants/organizations/current", {
         method: "PATCH",
         tenant: tenantHeaders,
         body: JSON.stringify({ name: orgName }),
       });
-      setMessage("Organization updated");
+      appToast.success("Organization updated");
       await tenant.refreshMemberships();
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update organization");
+      appToast.error(e instanceof Error ? e.message : "Failed to update organization");
     }
   };
 
   const addBranch = async () => {
     if (!tenantHeaders) return;
-    setError(null);
     try {
       await apiFetch("/tenants/branches", {
         method: "POST",
@@ -115,33 +111,31 @@ export default function SettingsPage() {
       });
       setBranchForm({ name: "", timezone: "Asia/Dhaka" });
       setShowBranchForm(false);
-      setMessage("Branch created");
+      appToast.success("Branch created");
       await tenant.refreshMemberships();
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create branch");
+      appToast.error(e instanceof Error ? e.message : "Failed to create branch");
     }
   };
 
   const updateBranch = async (id: string, data: { name: string; timezone: string }) => {
     if (!tenantHeaders) return;
-    setError(null);
     try {
       await apiFetch(`/tenants/branches/${id}`, {
         method: "PATCH",
         tenant: tenantHeaders,
         body: JSON.stringify(data),
       });
-      setMessage("Branch updated");
+      appToast.success("Branch updated");
       await tenant.refreshMemberships();
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update branch");
+      appToast.error(e instanceof Error ? e.message : "Failed to update branch");
     }
   };
 
   const createOrganization = async () => {
-    setError(null);
     try {
       const name = newOrgForm.name;
       const result = await apiFetch<{
@@ -152,7 +146,7 @@ export default function SettingsPage() {
       });
       setShowNewOrgForm(false);
       setNewOrgForm({ name: "", timezone: "Asia/Dhaka" });
-      setMessage(`Organization "${name}" created`);
+      appToast.success(`Organization "${name}" created`);
       await tenant.refreshMemberships();
       if (result?.organization?.id) {
         tenant.setOrganizationId(result.organization.id);
@@ -162,7 +156,7 @@ export default function SettingsPage() {
       }
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create organization");
+      appToast.error(e instanceof Error ? e.message : "Failed to create organization");
     }
   };
 
@@ -172,12 +166,6 @@ export default function SettingsPage() {
         title="Settings"
         description="Organization, branches, and inventory pool configuration"
       />
-
-      {error && (
-        <Text color="red.500" mb={3} fontSize="sm">
-          {error}
-        </Text>
-      )}
 
       {!isAdmin && (
         <Box bg="orange.50" borderRadius="md" p={4} mb={4}>
@@ -316,27 +304,13 @@ export default function SettingsPage() {
           </Tabs.Content>
 
           <Tabs.Content value="team" pt={2}>
-            <TeamAccessSection
-              tenant={tenantHeaders}
-              onMessage={setMessage}
-              onError={setError}
-            />
+            <TeamAccessSection tenant={tenantHeaders} />
           </Tabs.Content>
 
           <Tabs.Content value="pools" pt={2}>
-            <InventoryPoolsSection
-              tenant={tenantHeaders}
-              onMessage={setMessage}
-              onError={setError}
-            />
+            <InventoryPoolsSection tenant={tenantHeaders} />
           </Tabs.Content>
         </Tabs.Root>
-      )}
-
-      {message && (
-        <Text mt={4} fontSize="sm" color="green.600">
-          {message}
-        </Text>
       )}
     </DashboardShell>
   );

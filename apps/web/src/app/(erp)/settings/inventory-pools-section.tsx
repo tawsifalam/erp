@@ -13,6 +13,7 @@ import {
 import { EmptyState, LoadingState } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
+import { appToast } from "@/lib/app-toast";
 
 type InventoryPool = {
   id: string;
@@ -23,15 +24,7 @@ type InventoryPool = {
   sortOrder: number;
 };
 
-export function InventoryPoolsSection({
-  tenant,
-  onMessage,
-  onError,
-}: {
-  tenant: TenantHeaders | undefined;
-  onMessage: (msg: string) => void;
-  onError?: (msg: string | null) => void;
-}) {
+export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | undefined }) {
   const [pools, setPools] = useState<InventoryPool[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -47,7 +40,7 @@ export function InventoryPoolsSection({
       const data = await apiFetch<InventoryPool[]>("/inventory/pools", { tenant });
       setPools(data);
     } catch (e) {
-      onError?.(e instanceof Error ? e.message : "Failed to load pools");
+      appToast.error(e instanceof Error ? e.message : "Failed to load pools");
     } finally {
       setLoading(false);
     }
@@ -59,7 +52,6 @@ export function InventoryPoolsSection({
 
   const createPool = async () => {
     if (!tenant) return;
-    onError?.(null);
     try {
       await apiFetch("/inventory/pools", {
         method: "POST",
@@ -68,26 +60,25 @@ export function InventoryPoolsSection({
       });
       setForm({ code: "", name: "" });
       setShowForm(false);
-      onMessage("Inventory pool created");
+      appToast.success("Inventory pool created");
       load();
     } catch (e) {
-      onError?.(e instanceof Error ? e.message : "Failed to create pool");
+      appToast.error(e instanceof Error ? e.message : "Failed to create pool");
     }
   };
 
   const updatePool = async (id: string, data: Partial<InventoryPool>) => {
     if (!tenant) return;
-    onError?.(null);
     try {
       await apiFetch(`/inventory/pools/${id}`, {
         method: "PATCH",
         tenant,
         body: JSON.stringify(data),
       });
-      onMessage("Inventory pool updated");
+      appToast.success("Inventory pool updated");
       load();
     } catch (e) {
-      onError?.(e instanceof Error ? e.message : "Failed to update pool");
+      appToast.error(e instanceof Error ? e.message : "Failed to update pool");
     }
   };
 

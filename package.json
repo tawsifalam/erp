@@ -7,6 +7,9 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @erp/web test:e2e",
+    "test:visual-guide": "pnpm --filter @erp/web test:visual-guide",
+    "generate:visual-guide-pdf": "node scripts/generate-visual-guide-pdf.mjs",
+    "visual-guide": "pnpm test:visual-guide && pnpm generate:visual-guide-pdf",
     "test:e2e:headed": "pnpm --filter @erp/web test:e2e:headed",
     "test:e2e:ui": "pnpm --filter @erp/web test:e2e:ui",
     "test:e2e:debug": "pnpm --filter @erp/web test:e2e:debug",
@@ -19,6 +22,7 @@
     "db:push": "pnpm --filter @erp/api db:push"
   },
   "devDependencies": {
+    "md-to-pdf": "^5.2.5",
     "turbo": "^2.5.4",
     "typescript": "^5.8.3"
   },

@@ -152,6 +152,7 @@ Run on a staging stack with real PropelAuth and database:
 
 ## Related
 
+- [Visual guide](./visual-guide.md) — module map, journeys, screenshots (`pnpm --filter @erp/web test:visual-guide`)
 - [ERP completeness roadmap](./erp-completeness-roadmap.md) — full history and deferred items
 - [PropelAuth](./propelauth.md) — auth and invite setup
 - [Cloud deployment](./cloud-deployment.md) — production env layout

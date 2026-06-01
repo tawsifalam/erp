@@ -6,6 +6,7 @@
 
 ## Table of Contents
 
+- [Visual guide](./visual-guide.md) — module screenshots and Mermaid journeys (generate with `pnpm --filter @erp/web test:visual-guide`)
 - [Quick Start](#quick-start)
 - [1. Authentication & Tenant Selection](#1-authentication--tenant-selection)
 - [1b. Organization & Branch Management](#1b-organization--branch-management)

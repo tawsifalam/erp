@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:visual-guide": "playwright test --project=visual-guide",
+    "test:visual-guide:headed": "playwright test --project=visual-guide --headed",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",

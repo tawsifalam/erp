@@ -30,6 +30,11 @@ export const MODULE_META: Record<string, ModuleMeta> = {
     title: "Stock management",
     description: "Ledger-based stock, movements, and menu recipes (BOM).",
   },
+  "/procurement": {
+    label: "Procurement",
+    title: "Procurement",
+    description: "Vendors, purchase orders, and goods receipt into inventory.",
+  },
   "/accounting": {
     label: "Accounting",
     title: "Accounting",

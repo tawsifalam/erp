@@ -19,6 +19,8 @@ import type { TenantContext } from "@erp/types";
 import { ReservationStatus, RoomStatus } from "@erp/types";
 import { PmsService } from "./pms.service";
 import { AvailabilityService } from "./availability.service";
+import { RatePlansService } from "./rate-plans.service";
+import { RatePricingService } from "./rate-pricing.service";
 
 @Controller("pms")
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
@@ -26,6 +28,8 @@ export class PmsController {
   constructor(
     private readonly pms: PmsService,
     private readonly availability: AvailabilityService,
+    private readonly ratePlans: RatePlansService,
+    private readonly pricing: RatePricingService,
   ) {}
 
   private branchId(t: TenantContext, query?: string) {
@@ -210,7 +214,7 @@ export class PmsController {
       roomId: string;
       checkIn: string;
       checkOut: string;
-      totalAmount: number;
+      totalAmount?: number;
       paidAmount?: number;
       status?: ReservationStatus;
       adultCount?: number;
@@ -339,5 +343,86 @@ export class PmsController {
     @Tenant() t: TenantContext,
   ) {
     return this.pms.deleteReservation(this.branchId(t, branchId), id, t.userId);
+  }
+
+  @Get("rate-plans")
+  @RequirePermission(Permission.PMS_READ)
+  listRatePlans(@Tenant() t: TenantContext) {
+    return this.ratePlans.list(t.organizationId);
+  }
+
+  @Post("rate-plans")
+  @RequirePermission(Permission.PMS_WRITE)
+  createRatePlan(
+    @Tenant() t: TenantContext,
+    @Body()
+    body: {
+      roomTypeId: string;
+      name: string;
+      validFrom: string;
+      validTo: string;
+      baseModifier?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.ratePlans.create(t.organizationId, body);
+  }
+
+  @Patch("rate-plans/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  updateRatePlan(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body()
+    body: {
+      name?: string;
+      validFrom?: string;
+      validTo?: string;
+      baseModifier?: number;
+      isActive?: boolean;
+    },
+  ) {
+    return this.ratePlans.update(t.organizationId, id, body);
+  }
+
+  @Delete("rate-plans/:id")
+  @RequirePermission(Permission.PMS_WRITE)
+  deleteRatePlan(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.ratePlans.delete(t.organizationId, id);
+  }
+
+  @Post("rate-plans/:id/rules")
+  @RequirePermission(Permission.PMS_WRITE)
+  addRateRule(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body()
+    body: {
+      dayOfWeek?: number | null;
+      minStayNights?: number | null;
+      pricePerNight?: number | null;
+    },
+  ) {
+    return this.ratePlans.addRule(t.organizationId, id, body);
+  }
+
+  @Delete("rate-plans/:planId/rules/:ruleId")
+  @RequirePermission(Permission.PMS_WRITE)
+  deleteRateRule(
+    @Tenant() t: TenantContext,
+    @Param("planId") planId: string,
+    @Param("ruleId") ruleId: string,
+  ) {
+    return this.ratePlans.deleteRule(t.organizationId, planId, ruleId);
+  }
+
+  @Get("pricing/quote")
+  @RequirePermission(Permission.PMS_READ)
+  quote(
+    @Query("roomId") roomId: string,
+    @Query("checkIn") checkIn: string,
+    @Query("checkOut") checkOut: string,
+  ) {
+    return this.pricing.quoteStay(roomId, new Date(checkIn), new Date(checkOut));
   }
 }

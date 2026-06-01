@@ -12,6 +12,7 @@ import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { InclusionsService } from "../inclusions/inclusions.service";
 import { AuditService } from "../audit/audit.service";
+import { RatePricingService } from "./rate-pricing.service";
 
 const mockPrisma = {
   branch: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
@@ -77,6 +78,18 @@ describe("PmsService", () => {
         { provide: EventEmitter2, useValue: mockEvents },
         { provide: InclusionsService, useValue: mockInclusions },
         { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: RatePricingService,
+          useValue: {
+            quoteStay: jest.fn().mockResolvedValue({
+              totalAmount: 7000,
+              nights: 2,
+              ratePlanId: null,
+              ratePlanName: null,
+              nightlyBreakdown: [],
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -183,6 +196,7 @@ describe("PmsService", () => {
           childCount: 0,
           packageId: null,
           mealsPerGuestPerNightOverride: null,
+          ratePlanId: null,
         },
         include: { guest: true, room: { include: { roomType: true } }, package: true },
       });

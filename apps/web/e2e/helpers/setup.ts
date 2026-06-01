@@ -27,5 +27,8 @@ export async function setupE2ePage(page: Page) {
 /** Navigate and wait for the shell to finish loading tenant + first paint. */
 export async function gotoApp(page: Page, path: string) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
-  await page.waitForLoadState("networkidle").catch(() => undefined);
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => undefined);
 }

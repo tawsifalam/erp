@@ -29,6 +29,7 @@ export const MODULE_SECTIONS: Record<string, Record<string, SectionMeta>> = {
     "room-types": { label: "Room types" },
     guests: { label: "Guests" },
     inclusions: { label: "Guest packages" },
+    rates: { label: "Rates" },
   },
   "/pos": {
     orders: { label: "Orders" },

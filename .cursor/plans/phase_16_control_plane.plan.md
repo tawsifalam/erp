@@ -9,8 +9,8 @@ todos:
     content: "1.6b Notification model, in-app + email queue, header bell, hooks + E2E notifications.spec.ts"
     status: completed
   - id: pms-rates
-    content: "1.6c RatePlan, RateRule, reservation pricing from plans"
-    status: pending
+    content: "1.6c RatePlan/RateRule, pricing quote API, Rates tab, reservation auto-pricing + E2E rates.spec.ts"
+    status: completed
 isProject: false
 ---
 
@@ -20,19 +20,12 @@ Build order per [erp-completeness-roadmap.md](../docs/erp-completeness-roadmap.m
 
 ## 1.6a Audit trail (done)
 
-- `AuditService.record()` + `GET /audit/logs` (ADMIN)
-- Settings → **Audit log** tab with entity/date filters
-- E2E: `apps/web/e2e/audit.spec.ts`
-
 ## 1.6b Notifications (done)
 
-- `Notification` model + `GET/PATCH /notifications` API
-- Bull email jobs (log-only delivery in dev)
-- Triggers: low stock after movement, payroll complete/fail, report export ready
-- Header **NotificationBell** in dashboard shell
-- E2E: `apps/web/e2e/notifications.spec.ts` + `notification-state.ts` mocks
+## 1.6c PMS rate management (done)
 
-## 1.6c PMS rate management
-
-- `RatePlan`, `RateRule`, package bundles
-- Reservation `totalAmount` from plan at booking time
+- `RatePlan` + `RateRule` models, migration `20260601180000_pms_rate_plans`
+- `GET/POST/PATCH/DELETE /pms/rate-plans`, rules CRUD, `GET /pms/pricing/quote`
+- Reservations store `ratePlanId`; create/update auto-price from plans
+- PMS **Rates** tab; reservation drawer shows calculated total + hint
+- E2E: `apps/web/e2e/rates.spec.ts` + `rates-state.ts` mocks

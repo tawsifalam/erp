@@ -15,6 +15,7 @@ import { ReservationCheckedOutEvent } from "../common/events/reservation-checked
 import { InclusionsService } from "../inclusions/inclusions.service";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
+import { RatePricingService } from "./rate-pricing.service";
 
 const CANCELLABLE: string[] = [
   ReservationStatus.INQUIRY,
@@ -36,6 +37,7 @@ export class PmsService {
     private readonly events: EventEmitter2,
     private readonly inclusions: InclusionsService,
     private readonly audit: AuditService,
+    private readonly pricing: RatePricingService,
   ) {}
 
   private async logReservationAudit(
@@ -310,6 +312,19 @@ export class PmsService {
     }
   }
 
+  private async resolveStayPricing(
+    roomId: string,
+    checkIn: Date,
+    checkOut: Date,
+    totalAmount?: number,
+  ) {
+    const quote = await this.pricing.quoteStay(roomId, checkIn, checkOut);
+    return {
+      totalAmount: totalAmount ?? quote.totalAmount,
+      ratePlanId: quote.ratePlanId,
+    };
+  }
+
   private validateReservationFields(data: {
     guestId: string;
     roomId: string;
@@ -355,7 +370,7 @@ export class PmsService {
       roomId: string;
       checkIn: Date;
       checkOut: Date;
-      totalAmount: number;
+      totalAmount?: number;
       paidAmount?: number;
       status?: ReservationStatus;
       adultCount?: number;
@@ -364,7 +379,14 @@ export class PmsService {
       mealsPerGuestPerNightOverride?: number;
     },
   ) {
-    this.validateReservationFields(data);
+    const pricing = await this.resolveStayPricing(
+      data.roomId,
+      data.checkIn,
+      data.checkOut,
+      data.totalAmount,
+    );
+    const priced = { ...data, totalAmount: pricing.totalAmount };
+    this.validateReservationFields(priced);
     this.validateHeadcount(data.adultCount, data.childCount);
     if (data.mealsPerGuestPerNightOverride != null) {
       if (
@@ -394,9 +416,10 @@ export class PmsService {
           roomId: data.roomId,
           checkIn: data.checkIn,
           checkOut: data.checkOut,
-          totalAmount: data.totalAmount,
+          totalAmount: pricing.totalAmount,
           paidAmount: data.paidAmount ?? 0,
           status: ReservationStatus.INQUIRY,
+          ratePlanId: pricing.ratePlanId,
           ...inclusionData,
         },
         include: { guest: true, room: { include: { roomType: true } }, package: true },
@@ -412,9 +435,10 @@ export class PmsService {
         roomId: data.roomId,
         checkIn: data.checkIn,
         checkOut: data.checkOut,
-        totalAmount: data.totalAmount,
+        totalAmount: pricing.totalAmount,
         paidAmount: data.paidAmount ?? 0,
         status,
+        ratePlanId: pricing.ratePlanId,
         ...inclusionData,
       },
       include: { guest: true, room: { include: { roomType: true } }, package: true },
@@ -479,6 +503,19 @@ export class PmsService {
     const checkOut = data.checkOut ?? reservation.checkOut;
     const roomId = data.roomId ?? reservation.roomId;
 
+    let totalAmount = data.totalAmount;
+    let ratePlanId: string | null | undefined;
+    const datesOrRoomChanged = Boolean(data.checkIn || data.checkOut || data.roomId);
+    if (
+      datesOrRoomChanged &&
+      data.totalAmount === undefined &&
+      reservation.status !== ReservationStatus.CHECKED_IN
+    ) {
+      const priced = await this.resolveStayPricing(roomId, checkIn, checkOut);
+      totalAmount = priced.totalAmount;
+      ratePlanId = priced.ratePlanId;
+    }
+
     if (data.checkIn || data.checkOut || data.roomId) {
       this.validateDates(checkIn, checkOut);
       if (reservation.status !== ReservationStatus.INQUIRY) {
@@ -499,7 +536,8 @@ export class PmsService {
         ...(data.roomId !== undefined ? { roomId: data.roomId } : {}),
         ...(data.checkIn !== undefined ? { checkIn: data.checkIn } : {}),
         ...(data.checkOut !== undefined ? { checkOut: data.checkOut } : {}),
-        ...(data.totalAmount !== undefined ? { totalAmount: data.totalAmount } : {}),
+        ...(totalAmount !== undefined ? { totalAmount } : {}),
+        ...(ratePlanId !== undefined ? { ratePlanId } : {}),
         ...(data.paidAmount !== undefined ? { paidAmount: data.paidAmount } : {}),
         ...(data.adultCount !== undefined ? { adultCount: data.adultCount } : {}),
         ...(data.childCount !== undefined ? { childCount: data.childCount } : {}),

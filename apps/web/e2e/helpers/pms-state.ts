@@ -1,6 +1,7 @@
 /** Mutable PMS state for Playwright route mocks (reset per test via resetPmsState). */
 
 import { recordAudit } from "./audit-state";
+import { quoteStay } from "./rates-state";
 
 export type MockReservation = {
   id: string;
@@ -211,17 +212,33 @@ export function handlePmsReservationMutation(
   const id = idMatch?.[1];
 
   if (method === "POST") {
+    let total: number | undefined =
+      body?.totalAmount != null ? Number(body.totalAmount) : undefined;
+    const room = rooms.find((r) => r.id === String(body?.roomId));
+    if (room && body?.checkIn && body?.checkOut) {
+      const q = quoteStay(room, new Date(String(body.checkIn)), new Date(String(body.checkOut)));
+      total = total ?? q.totalAmount;
+    }
+    const guestId = String(body?.guestId ?? "");
+    const guestRecord = guests.find((g) => g.id === guestId);
+    const roomRecord = rooms.find((r) => r.id === String(body?.roomId ?? ""));
     const newRes: MockReservation = {
       id: "res-new",
       status: String(body?.status ?? "CONFIRMED"),
       checkIn: String(body?.checkIn ?? ""),
       checkOut: String(body?.checkOut ?? ""),
-      totalAmount: String(body?.totalAmount ?? "0"),
+      totalAmount: String(total ?? 0),
       paidAmount: String(body?.paidAmount ?? "0"),
-      guestId: String(body?.guestId ?? ""),
+      guestId,
       roomId: String(body?.roomId ?? ""),
-      guest: { fullName: "New Guest" },
-      room: { roomNumber: "102", roomType: { name: "Standard Double" } },
+      guest: { fullName: guestRecord?.fullName ?? "New Guest", id: guestId || undefined },
+      room: roomRecord
+        ? {
+            roomNumber: roomRecord.roomNumber,
+            id: roomRecord.id,
+            roomType: roomRecord.roomType,
+          }
+        : { roomNumber: "102", roomType: { name: "Standard Double" } },
     };
     reservations.push(newRes);
     return newRes;
@@ -306,7 +323,15 @@ export function handlePmsReservationMutation(
     }
     if (body.checkIn) res.checkIn = String(body.checkIn);
     if (body.checkOut) res.checkOut = String(body.checkOut);
-    if (body.totalAmount != null) res.totalAmount = String(body.totalAmount);
+    if (body.totalAmount != null) {
+      res.totalAmount = String(body.totalAmount);
+    } else if (body.checkIn || body.checkOut || body.roomId) {
+      const room = rooms.find((r) => r.id === res.roomId);
+      if (room) {
+        const q = quoteStay(room, new Date(res.checkIn), new Date(res.checkOut));
+        res.totalAmount = String(q.totalAmount);
+      }
+    }
     return res;
   }
 

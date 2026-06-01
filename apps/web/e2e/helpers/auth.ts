@@ -11,6 +11,11 @@ import {
   resetPmsState,
 } from "./pms-state";
 import {
+  handleRatePlanMutation,
+  quoteStay,
+  resetRatesState,
+} from "./rates-state";
+import {
   getPosCategories,
   getPosOrders,
   handlePosCategoryMutation,
@@ -294,6 +299,7 @@ export const MOCK_INVENTORY = getInventoryItems();
  */
 export async function mockApiRoutes(page: Page) {
   resetPmsState();
+  resetRatesState();
   resetPosState();
   resetRecipeState();
   resetInventoryState();
@@ -501,6 +507,34 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("pms/availability"), (route) =>
     fulfillJson(route, getPmsRooms().filter((r) => r.status === "VACANT")),
   );
+
+  await page.route(backendApiRoute("pms/rate-plans"), async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleRatePlanMutation(method, url, body);
+    if (result && typeof result === "object" && "status" in result) {
+      const err = result as { status: number; message: string };
+      return route.fulfill({
+        status: err.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: err.message }),
+      });
+    }
+    return fulfillJson(route, result);
+  });
+
+  await page.route(backendApiRoute("pms/pricing/quote"), async (route) => {
+    const url = new URL(route.request().url());
+    const roomId = url.searchParams.get("roomId");
+    const checkIn = url.searchParams.get("checkIn");
+    const checkOut = url.searchParams.get("checkOut");
+    const room = getPmsRooms().find((r) => r.id === roomId);
+    if (!room || !checkIn || !checkOut) {
+      return fulfillJson(route, { totalAmount: 0, nights: 0, ratePlanId: null, ratePlanName: null, nightlyBreakdown: [] });
+    }
+    return fulfillJson(route, quoteStay(room, new Date(checkIn), new Date(checkOut)));
+  });
 
   await page.route(backendApiRoute("pms/rooms"), async (route) => {
     const method = route.request().method();

@@ -1,6 +1,6 @@
 "use client";
 
-import { Input, SimpleGrid, Stack } from "@chakra-ui/react";
+import { Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { FormSection } from "@/components/form-section";
 import { FormField } from "@erp/ui";
@@ -35,6 +35,8 @@ type ReservationFormFieldsProps = {
   availableRooms: Room[];
   excludeReservationId?: string;
   showStatus?: boolean;
+  pricingHint?: string | null;
+  onPricingHint?: (hint: string | null) => void;
 };
 
 export function ReservationFormFields({
@@ -48,9 +50,44 @@ export function ReservationFormFields({
   availableRooms,
   excludeReservationId,
   showStatus = mode === "create",
+  pricingHint,
+  onPricingHint,
 }: ReservationFormFieldsProps) {
   const set = (patch: Partial<ReservationFormState>) =>
     onChange({ ...form, ...patch });
+
+  useEffect(() => {
+    if (!form.roomId || !form.checkIn || !form.checkOut || form.checkOut <= form.checkIn) {
+      onPricingHint?.(null);
+      return;
+    }
+    const params = new URLSearchParams({
+      roomId: form.roomId,
+      checkIn: `${form.checkIn}T14:00:00Z`,
+      checkOut: `${form.checkOut}T11:00:00Z`,
+    });
+    let cancelled = false;
+    apiFetch<{
+      totalAmount: number;
+      ratePlanName: string | null;
+    }>(`/pms/pricing/quote?${params}`, { tenant })
+      .then((quote) => {
+        if (cancelled) return;
+        onChange({ ...form, totalAmount: String(quote.totalAmount) });
+        onPricingHint?.(
+          quote.ratePlanName
+            ? `Calculated from rate plan: ${quote.ratePlanName}`
+            : "Calculated from room base rate",
+        );
+      })
+      .catch(() => {
+        if (!cancelled) onPricingHint?.(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- quote when stay inputs change
+  }, [form.roomId, form.checkIn, form.checkOut, tenant.organizationId]);
 
   const roomOptions =
     form.status === "INQUIRY" && mode === "create"
@@ -214,12 +251,19 @@ export function ReservationFormFields({
       )}
 
       <FormSection title="Rates" description="Total and amount paid so far.">
+        {pricingHint && (
+          <Text fontSize="xs" color="fg.muted" mb={2}>
+            {pricingHint}
+          </Text>
+        )}
         <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} width="100%">
           <FormField label="Total">
             <Input
               size="sm"
               width="100%"
               type="number"
+              aria-label="Total amount"
+              data-testid="reservation-total-amount"
               value={form.totalAmount}
               onChange={(e) => set({ totalAmount: e.target.value })}
             />

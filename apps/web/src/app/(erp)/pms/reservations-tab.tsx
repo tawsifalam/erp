@@ -57,6 +57,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const [inclusionsReservationId, setInclusionsReservationId] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [pricingHint, setPricingHint] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!tenant.organizationId || !branchId) return;
@@ -127,6 +128,7 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     setDrawerMode(null);
     setEditId(null);
     setForm(EMPTY_FORM);
+    setPricingHint(null);
   };
 
   const startEdit = (r: Reservation) => {
@@ -438,6 +440,8 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
           guests={guests}
           packages={packages}
           availableRooms={availableRooms}
+          pricingHint={pricingHint}
+          onPricingHint={setPricingHint}
         />
         {!canSubmitCreate && (
           <Text fontSize="xs" color="fg.muted" mt={2}>
@@ -464,6 +468,8 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
           packages={packages}
           availableRooms={editRooms}
           showStatus={false}
+          pricingHint={pricingHint}
+          onPricingHint={setPricingHint}
         />
       </FormDrawer>
 

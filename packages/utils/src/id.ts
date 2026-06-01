@@ -11,6 +11,8 @@ const MODEL_PREFIXES: Record<string, string> = {
   UserOrganization: "uo",
   Branch: "br",
   RoomType: "rt",
+  RatePlan: "rp",
+  RateRule: "rr",
   Room: "rm",
   Guest: "gst",
   Reservation: "rsv",

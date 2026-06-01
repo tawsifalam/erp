@@ -6,6 +6,9 @@ import { ReportGeneratorsService } from "./report-generators.service";
 import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
 import { isFinancialReportType } from "./reporting.constants";
 import type { ReportExportParams } from "./reporting.constants";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notifications.constants";
+import { REPORT_TYPE_LABELS } from "./reporting.constants";
 
 @Processor("reports")
 export class ReportsProcessor extends WorkerHost {
@@ -14,6 +17,7 @@ export class ReportsProcessor extends WorkerHost {
     private readonly storage: StorageService,
     private readonly generators: ReportGeneratorsService,
     private readonly financialGenerators: FinancialReportGeneratorsService,
+    private readonly notifications: NotificationsService,
   ) {
     super();
   }
@@ -60,6 +64,21 @@ export class ReportsProcessor extends WorkerHost {
           errorMessage: null,
         },
       });
+
+      if (reportJob.requestedByUserId) {
+        const label =
+          REPORT_TYPE_LABELS[reportJob.type as keyof typeof REPORT_TYPE_LABELS] ??
+          reportJob.type;
+        await this.notifications.notifyUser({
+          organizationId: reportJob.organizationId,
+          userId: reportJob.requestedByUserId,
+          type: NotificationType.REPORT_READY,
+          title: "Report ready",
+          body: `Your ${label} export is ready to download.`,
+          link: "/reports",
+          email: false,
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Report generation failed";
       await this.prisma.reportJob.update({

@@ -4,6 +4,7 @@ import { PayrollProcessor, computePayrollLine } from "./payroll.processor";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { PayrollJournalService } from "../accounting/payroll-journal.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
@@ -49,6 +50,10 @@ describe("PayrollProcessor", () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: StorageService, useValue: mockStorage },
         { provide: PayrollJournalService, useValue: mockPayrollJournal },
+        {
+          provide: NotificationsService,
+          useValue: { notifyOrganizationRoles: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
     processor = module.get(PayrollProcessor);

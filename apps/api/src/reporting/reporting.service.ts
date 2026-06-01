@@ -96,6 +96,7 @@ export class ReportingService {
     type: string,
     branchId?: string,
     params?: ReportExportParams,
+    requestedByUserId?: string,
   ) {
     if (!type?.trim()) throw new BadRequestException("Report type is required");
     if (!isValidReportType(type)) {
@@ -115,6 +116,7 @@ export class ReportingService {
       data: {
         organizationId,
         branchId: branchId ?? null,
+        requestedByUserId: requestedByUserId ?? null,
         type: normalizedType,
         status: "PENDING",
         params: storedParams ?? undefined,

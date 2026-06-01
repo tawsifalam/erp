@@ -6,6 +6,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { getModuleMeta } from "@/lib/module-meta";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { TenantSelector } from "@/components/tenant-selector";
+import { NotificationBell } from "@/components/notification-bell";
 import { MobileNavButton } from "@/lib/mobile-nav-context";
 import { useTenant } from "@/lib/tenant-context";
 
@@ -54,6 +55,7 @@ export function DashboardShell({
             </Text>
           )}
         </Box>
+        <NotificationBell />
         <TenantSelector />
       </Flex>
       <Box flex="1" p={{ base: 4, md: 6 }} overflow="auto">

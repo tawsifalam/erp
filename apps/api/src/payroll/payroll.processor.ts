@@ -4,7 +4,10 @@ import { EmployeeStatus, PayrollRunStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { PayrollJournalService } from "../accounting/payroll-journal.service";
+import { Role } from "@erp/types";
 import { toNumber } from "@erp/utils";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notifications.constants";
 
 export function computePayrollLine(
   grossSalary: number,
@@ -22,6 +25,7 @@ export class PayrollProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly payrollJournal: PayrollJournalService,
+    private readonly notifications: NotificationsService,
   ) {
     super();
   }
@@ -38,8 +42,39 @@ export class PayrollProcessor extends WorkerHost {
       data: { status: PayrollRunStatus.PROCESSING },
     });
 
+    try {
+      await this.runPayroll(payrollRunId, run.organizationId, run.periodStart, run.periodEnd);
+    } catch (err) {
+      await this.prisma.payrollRun.update({
+        where: { id: payrollRunId },
+        data: {
+          status: PayrollRunStatus.FAILED,
+          completedAt: new Date(),
+        },
+      });
+      await this.notifications.notifyOrganizationRoles(
+        run.organizationId,
+        [Role.ADMIN, Role.HR],
+        {
+          type: NotificationType.PAYROLL_FAILED,
+          title: "Payroll run failed",
+          body: `Payroll run ${payrollRunId} could not be completed.`,
+          link: "/hr",
+          email: true,
+        },
+      );
+      throw err;
+    }
+  }
+
+  private async runPayroll(
+    payrollRunId: string,
+    organizationId: string,
+    periodStart: Date,
+    periodEnd: Date,
+  ) {
     const employees = await this.prisma.employee.findMany({
-      where: { organizationId: run.organizationId, status: EmployeeStatus.ACTIVE },
+      where: { organizationId, status: EmployeeStatus.ACTIVE },
     });
 
     for (const emp of employees) {
@@ -81,7 +116,7 @@ export class PayrollProcessor extends WorkerHost {
     const content = Buffer.from(`Payroll run ${payrollRunId} completed`);
     await this.storage.upload(pdfKey, content, "text/plain");
 
-    await this.payrollJournal.postPayrollRunJournal(payrollRunId, run.organizationId);
+    await this.payrollJournal.postPayrollRunJournal(payrollRunId, organizationId);
 
     await this.prisma.payrollRun.update({
       where: { id: payrollRunId },
@@ -90,5 +125,22 @@ export class PayrollProcessor extends WorkerHost {
         completedAt: new Date(),
       },
     });
+
+    const fmt = (d: Date) =>
+      d instanceof Date && !Number.isNaN(d.getTime())
+        ? d.toISOString().slice(0, 10)
+        : String(d).slice(0, 10);
+    const periodLabel = `${fmt(periodStart)} – ${fmt(periodEnd)}`;
+    await this.notifications.notifyOrganizationRoles(
+      organizationId,
+      [Role.ADMIN, Role.HR],
+      {
+        type: NotificationType.PAYROLL_COMPLETED,
+        title: "Payroll completed",
+        body: `Payroll for ${periodLabel} has been processed.`,
+        link: "/hr",
+        email: true,
+      },
+    );
   }
 }

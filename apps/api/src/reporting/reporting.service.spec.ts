@@ -70,6 +70,7 @@ describe("ReportingService", () => {
         data: {
           organizationId: "org-1",
           branchId: "branch-1",
+          requestedByUserId: null,
           type: "branch_summary",
           status: "PENDING",
           params: undefined,

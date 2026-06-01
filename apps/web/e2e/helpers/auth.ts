@@ -52,6 +52,13 @@ import {
   resetTenantState,
 } from "./tenant-state";
 import { listAuditLogs, resetAuditState } from "./audit-state";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  resetNotificationState,
+  unreadNotificationCount,
+} from "./notification-state";
 
 /** Nest API on port 3001 (localhost or 127.0.0.1). */
 export function isBackendApiUrl(url: string): boolean {
@@ -296,6 +303,7 @@ export async function mockApiRoutes(page: Page) {
   resetReportingState();
   resetTenantState();
   resetAuditState();
+  resetNotificationState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -317,6 +325,60 @@ export async function mockApiRoutes(page: Page) {
     }
     return fulfillJson(route, result);
   };
+
+  const notificationUserId = "usr-e2e-admin";
+
+  // Register specific notification routes last (Playwright uses last matching route).
+  await page.route(
+    (url) => isBackendApiUrl(url.href) && new URL(url.href).pathname.endsWith("/notifications"),
+    async (route) => {
+      if (route.request().method() !== "GET") return fulfillJson(route, {});
+      const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+      const url = new URL(route.request().url());
+      const limit = url.searchParams.get("limit")
+        ? Number.parseInt(url.searchParams.get("limit")!, 10)
+        : 50;
+      return fulfillJson(route, listNotifications(String(orgId), notificationUserId, limit));
+    },
+  );
+
+  await page.route(/\/api\/notifications\/[^/]+\/read$/, async (route) => {
+    if (route.request().method() !== "PATCH") return fulfillJson(route, {});
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const idMatch = route.request().url().match(/\/notifications\/([^/]+)\/read/);
+    const id = idMatch?.[1];
+    if (!id) {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Not found" }),
+      });
+    }
+    const row = markNotificationRead(String(orgId), notificationUserId, id);
+    if (!row) {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Notification not found" }),
+      });
+    }
+    return fulfillJson(route, row);
+  });
+
+  await page.route(backendApiRoute("notifications/read-all"), async (route) => {
+    if (route.request().method() !== "PATCH") return fulfillJson(route, {});
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    markAllNotificationsRead(String(orgId), notificationUserId);
+    return fulfillJson(route, { ok: true });
+  });
+
+  await page.route(backendApiRoute("notifications/unread-count"), async (route) => {
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    return fulfillJson(route, {
+      count: unreadNotificationCount(String(orgId), notificationUserId),
+    });
+  });
 
   await page.route(backendApiRoute("audit/logs"), async (route) => {
     if (route.request().method() !== "GET") {

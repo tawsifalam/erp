@@ -55,6 +55,7 @@ export class ReportingController {
         asOf: body.asOf,
         accountCode: body.accountCode,
       },
+      t.userId,
     );
     await this.reportsQueue.add("export", { reportJobId: job.id });
     return job;

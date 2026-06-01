@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { ReportGeneratorsService } from "./report-generators.service";
 import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 const mockPrisma = {
   reportJob: { findUnique: jest.fn(), update: jest.fn() },
@@ -33,6 +34,7 @@ describe("ReportsProcessor", () => {
         { provide: StorageService, useValue: mockStorage },
         { provide: ReportGeneratorsService, useValue: mockGenerators },
         { provide: FinancialReportGeneratorsService, useValue: mockFinancialGenerators },
+        { provide: NotificationsService, useValue: { notifyUser: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     processor = module.get(ReportsProcessor);

@@ -1,4 +1,5 @@
 import { recordAudit } from "./audit-state";
+import { recordNotification } from "./notification-state";
 
 type MockEmployee = {
   id: string;
@@ -251,6 +252,12 @@ export function handleHrMutation(
       lines: [],
     };
     payrollRuns.unshift(run);
+    recordNotification({
+      type: "PAYROLL_COMPLETED",
+      title: "Payroll completed",
+      body: "Payroll run has been queued and will notify when complete.",
+      link: "/hr",
+    });
     return run;
   }
 

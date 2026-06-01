@@ -1,4 +1,5 @@
 import { recordAudit } from "./audit-state";
+import { recordNotification } from "./notification-state";
 
 type MockPool = {
   id: string;
@@ -199,6 +200,17 @@ export function handleInventoryItemMutation(
       item.lowStockThreshold =
         body.lowStockThreshold == null ? null : Number(body.lowStockThreshold);
     }
+    if (
+      item.lowStockThreshold != null &&
+      item.currentStock <= item.lowStockThreshold
+    ) {
+      recordNotification({
+        type: "LOW_STOCK",
+        title: "Low stock alert",
+        body: `${item.name} (${item.sku}) is at ${item.currentStock} ${item.unit} (threshold ${item.lowStockThreshold})`,
+        link: "/inventory",
+      });
+    }
     return item;
   }
 
@@ -249,6 +261,18 @@ export function handleInventoryMovementMutation(
       entityId: mov.id,
       metadata: { itemId: mov.itemId, movementType, quantity: qty },
     });
+    if (
+      item &&
+      item.lowStockThreshold != null &&
+      item.currentStock <= item.lowStockThreshold
+    ) {
+      recordNotification({
+        type: "LOW_STOCK",
+        title: "Low stock alert",
+        body: `${item.name} (${item.sku}) is at ${item.currentStock} ${item.unit} (threshold ${item.lowStockThreshold})`,
+        link: "/inventory",
+      });
+    }
     return mov;
   }
 

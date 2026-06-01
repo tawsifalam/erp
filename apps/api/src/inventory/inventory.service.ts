@@ -3,10 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { MovementDirection, MovementType } from "@erp/types";
+import { MovementDirection, MovementType, Role } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notifications.constants";
 import { roundMoney, toNumber } from "@erp/utils";
 import { InventoryPoolsService } from "./inventory-pools.service";
 
@@ -36,6 +38,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly pools: InventoryPoolsService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async branchOrganizationId(branchId: string): Promise<string> {
@@ -280,7 +283,40 @@ export class InventoryService {
       },
     });
 
+    await this.maybeNotifyLowStock(organizationId, params.branchId, params.itemId);
+
     return movement;
+  }
+
+  private async maybeNotifyLowStock(
+    organizationId: string,
+    branchId: string,
+    itemId: string,
+  ) {
+    try {
+      const items = await this.listItemsWithStock(branchId);
+      const item = items.find((i) => i.id === itemId);
+      if (
+        !item ||
+        item.lowStockThreshold == null ||
+        item.currentStock > Number(item.lowStockThreshold)
+      ) {
+        return;
+      }
+      await this.notifications.notifyOrganizationRoles(
+        organizationId,
+        [Role.ADMIN, Role.OWNER, Role.ACCOUNTANT],
+        {
+          type: NotificationType.LOW_STOCK,
+          title: "Low stock alert",
+          body: `${item.name} (${item.sku}) is at ${item.currentStock} ${item.unit} (threshold ${item.lowStockThreshold})`,
+          link: "/inventory",
+          email: true,
+        },
+      );
+    } catch (err) {
+      // Non-blocking: stock movement should succeed even if notification fails.
+    }
   }
 
   listMovements(itemId: string, branchId: string) {

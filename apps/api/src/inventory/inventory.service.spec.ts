@@ -4,6 +4,7 @@ import { MovementDirection, MovementType } from "@erp/types";
 import { InventoryService } from "./inventory.service";
 import { InventoryPoolsService } from "./inventory-pools.service";
 import { AuditService } from "../audit/audit.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 jest.mock("@erp/utils", () => ({
@@ -42,6 +43,10 @@ describe("InventoryService", () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: InventoryPoolsService, useValue: mockPools },
         { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: NotificationsService,
+          useValue: { notifyOrganizationRoles: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

@@ -19,7 +19,9 @@ model User {
   joinRequests OrganizationJoinRequest[] @relation("JoinRequestUser")
   reviewedJoinRequests OrganizationJoinRequest[] @relation("JoinRequestReviewer")
   employee    Employee?
-  auditLogs   AuditLog[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  reportJobs    ReportJob[] @relation("ReportJobRequester")
 }
 
 model Organization {
@@ -445,19 +447,38 @@ model AuditLog {
   user User? @relation(fields: [userId], references: [id])
 }
 
-model ReportJob {
-  id             String   @id @default(uuid())
+model Notification {
+  id             String    @id @default(uuid())
   organizationId String
-  branchId       String?
+  userId         String
   type           String
-  status         String   @default("PENDING")
-  params         Json?
-  fileUrl        String?
-  errorMessage   String?
-  createdAt      DateTime @default(now())
-  completedAt    DateTime?
+  title          String
+  body           String
+  link           String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
 
-  branch Branch? @relation(fields: [branchId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model ReportJob {
+  id                String   @id @default(uuid())
+  organizationId    String
+  branchId          String?
+  requestedByUserId String?
+  type              String
+  status            String   @default("PENDING")
+  params            Json?
+  fileUrl           String?
+  errorMessage      String?
+  createdAt         DateTime @default(now())
+  completedAt       DateTime?
+
+  branch    Branch? @relation(fields: [branchId], references: [id])
+  requester User?   @relation("ReportJobRequester", fields: [requestedByUserId], references: [id])
 }
 
 model Vendor {

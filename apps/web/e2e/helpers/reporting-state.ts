@@ -1,3 +1,5 @@
+import { recordNotification } from "./notification-state";
+
 type MockReportJob = {
   id: string;
   type: string;
@@ -69,6 +71,12 @@ export function handleReportingMutation(
       completedAt: new Date().toISOString(),
     };
     reportJobs.unshift(job);
+    recordNotification({
+      type: "REPORT_READY",
+      title: "Report ready",
+      body: `Your ${job.type.replace(/_/g, " ")} export is ready to download.`,
+      link: "/reports",
+    });
     return { id: job.id, type: job.type, status: "PENDING" };
   }
 

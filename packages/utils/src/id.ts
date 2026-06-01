@@ -36,6 +36,10 @@ const MODEL_PREFIXES: Record<string, string> = {
   StaffMealRecipeLine: "sml",
   AuditLog: "aud",
   ReportJob: "rpt",
+  Vendor: "ven",
+  PurchaseOrder: "po",
+  PurchaseOrderLine: "pol",
+  GoodsReceipt: "gr",
 };
 
 /** Generate a prefixed ID for a given Prisma model name. */

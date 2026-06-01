@@ -104,6 +104,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get inclusionConsumption() { return this._client.inclusionConsumption; }
   get auditLog() { return this._client.auditLog; }
   get reportJob() { return this._client.reportJob; }
+  get vendor() { return this._client.vendor; }
+  get purchaseOrder() { return this._client.purchaseOrder; }
+  get purchaseOrderLine() { return this._client.purchaseOrderLine; }
+  get goodsReceipt() { return this._client.goodsReceipt; }
 
   // ─── Client Methods ─────────────────────────────────────────────────────────
   $transaction<P extends Prisma.PrismaPromise<unknown>[]>(

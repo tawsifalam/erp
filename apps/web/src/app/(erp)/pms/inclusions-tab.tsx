@@ -12,7 +12,15 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { FormDrawer } from "@/components/form-drawer";
+import { FormSection } from "@/components/form-section";
+import {
+  ContentCard,
+  EmptyState,
+  FormField,
+  TableScrollArea,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import { InclusionType } from "@erp/types";
@@ -47,6 +55,21 @@ type InclusionPackage = {
   }[];
 };
 
+const emptyRecipeForm = () => ({
+  name: "",
+  inclusionType: InclusionType.MEAL as InclusionType,
+  lines: [{ inventoryItemId: "", quantity: "" }],
+});
+
+const emptyPkgForm = () => ({
+  name: "",
+  isDefault: false,
+  mealRecipeId: "",
+  mealsPerGuestPerNight: "3",
+  amenityRecipeId: "",
+  amenityPerGuestPerStay: "1",
+});
+
 export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
   const branchId = tenant.branchId;
   const [recipes, setRecipes] = useState<InclusionRecipe[]>([]);
@@ -55,21 +78,12 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
   const [hkItems, setHkItems] = useState<InvItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [recipeForm, setRecipeForm] = useState({
-    name: "",
-    inclusionType: InclusionType.MEAL as InclusionType,
-    lines: [{ inventoryItemId: "", quantity: "" }],
-  });
+  const [recipeDrawer, setRecipeDrawer] = useState(false);
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+  const [recipeForm, setRecipeForm] = useState(emptyRecipeForm);
 
-  const [pkgForm, setPkgForm] = useState({
-    name: "",
-    isDefault: false,
-    mealRecipeId: "",
-    mealsPerGuestPerNight: "3",
-    amenityRecipeId: "",
-    amenityPerGuestPerStay: "1",
-  });
+  const [packageDrawer, setPackageDrawer] = useState(false);
+  const [pkgForm, setPkgForm] = useState(emptyPkgForm);
 
   const load = useCallback(async () => {
     if (!branchId) return;
@@ -98,6 +112,31 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
     load();
   }, [load]);
 
+  const openNewRecipe = () => {
+    setEditingRecipeId(null);
+    setRecipeForm(emptyRecipeForm());
+    setRecipeDrawer(true);
+  };
+
+  const openEditRecipe = (r: InclusionRecipe) => {
+    setEditingRecipeId(r.id);
+    setRecipeForm({
+      name: r.name,
+      inclusionType: r.inclusionType as InclusionType,
+      lines: r.lines.map((l) => ({
+        inventoryItemId: l.inventoryItemId,
+        quantity: String(l.quantity),
+      })),
+    });
+    setRecipeDrawer(true);
+  };
+
+  const closeRecipeDrawer = () => {
+    setRecipeDrawer(false);
+    setEditingRecipeId(null);
+    setRecipeForm(emptyRecipeForm());
+  };
+
   const saveRecipe = async () => {
     if (!branchId || !recipeForm.name.trim()) return;
     const lines = recipeForm.lines
@@ -123,16 +162,21 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
       } else {
         await apiFetch("/inclusions/recipes", { method: "POST", tenant, body: JSON.stringify(body) });
       }
-      setRecipeForm({
-        name: "",
-        inclusionType: InclusionType.MEAL,
-        lines: [{ inventoryItemId: "", quantity: "" }],
-      });
-      setEditingRecipeId(null);
+      closeRecipeDrawer();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to save recipe");
     }
+  };
+
+  const openNewPackage = () => {
+    setPkgForm(emptyPkgForm());
+    setPackageDrawer(true);
+  };
+
+  const closePackageDrawer = () => {
+    setPackageDrawer(false);
+    setPkgForm(emptyPkgForm());
   };
 
   const savePackage = async () => {
@@ -167,14 +211,7 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
           rules,
         }),
       });
-      setPkgForm({
-        name: "",
-        isDefault: false,
-        mealRecipeId: "",
-        mealsPerGuestPerNight: "3",
-        amenityRecipeId: "",
-        amenityPerGuestPerStay: "1",
-      });
+      closePackageDrawer();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to save package");
@@ -196,22 +233,122 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
 
   return (
     <Stack gap={6}>
-      <Box bg="white" borderRadius="md" p={4}>
+      <Flex gap={2} wrap="wrap">
+        <Button size="sm" onClick={load}>
+          Refresh
+        </Button>
+        <Button size="sm" colorPalette="blue" w={{ base: "full", sm: "auto" }} onClick={openNewRecipe}>
+          + New recipe
+        </Button>
+        <Button
+          size="sm"
+          colorPalette="blue"
+          variant="outline"
+          w={{ base: "full", sm: "auto" }}
+          onClick={openNewPackage}
+        >
+          + New package
+        </Button>
+      </Flex>
+
+      <ContentCard p={0} overflow="hidden">
+        <Box px={4} pt={4} pb={2}>
+          <Text fontWeight="semibold">Inclusion recipes</Text>
+        </Box>
+        {recipes.length === 0 ? (
+          <Box p={4}>
+            <EmptyState title="No recipes" description="Create meal or amenity kit BOMs." />
+          </Box>
+        ) : (
+          <TableScrollArea>
+            <Table.Root size="sm">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeader>Name</Table.ColumnHeader>
+                  <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                    Type
+                  </Table.ColumnHeader>
+                  <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>
+                    Lines
+                  </Table.ColumnHeader>
+                  <Table.ColumnHeader />
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {recipes.map((r) => (
+                  <Table.Row key={r.id}>
+                    <Table.Cell>{r.name}</Table.Cell>
+                    <Table.Cell display={{ base: "none", sm: "table-cell" }}>
+                      {r.inclusionType}
+                    </Table.Cell>
+                    <Table.Cell display={{ base: "none", md: "table-cell" }}>
+                      {r.lines.map((l) => `${l.inventoryItem.name} × ${l.quantity}`).join(", ")}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Button size="xs" variant="outline" onClick={() => openEditRecipe(r)}>
+                        Edit
+                      </Button>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </TableScrollArea>
+        )}
+      </ContentCard>
+
+      <ContentCard p={4}>
         <Text fontWeight="semibold" mb={3}>
-          {editingRecipeId ? "Edit inclusion recipe" : "New inclusion recipe"}
+          Guest packages
         </Text>
-        <Flex gap={2} wrap="wrap" mb={3}>
+        {packages.length === 0 ? (
+          <EmptyState title="No packages" description="Create a guest inclusion package." />
+        ) : (
+          <Stack gap={3}>
+            {packages.map((p) => (
+              <Box key={p.id} p={3} borderWidth="1px" borderRadius="md">
+                <Flex gap={2} align="center" mb={1}>
+                  <Text fontWeight="medium">{p.name}</Text>
+                  {p.isDefault && (
+                    <Text fontSize="xs" color="fg.muted">
+                      (default)
+                    </Text>
+                  )}
+                </Flex>
+                {p.rules.map((rule) => (
+                  <Text key={rule.id} fontSize="sm" color="fg.muted">
+                    {rule.inclusionType === InclusionType.MEAL
+                      ? `${rule.quantityPerGuestPerNight} meals/guest/night — ${rule.recipe.name}`
+                      : `${rule.quantityPerGuestPerStay} kit/guest/stay${rule.autoIssueOnCheckIn ? " (auto on check-in)" : ""} — ${rule.recipe.name}`}
+                  </Text>
+                ))}
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </ContentCard>
+
+      <FormDrawer
+        open={recipeDrawer}
+        onClose={closeRecipeDrawer}
+        title={editingRecipeId ? "Edit inclusion recipe" : "New inclusion recipe"}
+        size="md"
+        primaryLabel="Save recipe"
+        onPrimary={saveRecipe}
+        primaryDisabled={!recipeForm.name.trim()}
+      >
+        <FormSection title="Recipe details">
           <FormField label="Name" required>
             <Input
               size="sm"
-              w="200px"
+              width="100%"
               value={recipeForm.name}
               onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
             />
           </FormField>
           <FormField label="Type">
             <AppSelect
-              width="160px"
+              width="100%"
               items={[
                 { value: InclusionType.MEAL, label: "Meal (guest pool)" },
                 { value: InclusionType.AMENITY_KIT, label: "Amenity kit (HK pool)" },
@@ -226,188 +363,133 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
               }
             />
           </FormField>
-        </Flex>
-        {recipeForm.lines.map((line, idx) => (
-          <Flex key={idx} gap={2} mb={2} wrap="wrap">
-            <AppSelect
-              width="220px"
-              items={[
-                { value: "", label: "Ingredient" },
-                ...inventoryForType.map((i) => ({ value: i.id, label: i.name })),
-              ]}
-              value={line.inventoryItemId}
-              onValueChange={(v) => {
-                const lines = [...recipeForm.lines];
-                lines[idx] = { ...lines[idx], inventoryItemId: v };
-                setRecipeForm({ ...recipeForm, lines });
-              }}
-              placeholder="Ingredient"
-            />
-            <Input
+        </FormSection>
+
+        <FormSection title="Ingredients">
+          <Stack gap={3} width="100%">
+            {recipeForm.lines.map((line, idx) => (
+              <Flex key={idx} gap={2} direction={{ base: "column", sm: "row" }} width="100%">
+                <AppSelect
+                  width="100%"
+                  items={[
+                    { value: "", label: "Ingredient" },
+                    ...inventoryForType.map((i) => ({ value: i.id, label: i.name })),
+                  ]}
+                  value={line.inventoryItemId}
+                  onValueChange={(v) => {
+                    const lines = [...recipeForm.lines];
+                    lines[idx] = { ...lines[idx], inventoryItemId: v };
+                    setRecipeForm({ ...recipeForm, lines });
+                  }}
+                  placeholder="Ingredient"
+                />
+                <Input
+                  size="sm"
+                  width="100%"
+                  type="number"
+                  placeholder="Qty"
+                  value={line.quantity}
+                  onChange={(e) => {
+                    const lines = [...recipeForm.lines];
+                    lines[idx] = { ...lines[idx], quantity: e.target.value };
+                    setRecipeForm({ ...recipeForm, lines });
+                  }}
+                />
+              </Flex>
+            ))}
+            <Button
               size="sm"
-              w="100px"
-              type="number"
-              placeholder="Qty"
-              value={line.quantity}
-              onChange={(e) => {
-                const lines = [...recipeForm.lines];
-                lines[idx] = { ...lines[idx], quantity: e.target.value };
-                setRecipeForm({ ...recipeForm, lines });
-              }}
-            />
-          </Flex>
-        ))}
-        <Flex gap={2} mt={2}>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setRecipeForm({
-                ...recipeForm,
-                lines: [...recipeForm.lines, { inventoryItemId: "", quantity: "" }],
-              })
-            }
-          >
-            + Line
-          </Button>
-          <Button size="sm" colorPalette="green" onClick={saveRecipe}>
-            Save recipe
-          </Button>
-        </Flex>
-      </Box>
+              variant="outline"
+              alignSelf="flex-start"
+              onClick={() =>
+                setRecipeForm({
+                  ...recipeForm,
+                  lines: [...recipeForm.lines, { inventoryItemId: "", quantity: "" }],
+                })
+              }
+            >
+              + Line
+            </Button>
+          </Stack>
+        </FormSection>
+      </FormDrawer>
 
-      <Box bg="white" borderRadius="md" p={4}>
-        <Text fontWeight="semibold" mb={3}>
-          Recipes
-        </Text>
-        {recipes.length === 0 ? (
-          <EmptyState title="No recipes" description="Create meal or amenity kit BOMs above." />
-        ) : (
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader>Name</Table.ColumnHeader>
-                <Table.ColumnHeader>Type</Table.ColumnHeader>
-                <Table.ColumnHeader>Lines</Table.ColumnHeader>
-                <Table.ColumnHeader />
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {recipes.map((r) => (
-                <Table.Row key={r.id}>
-                  <Table.Cell>{r.name}</Table.Cell>
-                  <Table.Cell>{r.inclusionType}</Table.Cell>
-                  <Table.Cell>
-                    {r.lines
-                      .map((l) => `${l.inventoryItem.name} × ${l.quantity}`)
-                      .join(", ")}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingRecipeId(r.id);
-                        setRecipeForm({
-                          name: r.name,
-                          inclusionType: r.inclusionType as InclusionType,
-                          lines: r.lines.map((l) => ({
-                            inventoryItemId: l.inventoryItemId,
-                            quantity: String(l.quantity),
-                          })),
-                        });
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-        )}
-      </Box>
-
-      <Box bg="white" borderRadius="md" p={4}>
-        <Text fontWeight="semibold" mb={3}>
-          New guest package
-        </Text>
-        <Flex gap={2} wrap="wrap" mb={3}>
+      <FormDrawer
+        open={packageDrawer}
+        onClose={closePackageDrawer}
+        title="New guest package"
+        size="md"
+        primaryLabel="Create package"
+        onPrimary={savePackage}
+        primaryDisabled={!pkgForm.name.trim()}
+      >
+        <Stack gap={4} width="100%">
           <FormField label="Package name" required>
             <Input
               size="sm"
-              w="200px"
+              width="100%"
               value={pkgForm.name}
               onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })}
             />
           </FormField>
-          <FormField label="Meals/guest/night">
-            <Input
-              size="sm"
-              w="80px"
-              type="number"
-              value={pkgForm.mealsPerGuestPerNight}
-              onChange={(e) =>
-                setPkgForm({ ...pkgForm, mealsPerGuestPerNight: e.target.value })
-              }
+          <Flex align="center" gap={2}>
+            <input
+              type="checkbox"
+              checked={pkgForm.isDefault}
+              onChange={(e) => setPkgForm({ ...pkgForm, isDefault: e.target.checked })}
             />
-          </FormField>
-          <FormField label="Meal recipe">
-            <AppSelect
-              width="200px"
-              items={[
-                { value: "", label: "Meal recipe" },
-                ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
-              ]}
-              value={pkgForm.mealRecipeId}
-              onValueChange={(v) => setPkgForm({ ...pkgForm, mealRecipeId: v })}
-            />
-          </FormField>
-          <FormField label="Amenity recipe">
-            <AppSelect
-              width="200px"
-              items={[
-                { value: "", label: "Amenity kit" },
-                ...amenityRecipes.map((r) => ({ value: r.id, label: r.name })),
-              ]}
-              value={pkgForm.amenityRecipeId}
-              onValueChange={(v) => setPkgForm({ ...pkgForm, amenityRecipeId: v })}
-            />
-          </FormField>
-        </Flex>
-        <Button size="sm" colorPalette="green" onClick={savePackage}>
-          Create package
-        </Button>
-      </Box>
-
-      <Box bg="white" borderRadius="md" p={4}>
-        <Text fontWeight="semibold" mb={3}>
-          Packages
-        </Text>
-        {packages.length === 0 ? (
-          <EmptyState title="No packages" description="Create a guest inclusion package above." />
-        ) : (
-          packages.map((p) => (
-            <Box key={p.id} mb={3} p={3} borderWidth="1px" borderRadius="md">
-              <Flex gap={2} align="center" mb={1}>
-                <Text fontWeight="medium">{p.name}</Text>
-                {p.isDefault && (
-                  <Text fontSize="xs" color="fg.muted">
-                    (default)
-                  </Text>
-                )}
-              </Flex>
-              {p.rules.map((rule) => (
-                <Text key={rule.id} fontSize="sm" color="fg.muted">
-                  {rule.inclusionType === InclusionType.MEAL
-                    ? `${rule.quantityPerGuestPerNight} meals/guest/night — ${rule.recipe.name}`
-                    : `${rule.quantityPerGuestPerStay} kit/guest/stay${rule.autoIssueOnCheckIn ? " (auto on check-in)" : ""} — ${rule.recipe.name}`}
-                </Text>
-              ))}
-            </Box>
-          ))
-        )}
-      </Box>
+            <Text fontSize="sm">Default package for new reservations</Text>
+          </Flex>
+          <FormSection title="Meal allowance">
+            <FormField label="Meals per guest per night">
+              <Input
+                size="sm"
+                width="100%"
+                type="number"
+                value={pkgForm.mealsPerGuestPerNight}
+                onChange={(e) =>
+                  setPkgForm({ ...pkgForm, mealsPerGuestPerNight: e.target.value })
+                }
+              />
+            </FormField>
+            <FormField label="Meal recipe">
+              <AppSelect
+                width="100%"
+                items={[
+                  { value: "", label: "Meal recipe" },
+                  ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+                value={pkgForm.mealRecipeId}
+                onValueChange={(v) => setPkgForm({ ...pkgForm, mealRecipeId: v })}
+              />
+            </FormField>
+          </FormSection>
+          <FormSection title="Amenity kit">
+            <FormField label="Kits per guest per stay">
+              <Input
+                size="sm"
+                width="100%"
+                type="number"
+                value={pkgForm.amenityPerGuestPerStay}
+                onChange={(e) =>
+                  setPkgForm({ ...pkgForm, amenityPerGuestPerStay: e.target.value })
+                }
+              />
+            </FormField>
+            <FormField label="Amenity recipe">
+              <AppSelect
+                width="100%"
+                items={[
+                  { value: "", label: "Amenity kit" },
+                  ...amenityRecipes.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+                value={pkgForm.amenityRecipeId}
+                onValueChange={(v) => setPkgForm({ ...pkgForm, amenityRecipeId: v })}
+              />
+            </FormField>
+          </FormSection>
+        </Stack>
+      </FormDrawer>
     </Stack>
   );
 }

@@ -1,25 +1,44 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  Box,
-  Button,
-  Flex,
-  Input,
-  Stack,
-  Table,
-  Text,
-} from "@chakra-ui/react";
-import { AppSelect } from "@/components/app-select";
+import { Box, Button, Flex, Input, Table, Text } from "@chakra-ui/react";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, FormField, StatusBadge, TableSkeleton } from "@erp/ui";
+import { FormDialog } from "@/components/form-dialog";
+import { FormDrawer } from "@/components/form-drawer";
+import { RowActionsMenu } from "@/components/row-actions-menu";
+import {
+  EmptyState,
+  FormField,
+  StatusBadge,
+  TableSkeleton,
+  ContentCard,
+  TableScrollArea,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { Guest, Reservation, Room } from "@/lib/pms-types";
+import type { InclusionPackageOption } from "@/lib/pms-types";
 import { appToast } from "@/lib/app-toast";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
-import { ReservationInclusionsPanel } from "./reservation-inclusions-panel";
-import type { InclusionPackageOption } from "@/lib/pms-types";
+import {
+  ReservationFormFields,
+  type ReservationFormState,
+} from "./reservation-form-fields";
+import { ReservationInclusionsContent } from "./reservation-inclusions-content";
+
+const EMPTY_FORM: ReservationFormState = {
+  guestId: "",
+  roomId: "",
+  checkIn: "",
+  checkOut: "",
+  totalAmount: "",
+  status: "CONFIRMED",
+  paidAmount: "",
+  adultCount: "1",
+  childCount: "0",
+  packageId: "",
+  mealsPerGuestPerNightOverride: "",
+};
 
 export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const { ask, dialog } = useConfirmDialog();
@@ -27,34 +46,17 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
+  const [editRooms, setEditRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    guestId: "",
-    roomId: "",
-    checkIn: "",
-    checkOut: "",
-    totalAmount: "",
-    status: "CONFIRMED" as "CONFIRMED" | "INQUIRY",
-    paidAmount: "",
-    adultCount: "1",
-    childCount: "0",
-    packageId: "",
-    mealsPerGuestPerNightOverride: "",
-  });
   const [packages, setPackages] = useState<InclusionPackageOption[]>([]);
+
+  const [drawerMode, setDrawerMode] = useState<"create" | "edit" | null>(null);
+  const [form, setForm] = useState<ReservationFormState>(EMPTY_FORM);
+  const [editId, setEditId] = useState<string | null>(null);
+
   const [inclusionsReservationId, setInclusionsReservationId] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    guestId: "",
-    roomId: "",
-    checkIn: "",
-    checkOut: "",
-    totalAmount: "",
-  });
-  const [editRooms, setEditRooms] = useState<Room[]>([]);
 
   const load = useCallback(async () => {
     if (!tenant.organizationId || !branchId) return;
@@ -79,52 +81,53 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     load();
   }, [load]);
 
-  const fetchAvailability = useCallback(async () => {
-    if (!branchId || !form.checkIn || !form.checkOut) {
-      setAvailableRooms([]);
-      return;
-    }
-    try {
-      const rooms = await apiFetch<Room[]>(
-        `/pms/availability?branchId=${branchId}&checkIn=${form.checkIn}T14:00:00Z&checkOut=${form.checkOut}T11:00:00Z`,
-        { tenant },
-      );
-      setAvailableRooms(rooms);
-      if (form.roomId && !rooms.some((r) => r.id === form.roomId)) {
-        setForm((f) => ({ ...f, roomId: "" }));
+  const fetchAvailability = useCallback(
+    async (checkIn: string, checkOut: string, excludeId?: string) => {
+      if (!branchId || !checkIn || !checkOut) return [] as Room[];
+      try {
+        const q = excludeId ? `&excludeReservationId=${excludeId}` : "";
+        return await apiFetch<Room[]>(
+          `/pms/availability?branchId=${branchId}&checkIn=${checkIn}T14:00:00Z&checkOut=${checkOut}T11:00:00Z${q}`,
+          { tenant },
+        );
+      } catch {
+        return [];
       }
-    } catch {
-      setAvailableRooms([]);
-    }
-  }, [branchId, form.checkIn, form.checkOut, form.roomId, tenant]);
+    },
+    [branchId, tenant],
+  );
 
   useEffect(() => {
-    if (form.status === "CONFIRMED") {
-      fetchAvailability();
-    } else {
+    if (drawerMode !== "create") return;
+    if (form.status === "CONFIRMED" && form.checkIn && form.checkOut) {
+      fetchAvailability(form.checkIn, form.checkOut).then((rooms) => {
+        setAvailableRooms(rooms);
+        if (form.roomId && !rooms.some((r) => r.id === form.roomId)) {
+          setForm((f) => ({ ...f, roomId: "" }));
+        }
+      });
+    } else if (form.status === "INQUIRY") {
       setAvailableRooms([]);
     }
-  }, [form.checkIn, form.checkOut, form.status, fetchAvailability]);
-
-  const fetchEditAvailability = useCallback(async () => {
-    if (!branchId || !editId || !editForm.checkIn || !editForm.checkOut) {
-      setEditRooms([]);
-      return;
-    }
-    try {
-      const rooms = await apiFetch<Room[]>(
-        `/pms/availability?branchId=${branchId}&checkIn=${editForm.checkIn}T14:00:00Z&checkOut=${editForm.checkOut}T11:00:00Z&excludeReservationId=${editId}`,
-        { tenant },
-      );
-      setEditRooms(rooms);
-    } catch {
-      setEditRooms([]);
-    }
-  }, [branchId, editId, editForm.checkIn, editForm.checkOut, tenant]);
+  }, [drawerMode, form.checkIn, form.checkOut, form.status, form.roomId, fetchAvailability]);
 
   useEffect(() => {
-    if (editId) fetchEditAvailability();
-  }, [editId, editForm.checkIn, editForm.checkOut, fetchEditAvailability]);
+    if (drawerMode !== "edit" || !editId) return;
+    if (form.checkIn && form.checkOut) {
+      fetchAvailability(form.checkIn, form.checkOut, editId).then(setEditRooms);
+    }
+  }, [drawerMode, editId, form.checkIn, form.checkOut, fetchAvailability]);
+
+  const openCreate = () => {
+    setForm(EMPTY_FORM);
+    setDrawerMode("create");
+  };
+
+  const closeDrawer = () => {
+    setDrawerMode(null);
+    setEditId(null);
+    setForm(EMPTY_FORM);
+  };
 
   const startEdit = (r: Reservation) => {
     if (r.status !== "INQUIRY" && r.status !== "CONFIRMED") return;
@@ -132,18 +135,21 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
       r.guest.id ?? guests.find((g) => g.fullName === r.guest.fullName)?.id ?? "";
     const roomId = r.room.id ?? "";
     setEditId(r.id);
-    setEditForm({
+    setForm({
+      ...EMPTY_FORM,
       guestId,
       roomId,
       checkIn: r.checkIn.slice(0, 10),
       checkOut: r.checkOut.slice(0, 10),
       totalAmount: String(r.totalAmount),
+      status: r.status as "CONFIRMED" | "INQUIRY",
     });
+    setDrawerMode("edit");
   };
 
   const saveEdit = async () => {
     if (!branchId || !editId) return;
-    if (!editForm.guestId || !editForm.roomId || !editForm.checkIn || !editForm.checkOut) {
+    if (!form.guestId || !form.roomId || !form.checkIn || !form.checkOut) {
       appToast.error("Guest, room, and dates are required.");
       return;
     }
@@ -152,31 +158,18 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
         method: "PATCH",
         tenant,
         body: JSON.stringify({
-          guestId: editForm.guestId,
-          roomId: editForm.roomId,
-          checkIn: `${editForm.checkIn}T14:00:00Z`,
-          checkOut: `${editForm.checkOut}T11:00:00Z`,
-          totalAmount: Number(editForm.totalAmount),
+          guestId: form.guestId,
+          roomId: form.roomId,
+          checkIn: `${form.checkIn}T14:00:00Z`,
+          checkOut: `${form.checkOut}T11:00:00Z`,
+          totalAmount: Number(form.totalAmount),
         }),
       });
-      setEditId(null);
+      closeDrawer();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to update reservation");
     }
-  };
-
-  const handleAction = async (
-    id: string,
-    action: "check-in" | "check-out" | "cancel" | "confirm",
-  ) => {
-    if (!branchId) return;
-    const path =
-      action === "confirm"
-        ? `/pms/reservations/${id}/confirm?branchId=${branchId}`
-        : `/pms/reservations/${id}/${action}?branchId=${branchId}`;
-    await apiFetch(path, { method: "PATCH", tenant });
-    load();
   };
 
   const handleCreate = async () => {
@@ -210,24 +203,24 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
             : undefined,
         }),
       });
-      setShowForm(false);
-      setForm({
-        guestId: "",
-        roomId: "",
-        checkIn: "",
-        checkOut: "",
-        totalAmount: "",
-        status: "CONFIRMED",
-        paidAmount: "",
-        adultCount: "1",
-        childCount: "0",
-        packageId: "",
-        mealsPerGuestPerNightOverride: "",
-      });
+      closeDrawer();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to create reservation");
     }
+  };
+
+  const handleAction = async (
+    id: string,
+    action: "check-in" | "check-out" | "cancel" | "confirm",
+  ) => {
+    if (!branchId) return;
+    const path =
+      action === "confirm"
+        ? `/pms/reservations/${id}/confirm?branchId=${branchId}`
+        : `/pms/reservations/${id}/${action}?branchId=${branchId}`;
+    await apiFetch(path, { method: "PATCH", tenant });
+    load();
   };
 
   const savePayment = async () => {
@@ -241,17 +234,6 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     setPaymentAmount("");
     load();
   };
-
-  const roomOptions =
-    form.status === "INQUIRY"
-      ? availableRooms.length > 0
-        ? availableRooms
-        : []
-      : availableRooms;
-
-  const canSubmit =
-    Boolean(form.guestId && form.roomId && form.checkIn && form.checkOut) &&
-    form.checkOut > form.checkIn;
 
   const doRemove = async (id: string) => {
     if (!branchId) return;
@@ -275,6 +257,10 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
     });
   };
 
+  const canSubmitCreate =
+    Boolean(form.guestId && form.roomId && form.checkIn && form.checkOut) &&
+    form.checkOut > form.checkIn;
+
   if (!branchId) {
     return <BranchRequiredNotice />;
   }
@@ -282,454 +268,242 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
   return (
     <>
       {dialog}
-      <Box>
-      <Flex gap={2} mb={4}>
+      <Flex gap={2} mb={4} wrap="wrap">
         <Button size="sm" onClick={load}>
           Refresh
         </Button>
-        <Button size="sm" colorPalette="blue" onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ New reservation"}
+        <Button
+          size="sm"
+          colorPalette="blue"
+          w={{ base: "full", sm: "auto" }}
+          onClick={openCreate}
+        >
+          + New reservation
         </Button>
       </Flex>
 
-      {showForm && (
-        <Box bg="white" borderRadius="md" p={4} mb={4}>
-          <Stack gap={3}>
-            <Flex gap={2} wrap="wrap">
-              <FormField label="Status">
-                <AppSelect
-                  width="160px"
-                  items={[
-                    { value: "CONFIRMED", label: "Confirmed" },
-                    { value: "INQUIRY", label: "Inquiry (hold)" },
-                  ]}
-                  value={form.status}
-                  onValueChange={(v) =>
-                    setForm({
-                      ...form,
-                      status: v as "CONFIRMED" | "INQUIRY",
-                    })
-                  }
-                />
-              </FormField>
-              <FormField label="Guest" required>
-                <AppSelect
-                  width="200px"
-                  items={[
-                    { value: "", label: "Guest" },
-                    ...guests.map((g) => ({ value: g.id, label: g.fullName })),
-                  ]}
-                  value={form.guestId}
-                  onValueChange={(v) => setForm({ ...form, guestId: v })}
-                  placeholder="Guest"
-                />
-              </FormField>
-              <FormField label="Check-in" required>
-                <Input
-                  size="sm"
-                  w="150px"
-                  type="date"
-                  value={form.checkIn}
-                  onChange={(e) => setForm({ ...form, checkIn: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Check-out" required>
-                <Input
-                  size="sm"
-                  w="150px"
-                  type="date"
-                  value={form.checkOut}
-                  onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
-                />
-              </FormField>
-              {form.status === "CONFIRMED" && (
-                <FormField label="Room" required>
-                  <AppSelect
-                    width="220px"
-                    items={[
-                      { value: "", label: "Available room" },
-                      ...roomOptions.map((r) => ({
-                        value: r.id,
-                        label: `${r.roomNumber} — ${r.roomType.name}`,
-                      })),
-                    ]}
-                    value={form.roomId}
-                    onValueChange={(v) => setForm({ ...form, roomId: v })}
-                    placeholder="Available room"
-                  />
-                </FormField>
-              )}
-              <FormField label="Total">
-                <Input
-                  size="sm"
-                  w="100px"
-                  type="number"
-                  placeholder="Total"
-                  value={form.totalAmount}
-                  onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Paid">
-                <Input
-                  size="sm"
-                  w="100px"
-                  type="number"
-                  placeholder="Paid"
-                  value={form.paidAmount}
-                  onChange={(e) => setForm({ ...form, paidAmount: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Adults">
-                <Input
-                  size="sm"
-                  w="70px"
-                  type="number"
-                  min={1}
-                  value={form.adultCount}
-                  onChange={(e) => setForm({ ...form, adultCount: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Children">
-                <Input
-                  size="sm"
-                  w="70px"
-                  type="number"
-                  min={0}
-                  value={form.childCount}
-                  onChange={(e) => setForm({ ...form, childCount: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Package">
-                <AppSelect
-                  width="180px"
-                  items={[
-                    { value: "", label: "Default package" },
-                    ...packages.map((p) => ({
-                      value: p.id,
-                      label: p.isDefault ? `${p.name} (default)` : p.name,
-                    })),
-                  ]}
-                  value={form.packageId}
-                  onValueChange={(v) => setForm({ ...form, packageId: v })}
-                />
-              </FormField>
-              <FormField label="Meals/guest/night override">
-                <Input
-                  size="sm"
-                  w="80px"
-                  type="number"
-                  placeholder="—"
-                  value={form.mealsPerGuestPerNightOverride}
-                  onChange={(e) =>
-                    setForm({ ...form, mealsPerGuestPerNightOverride: e.target.value })
-                  }
-                />
-              </FormField>
-            </Flex>
-            {form.status === "INQUIRY" && (
-              <InquiryRoomPicker
-                tenant={tenant}
-                branchId={branchId}
-                value={form.roomId}
-                onChange={(roomId) => setForm((f) => ({ ...f, roomId }))}
-              />
-            )}
-            <Button
-              size="sm"
-              colorPalette="green"
-              w="fit-content"
-              disabled={!canSubmit}
-              onClick={handleCreate}
-            >
-              Create
-            </Button>
-            {!canSubmit && (
-              <Text fontSize="xs" color="fg.muted">
-                Select guest, room, and valid check-in/check-out dates.
-              </Text>
-            )}
-          </Stack>
-        </Box>
-      )}
-
-      <Box bg="white" borderRadius="md" p={4} overflowX="auto">
+      <ContentCard p={0} overflow="hidden">
         {loading ? (
-          <TableSkeleton rows={5} columns={8} />
+          <Box p={4}>
+            <TableSkeleton rows={5} columns={8} />
+          </Box>
         ) : (
           <>
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader>Guest</Table.ColumnHeader>
-                <Table.ColumnHeader>Room</Table.ColumnHeader>
-                <Table.ColumnHeader>Check-in</Table.ColumnHeader>
-                <Table.ColumnHeader>Check-out</Table.ColumnHeader>
-                <Table.ColumnHeader>Total</Table.ColumnHeader>
-                <Table.ColumnHeader>Paid</Table.ColumnHeader>
-                <Table.ColumnHeader>Status</Table.ColumnHeader>
-                <Table.ColumnHeader>Actions</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {reservations.map((r) => (
-                <Table.Row key={r.id}>
-                  <Table.Cell>{r.guest.fullName}</Table.Cell>
-                  <Table.Cell>{r.room.roomNumber}</Table.Cell>
-                  <Table.Cell>{new Date(r.checkIn).toLocaleDateString()}</Table.Cell>
-                  <Table.Cell>{new Date(r.checkOut).toLocaleDateString()}</Table.Cell>
-                  <Table.Cell>৳{Number(r.totalAmount).toLocaleString()}</Table.Cell>
-                  <Table.Cell>৳{Number(r.paidAmount ?? 0).toLocaleString()}</Table.Cell>
-                  <Table.Cell>
-                    <StatusBadge status={r.status} />
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Flex gap={1} wrap="wrap">
-                      {r.status === "INQUIRY" && (
-                        <Button
-                          size="xs"
-                          colorPalette="blue"
-                          onClick={() => handleAction(r.id, "confirm")}
-                        >
-                          Confirm
-                        </Button>
-                      )}
-                      {r.status === "CONFIRMED" && (
-                        <Button
-                          size="xs"
-                          colorPalette="green"
-                          onClick={() => handleAction(r.id, "check-in")}
-                        >
-                          Check in
-                        </Button>
-                      )}
-                      {r.status === "CHECKED_IN" && (
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => setInclusionsReservationId(r.id)}
-                        >
-                          Inclusions
-                        </Button>
-                      )}
-                      {r.status === "CHECKED_IN" && (
-                        <Button
-                          size="xs"
-                          colorPalette="orange"
-                          onClick={() => handleAction(r.id, "check-out")}
-                        >
-                          Check out
-                        </Button>
-                      )}
-                      {(r.status === "CONFIRMED" || r.status === "INQUIRY") && (
-                        <Button
-                          size="xs"
-                          colorPalette="red"
-                          variant="outline"
-                          onClick={() => handleAction(r.id, "cancel")}
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => {
-                          setPaymentId(r.id);
-                          setPaymentAmount(String(r.paidAmount ?? 0));
-                        }}
-                      >
-                        Payment
-                      </Button>
-                      {(r.status === "INQUIRY" || r.status === "CONFIRMED") && (
-                        <Button size="xs" variant="outline" onClick={() => startEdit(r)}>
-                          Edit
-                        </Button>
-                      )}
-                      {r.status !== "CHECKED_IN" && (
-                        <Button
-                          size="xs"
-                          colorPalette="red"
-                          variant="outline"
-                          onClick={() => confirmRemove(r)}
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </Flex>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-          {reservations.length === 0 && (
-            <EmptyState
-              title="No reservations yet"
-              description="Create a reservation to assign guests to rooms for this branch."
-              icon="🛎️"
-            />
-          )}
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Guest</Table.ColumnHeader>
+                    <Table.ColumnHeader>Room</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>
+                      Check-in
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", lg: "table-cell" }}>
+                      Check-out
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Total</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>
+                      Paid
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {reservations.map((r) => (
+                    <Table.Row key={r.id}>
+                      <Table.Cell>{r.guest.fullName}</Table.Cell>
+                      <Table.Cell>{r.room.roomNumber}</Table.Cell>
+                      <Table.Cell display={{ base: "none", md: "table-cell" }}>
+                        {new Date(r.checkIn).toLocaleDateString()}
+                      </Table.Cell>
+                      <Table.Cell display={{ base: "none", lg: "table-cell" }}>
+                        {new Date(r.checkOut).toLocaleDateString()}
+                      </Table.Cell>
+                      <Table.Cell>৳{Number(r.totalAmount).toLocaleString()}</Table.Cell>
+                      <Table.Cell display={{ base: "none", md: "table-cell" }}>
+                        ৳{Number(r.paidAmount ?? 0).toLocaleString()}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <StatusBadge status={r.status} />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Flex gap={1} wrap="wrap" align="center">
+                          {r.status === "INQUIRY" && (
+                            <Button
+                              size="xs"
+                              colorPalette="blue"
+                              onClick={() => handleAction(r.id, "confirm")}
+                            >
+                              Confirm
+                            </Button>
+                          )}
+                          {r.status === "CONFIRMED" && (
+                            <Button
+                              size="xs"
+                              colorPalette="green"
+                              onClick={() => handleAction(r.id, "check-in")}
+                            >
+                              Check in
+                            </Button>
+                          )}
+                          {r.status === "CHECKED_IN" && (
+                            <Button
+                              size="xs"
+                              colorPalette="orange"
+                              onClick={() => handleAction(r.id, "check-out")}
+                            >
+                              Check out
+                            </Button>
+                          )}
+                          <RowActionsMenu
+                            items={[
+                              ...(r.status === "CHECKED_IN"
+                                ? [
+                                    {
+                                      label: "Inclusions",
+                                      onClick: () => setInclusionsReservationId(r.id),
+                                    },
+                                  ]
+                                : []),
+                              {
+                                label: "Payment",
+                                onClick: () => {
+                                  setPaymentId(r.id);
+                                  setPaymentAmount(String(r.paidAmount ?? 0));
+                                },
+                              },
+                              ...((r.status === "INQUIRY" || r.status === "CONFIRMED")
+                                ? [
+                                    {
+                                      label: "Edit",
+                                      onClick: () => startEdit(r),
+                                    },
+                                  ]
+                                : []),
+                              ...((r.status === "CONFIRMED" || r.status === "INQUIRY")
+                                ? [
+                                    {
+                                      label: "Cancel",
+                                      onClick: () => handleAction(r.id, "cancel"),
+                                    },
+                                  ]
+                                : []),
+                              ...(r.status !== "CHECKED_IN"
+                                ? [
+                                    {
+                                      label: "Delete",
+                                      onClick: () => confirmRemove(r),
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                          />
+                        </Flex>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
+            {reservations.length === 0 && (
+              <Box p={4}>
+                <EmptyState
+                  title="No reservations yet"
+                  description="Create a reservation to assign guests to rooms for this branch."
+                  icon="🛎️"
+                />
+              </Box>
+            )}
           </>
         )}
-      </Box>
+      </ContentCard>
 
-      {editId && (
-        <Box
-          position="fixed"
-          inset={0}
-          bg="blackAlpha.400"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          zIndex={10}
-        >
-          <Box bg="white" p={6} borderRadius="md" minW="360px" maxW="90vw">
-            <Text fontWeight="semibold" mb={3}>
-              Edit reservation
-            </Text>
-            <Stack gap={3}>
-              <FormField label="Guest" required>
-                <AppSelect
-                  items={[
-                    { value: "", label: "Guest" },
-                    ...guests.map((g) => ({ value: g.id, label: g.fullName })),
-                  ]}
-                  value={editForm.guestId}
-                  onValueChange={(v) => setEditForm({ ...editForm, guestId: v })}
-                  placeholder="Guest"
-                />
-              </FormField>
-              <Flex gap={2}>
-                <FormField label="Check-in" required>
-                  <Input
-                    size="sm"
-                    type="date"
-                    value={editForm.checkIn}
-                    onChange={(e) => setEditForm({ ...editForm, checkIn: e.target.value })}
-                  />
-                </FormField>
-                <FormField label="Check-out" required>
-                  <Input
-                    size="sm"
-                    type="date"
-                    value={editForm.checkOut}
-                    onChange={(e) => setEditForm({ ...editForm, checkOut: e.target.value })}
-                  />
-                </FormField>
-              </Flex>
-              <FormField label="Room" required>
-                <AppSelect
-                  items={[
-                    { value: "", label: "Available room" },
-                    ...editRooms.map((room) => ({
-                      value: room.id,
-                      label: `${room.roomNumber} — ${room.roomType.name}`,
-                    })),
-                  ]}
-                  value={editForm.roomId}
-                  onValueChange={(v) => setEditForm({ ...editForm, roomId: v })}
-                  placeholder="Available room"
-                />
-              </FormField>
-              <FormField label="Total">
-                <Input
-                  size="sm"
-                  type="number"
-                  placeholder="Total amount"
-                  value={editForm.totalAmount}
-                  onChange={(e) => setEditForm({ ...editForm, totalAmount: e.target.value })}
-                />
-              </FormField>
-              <Flex gap={2}>
-                <Button size="sm" colorPalette="green" onClick={saveEdit}>
-                  Save
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setEditId(null)}>
-                  Cancel
-                </Button>
-              </Flex>
-            </Stack>
-          </Box>
-        </Box>
-      )}
-
-      {paymentId && (
-        <Box
-          position="fixed"
-          inset={0}
-          bg="blackAlpha.400"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          zIndex={10}
-        >
-          <Box bg="white" p={6} borderRadius="md" minW="280px">
-            <Text fontWeight="semibold" mb={3}>
-              Record payment
-            </Text>
-            <Input
-              size="sm"
-              type="number"
-              mb={3}
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
-            />
-            <Flex gap={2}>
-              <Button size="sm" colorPalette="green" onClick={savePayment}>
-                Save
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setPaymentId(null)}>
-                Cancel
-              </Button>
-            </Flex>
-          </Box>
-        </Box>
-      )}
-
-      {inclusionsReservationId && branchId && (
-        <ReservationInclusionsPanel
+      <FormDrawer
+        open={drawerMode === "create"}
+        onClose={closeDrawer}
+        title="New reservation"
+        description="Book a guest into an available room."
+        size="lg"
+        primaryLabel="Create"
+        onPrimary={handleCreate}
+        primaryDisabled={!canSubmitCreate}
+      >
+        <ReservationFormFields
           tenant={tenant}
           branchId={branchId}
-          reservationId={inclusionsReservationId}
-          onClose={() => setInclusionsReservationId(null)}
+          mode="create"
+          form={form}
+          onChange={setForm}
+          guests={guests}
+          packages={packages}
+          availableRooms={availableRooms}
         />
-      )}
-    </Box>
+        {!canSubmitCreate && (
+          <Text fontSize="xs" color="fg.muted" mt={2}>
+            Select guest, room, and valid check-in/check-out dates.
+          </Text>
+        )}
+      </FormDrawer>
+
+      <FormDrawer
+        open={drawerMode === "edit"}
+        onClose={closeDrawer}
+        title="Edit reservation"
+        size="lg"
+        primaryLabel="Save"
+        onPrimary={saveEdit}
+      >
+        <ReservationFormFields
+          tenant={tenant}
+          branchId={branchId}
+          mode="edit"
+          form={form}
+          onChange={setForm}
+          guests={guests}
+          packages={packages}
+          availableRooms={editRooms}
+          showStatus={false}
+        />
+      </FormDrawer>
+
+      <FormDialog
+        open={!!paymentId}
+        onClose={() => {
+          setPaymentId(null);
+          setPaymentAmount("");
+        }}
+        title="Record payment"
+        primaryLabel="Save"
+        onPrimary={savePayment}
+      >
+        <FormField label="Paid amount">
+          <Input
+            size="sm"
+            width="100%"
+            type="number"
+            value={paymentAmount}
+            onChange={(e) => setPaymentAmount(e.target.value)}
+          />
+        </FormField>
+      </FormDialog>
+
+      <FormDrawer
+        open={!!inclusionsReservationId && !!branchId}
+        onClose={() => setInclusionsReservationId(null)}
+        title="Guest inclusions"
+        description="Complimentary meals and amenities for this stay."
+        size="md"
+        cancelLabel="Close"
+      >
+        {inclusionsReservationId && branchId && (
+          <ReservationInclusionsContent
+            tenant={tenant}
+            branchId={branchId}
+            reservationId={inclusionsReservationId}
+          />
+        )}
+      </FormDrawer>
     </>
-  );
-}
-
-function InquiryRoomPicker({
-  tenant,
-  branchId,
-  value,
-  onChange,
-}: {
-  tenant: TenantHeaders;
-  branchId: string;
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  const [rooms, setRooms] = useState<Room[]>([]);
-
-  useEffect(() => {
-    apiFetch<Room[]>(`/pms/rooms?branchId=${branchId}`, { tenant })
-      .then(setRooms)
-      .catch(() => setRooms([]));
-  }, [branchId, tenant.organizationId]);
-
-  return (
-    <AppSelect
-      width="220px"
-      items={[
-        { value: "", label: "Select room for inquiry" },
-        ...rooms.map((r) => ({
-          value: r.id,
-          label: `${r.roomNumber} — ${r.roomType.name} (${r.status})`,
-        })),
-      ]}
-      value={value}
-      onValueChange={onChange}
-      placeholder="Select room for inquiry"
-    />
   );
 }

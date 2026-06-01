@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Box, Button, Flex, Input, Stack, Table, Text } from "@chakra-ui/react";
-import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { Box, Button, Flex, Input, Table } from "@chakra-ui/react";
+import {
+  ContentCard,
+  EmptyState,
+  FormField,
+  TableScrollArea,
+  TableSkeleton,
+} from "@erp/ui";
+import { FormDrawer } from "@/components/form-drawer";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { Guest } from "@/lib/pms-types";
@@ -13,8 +20,9 @@ export function GuestsTab({ tenant }: { tenant: TenantHeaders }) {
   const { ask, dialog } = useConfirmDialog();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ fullName: "", phone: "", email: "" });
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({ fullName: "", phone: "", email: "" });
 
   const load = useCallback(async () => {
     if (!tenant.organizationId) return;
@@ -33,6 +41,28 @@ export function GuestsTab({ tenant }: { tenant: TenantHeaders }) {
     load();
   }, [load]);
 
+  const openCreate = () => {
+    setEditingId(null);
+    setForm({ fullName: "", phone: "", email: "" });
+    setDrawerOpen(true);
+  };
+
+  const openEdit = (g: Guest) => {
+    setEditingId(g.id);
+    setForm({
+      fullName: g.fullName,
+      phone: g.phone ?? "",
+      email: g.email ?? "",
+    });
+    setDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setEditingId(null);
+    setForm({ fullName: "", phone: "", email: "" });
+  };
+
   const save = async () => {
     if (!form.fullName.trim()) return;
     const body = {
@@ -40,27 +70,21 @@ export function GuestsTab({ tenant }: { tenant: TenantHeaders }) {
       phone: form.phone || undefined,
       email: form.email || undefined,
     };
-    if (editingId) {
-      await apiFetch(`/pms/guests/${editingId}`, {
-        method: "PATCH",
-        tenant,
-        body: JSON.stringify(body),
-      });
-    } else {
-      await apiFetch("/pms/guests", { method: "POST", tenant, body: JSON.stringify(body) });
+    try {
+      if (editingId) {
+        await apiFetch(`/pms/guests/${editingId}`, {
+          method: "PATCH",
+          tenant,
+          body: JSON.stringify(body),
+        });
+      } else {
+        await apiFetch("/pms/guests", { method: "POST", tenant, body: JSON.stringify(body) });
+      }
+      closeDrawer();
+      load();
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to save guest");
     }
-    setForm({ fullName: "", phone: "", email: "" });
-    setEditingId(null);
-    load();
-  };
-
-  const startEdit = (g: Guest) => {
-    setEditingId(g.id);
-    setForm({
-      fullName: g.fullName,
-      phone: g.phone ?? "",
-      email: g.email ?? "",
-    });
   };
 
   const doRemove = async (id: string) => {
@@ -84,101 +108,109 @@ export function GuestsTab({ tenant }: { tenant: TenantHeaders }) {
   return (
     <>
       {dialog}
-      <Box>
-      <Box bg="white" borderRadius="md" p={4} mb={4}>
-        <Text fontWeight="semibold" mb={3}>
-          {editingId ? "Edit guest" : "New guest"}
-        </Text>
-        <Stack gap={3}>
-          <Flex gap={2} wrap="wrap">
-            <FormField label="Full name" help="Guest name as shown on reservations." required>
-              <Input
-                size="sm"
-                w="200px"
-                value={form.fullName}
-                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              />
-            </FormField>
-            <FormField label="Phone" help="Optional contact number.">
-              <Input
-                size="sm"
-                w="160px"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </FormField>
-            <FormField label="Email" help="Optional — used for confirmations.">
-              <Input
-                size="sm"
-                w="200px"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </FormField>
-          </Flex>
-          <Flex gap={2}>
-            <Button size="sm" colorPalette="green" onClick={save}>
-              {editingId ? "Update" : "Create"}
-            </Button>
-            {editingId && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm({ fullName: "", phone: "", email: "" });
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-          </Flex>
-        </Stack>
-      </Box>
-      <Box bg="white" borderRadius="md" p={4}>
+      <Flex gap={2} mb={4} wrap="wrap">
+        <Button size="sm" onClick={load}>
+          Refresh
+        </Button>
+        <Button size="sm" colorPalette="blue" w={{ base: "full", sm: "auto" }} onClick={openCreate}>
+          + Add guest
+        </Button>
+      </Flex>
+
+      <ContentCard p={0} overflow="hidden">
         {loading ? (
-          <TableSkeleton rows={5} columns={4} />
+          <Box p={4}>
+            <TableSkeleton rows={5} columns={4} />
+          </Box>
         ) : (
           <>
-            <Table.Root size="sm">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader>Name</Table.ColumnHeader>
-                  <Table.ColumnHeader>Phone</Table.ColumnHeader>
-                  <Table.ColumnHeader>Email</Table.ColumnHeader>
-                  <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {guests.map((g) => (
-                  <Table.Row key={g.id}>
-                    <Table.Cell>{g.fullName}</Table.Cell>
-                    <Table.Cell>{g.phone ?? "—"}</Table.Cell>
-                    <Table.Cell>{g.email ?? "—"}</Table.Cell>
-                    <Table.Cell>
-                      <Flex gap={1}>
-                        <Button size="xs" variant="outline" onClick={() => startEdit(g)}>
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          colorPalette="red"
-                          variant="outline"
-                          onClick={() => confirmRemove(g)}
-                        >
-                          Delete
-                        </Button>
-                      </Flex>
-                    </Table.Cell>
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Name</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                      Phone
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>
+                      Email
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
                   </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
-            {guests.length === 0 && <EmptyState message="No guests yet." />}
+                </Table.Header>
+                <Table.Body>
+                  {guests.map((g) => (
+                    <Table.Row key={g.id}>
+                      <Table.Cell>{g.fullName}</Table.Cell>
+                      <Table.Cell display={{ base: "none", sm: "table-cell" }}>
+                        {g.phone ?? "—"}
+                      </Table.Cell>
+                      <Table.Cell display={{ base: "none", md: "table-cell" }}>
+                        {g.email ?? "—"}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Flex gap={1}>
+                          <Button size="xs" variant="outline" onClick={() => openEdit(g)}>
+                            Edit
+                          </Button>
+                          <Button
+                            size="xs"
+                            colorPalette="red"
+                            variant="outline"
+                            onClick={() => confirmRemove(g)}
+                          >
+                            Delete
+                          </Button>
+                        </Flex>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
+            {guests.length === 0 && (
+              <Box p={4}>
+                <EmptyState title="No guests yet" description="Add guests to use in reservations." />
+              </Box>
+            )}
           </>
         )}
-      </Box>
-    </Box>
+      </ContentCard>
+
+      <FormDrawer
+        open={drawerOpen}
+        onClose={closeDrawer}
+        title={editingId ? "Edit guest" : "New guest"}
+        size="sm"
+        primaryLabel={editingId ? "Update" : "Create"}
+        onPrimary={save}
+        primaryDisabled={!form.fullName.trim()}
+      >
+        <FormField label="Full name" help="Guest name as shown on reservations." required>
+          <Input
+            size="sm"
+            width="100%"
+            value={form.fullName}
+            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+          />
+        </FormField>
+        <FormField label="Phone" help="Optional contact number.">
+          <Input
+            size="sm"
+            width="100%"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+        </FormField>
+        <FormField label="Email" help="Optional — used for confirmations.">
+          <Input
+            size="sm"
+            width="100%"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+        </FormField>
+      </FormDrawer>
     </>
   );
 }

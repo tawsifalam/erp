@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mockAuth, mockApiRoutes } from "./helpers/auth";
 import { acceptConfirmDialog } from "./helpers/confirm-dialog";
+import { clickRowAction, clickRowActionOnPage } from "./helpers/row-actions";
 
 test.describe("PMS – reservation lifecycle", () => {
   test.beforeEach(async ({ page }) => {
@@ -30,18 +31,16 @@ test.describe("PMS – reservation lifecycle", () => {
     await expect(dirtyRoom.getByText("VACANT")).toBeVisible({ timeout: 5000 });
   });
 
-  test("edit confirmed reservation opens modal", async ({ page }) => {
+  test("edit confirmed reservation opens drawer", async ({ page }) => {
     await page.goto("/pms");
-    const row = page.getByRole("row").filter({ hasText: "Fatima Khan" });
-    await row.getByRole("button", { name: "Edit" }).click();
+    await clickRowActionOnPage(page, "Fatima Khan", "Edit");
     await expect(page.getByText("Edit reservation")).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Cancel" }).first().click();
   });
 
-  test("checked-in reservation shows inclusions panel", async ({ page }) => {
+  test("checked-in reservation shows inclusions drawer", async ({ page }) => {
     await page.goto("/pms");
-    const row = page.getByRole("row").filter({ hasText: "Rahim Ahmed" });
-    await row.getByRole("button", { name: "Inclusions" }).click();
+    await clickRowActionOnPage(page, "Rahim Ahmed", "Inclusions");
     await expect(page.getByText("Guest inclusions")).toBeVisible();
     await expect(page.getByText(/meals used/)).toBeVisible();
     await page.getByRole("button", { name: "Record comp meal (1)" }).click();
@@ -54,6 +53,14 @@ test.describe("PMS – reservation lifecycle", () => {
     await expect(page.getByText("Full board (3 meals)")).toBeVisible();
     await expect(page.getByText("Budget (1 meal)")).toBeVisible();
   });
+
+  test("new reservation drawer on mobile viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/pms");
+    await page.getByRole("button", { name: "+ New reservation" }).click();
+    await expect(page.getByText("New reservation")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create" })).toBeVisible();
+  });
 });
 
 test.describe("PMS – delete and payment", () => {
@@ -65,7 +72,7 @@ test.describe("PMS – delete and payment", () => {
   test("record payment updates paid amount", async ({ page }) => {
     await page.goto("/pms");
     const row = page.getByRole("row").filter({ hasText: "Fatima Khan" });
-    await row.getByRole("button", { name: "Payment" }).click();
+    await clickRowAction(row, "Payment");
     await expect(page.getByText("Record payment")).toBeVisible();
 
     const input = page.locator('input[type="number"]').last();
@@ -79,7 +86,7 @@ test.describe("PMS – delete and payment", () => {
     await page.goto("/pms");
     const inquiryRow = page.getByRole("row").filter({ hasText: "INQUIRY" });
     await expect(inquiryRow).toHaveCount(1);
-    await inquiryRow.getByRole("button", { name: "Delete" }).click();
+    await clickRowAction(inquiryRow, "Delete");
     await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "INQUIRY" })).toHaveCount(0);
   });

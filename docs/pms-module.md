@@ -20,6 +20,23 @@ IDs use prefixes from seed/runtime: `org_`, `br_`, `rt_`, `rm_`, `gst_`, `res_`.
 
 Open **PMS** in the sidebar. Select **organization** and **branch** in the header first.
 
+### Drawer-based forms (responsive)
+
+Create and edit flows use shared **`FormDrawer`** and **`FormDialog`** shells (`apps/web/src/components/`):
+
+| Viewport | Drawer placement |
+|----------|------------------|
+| Mobile (`< md`) | Full-width panel from **bottom** (~92dvh), scrollable body, stacked footer buttons |
+| Desktop (`md+`) | **Right** side panel (`sm` / `md` / `lg` widths) |
+
+- **Reservations**: large drawer with sections (guest, dates, room, party, rates); payment in a small dialog; inclusions in a medium drawer.
+- **Rooms, room types, guests**: small drawers opened from **+ Add** / row **Edit**.
+- **Guest packages**: list-first tables in `ContentCard`; recipe and package forms in medium drawers.
+
+**Row actions**: primary lifecycle buttons (**Confirm**, **Check in**, **Check out**) stay on the reservation row. Secondary actions (**Payment**, **Inclusions**, **Edit**, **Cancel**, **Delete**) are under the **⋯ Actions** menu (`RowActionsMenu`).
+
+Lists use **`ContentCard`** + **`TableScrollArea`**; non-critical columns hide on narrow viewports. Drawer z-index is below the mobile nav (`1500`).
+
 | Tab | Features |
 |-----|----------|
 | **Reservations** | List stays; create CONFIRMED/INQUIRY; **adults/children**, **guest package**, optional **meals/night override**; **Inclusions** panel when CHECKED_IN; edit; confirm; check-in/out; cancel; payment; delete |

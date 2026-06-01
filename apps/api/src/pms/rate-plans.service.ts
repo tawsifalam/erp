@@ -21,6 +21,7 @@ export class RatePlansService {
       where: { organizationId },
       include: {
         roomType: true,
+        inclusionPackage: { select: { id: true, name: true } },
         rules: { orderBy: { createdAt: "asc" } },
       },
       orderBy: [{ validFrom: "desc" }, { name: "asc" }],
@@ -36,10 +37,13 @@ export class RatePlansService {
       validTo: string;
       baseModifier?: number;
       isActive?: boolean;
+      inclusionPackageId?: string | null;
+      fbSupplementPerGuestPerNight?: number | null;
     },
     userId?: string,
   ) {
     await this.assertRoomType(organizationId, data.roomTypeId);
+    await this.assertInclusionPackage(organizationId, data.inclusionPackageId);
     const validFrom = new Date(data.validFrom);
     const validTo = new Date(data.validTo);
     if (validTo < validFrom) {
@@ -60,8 +64,13 @@ export class RatePlansService {
         validTo,
         baseModifier,
         isActive: data.isActive ?? true,
+        inclusionPackageId: data.inclusionPackageId ?? null,
+        fbSupplementPerGuestPerNight:
+          data.inclusionPackageId && data.fbSupplementPerGuestPerNight != null
+            ? data.fbSupplementPerGuestPerNight
+            : null,
       },
-      include: { roomType: true, rules: true },
+      include: { roomType: true, inclusionPackage: true, rules: true },
     });
     await this.audit.record({
       organizationId,
@@ -83,10 +92,15 @@ export class RatePlansService {
       validTo?: string;
       baseModifier?: number;
       isActive?: boolean;
+      inclusionPackageId?: string | null;
+      fbSupplementPerGuestPerNight?: number | null;
     },
     userId?: string,
   ) {
     const existing = await this.get(organizationId, id);
+    if (data.inclusionPackageId !== undefined) {
+      await this.assertInclusionPackage(organizationId, data.inclusionPackageId);
+    }
     const validFrom = data.validFrom ? new Date(data.validFrom) : existing.validFrom;
     const validTo = data.validTo ? new Date(data.validTo) : existing.validTo;
     if (validTo < validFrom) {
@@ -104,8 +118,19 @@ export class RatePlansService {
         ...(data.validTo !== undefined ? { validTo } : {}),
         ...(data.baseModifier !== undefined ? { baseModifier: data.baseModifier } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        ...(data.inclusionPackageId !== undefined
+          ? { inclusionPackageId: data.inclusionPackageId }
+          : {}),
+        ...(data.fbSupplementPerGuestPerNight !== undefined
+          ? {
+              fbSupplementPerGuestPerNight:
+                data.inclusionPackageId === null
+                  ? null
+                  : data.fbSupplementPerGuestPerNight,
+            }
+          : {}),
       },
-      include: { roomType: true, rules: true },
+      include: { roomType: true, inclusionPackage: true, rules: true },
     });
     await this.audit.record({
       organizationId,
@@ -196,7 +221,7 @@ export class RatePlansService {
   private async get(organizationId: string, id: string) {
     const plan = await this.prisma.ratePlan.findFirst({
       where: { id, organizationId },
-      include: { roomType: true, rules: true },
+      include: { roomType: true, inclusionPackage: true, rules: true },
     });
     if (!plan) throw new NotFoundException("Rate plan not found");
     return plan;
@@ -207,5 +232,16 @@ export class RatePlansService {
       where: { id: roomTypeId, organizationId },
     });
     if (!rt) throw new NotFoundException("Room type not found");
+  }
+
+  private async assertInclusionPackage(
+    organizationId: string,
+    packageId: string | null | undefined,
+  ) {
+    if (!packageId) return;
+    const pkg = await this.prisma.inclusionPackage.findFirst({
+      where: { id: packageId, organizationId, isActive: true },
+    });
+    if (!pkg) throw new NotFoundException("Guest package not found");
   }
 }

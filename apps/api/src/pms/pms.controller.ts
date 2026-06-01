@@ -372,6 +372,8 @@ export class PmsController {
       validTo: string;
       baseModifier?: number;
       isActive?: boolean;
+      inclusionPackageId?: string | null;
+      fbSupplementPerGuestPerNight?: number | null;
     },
   ) {
     return this.ratePlans.create(t.organizationId, body, t.userId);
@@ -389,6 +391,8 @@ export class PmsController {
       validTo?: string;
       baseModifier?: number;
       isActive?: boolean;
+      inclusionPackageId?: string | null;
+      fbSupplementPerGuestPerNight?: number | null;
     },
   ) {
     return this.ratePlans.update(t.organizationId, id, body, t.userId);
@@ -431,7 +435,17 @@ export class PmsController {
     @Query("roomId") roomId: string,
     @Query("checkIn") checkIn: string,
     @Query("checkOut") checkOut: string,
+    @Query("adultCount") adultCount?: string,
+    @Query("childCount") childCount?: string,
   ) {
-    return this.pricing.quoteStay(roomId, new Date(checkIn), new Date(checkOut));
+    const adults = adultCount != null ? Number(adultCount) : 1;
+    const children = childCount != null ? Number(childCount) : 0;
+    return this.pricing.quoteStay(
+      roomId,
+      new Date(checkIn),
+      new Date(checkOut),
+      adults,
+      children,
+    );
   }
 }

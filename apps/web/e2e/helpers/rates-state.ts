@@ -17,11 +17,29 @@ export type MockRatePlan = {
   validTo: string;
   baseModifier: string;
   isActive: boolean;
+  inclusionPackageId?: string | null;
+  fbSupplementPerGuestPerNight?: string | null;
   roomType: { id: string; name: string };
+  inclusionPackage?: { id: string; name: string } | null;
   rules: MockRateRule[];
 };
 
 const INITIAL_PLANS: MockRatePlan[] = [
+  {
+    id: "rp_full_board",
+    organizationId: "org-test-001",
+    roomTypeId: "rt_001",
+    name: "Summer full board",
+    validFrom: "2026-06-01T00:00:00Z",
+    validTo: "2026-06-05T23:59:59Z",
+    baseModifier: "1",
+    isActive: true,
+    inclusionPackageId: "ipkg-full",
+    fbSupplementPerGuestPerNight: "800",
+    roomType: { id: "rt_001", name: "Standard Double" },
+    inclusionPackage: { id: "ipkg-full", name: "Full board (3 meals)" },
+    rules: [],
+  },
   {
     id: "rp_summer",
     organizationId: "org-test-001",
@@ -31,7 +49,10 @@ const INITIAL_PLANS: MockRatePlan[] = [
     validTo: "2026-12-31T23:59:59Z",
     baseModifier: "1",
     isActive: true,
+    inclusionPackageId: null,
+    fbSupplementPerGuestPerNight: null,
     roomType: { id: "rt_001", name: "Standard Double" },
+    inclusionPackage: null,
     rules: [
       {
         id: "rr_weekend",
@@ -72,17 +93,26 @@ export function quoteStay(
   room: { basePrice: string; roomTypeId: string },
   checkIn: Date,
   checkOut: Date,
+  adultCount = 1,
+  childCount = 0,
 ) {
   const nights = countNights(checkIn, checkOut);
   const nightDates = eachNight(checkIn, nights);
   const base = Number(room.basePrice);
-  const plan = ratePlans.find(
-    (p) =>
-      p.isActive &&
-      p.roomTypeId === room.roomTypeId &&
-      new Date(p.validFrom) <= checkOut &&
-      new Date(p.validTo) >= checkIn,
-  );
+  const plan =
+    ratePlans
+      .filter(
+        (p) =>
+          p.isActive &&
+          p.roomTypeId === room.roomTypeId &&
+          new Date(p.validFrom) <= checkOut &&
+          new Date(p.validTo) >= checkIn,
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.validFrom).getTime() - new Date(a.validFrom).getTime() ||
+          b.id.localeCompare(a.id),
+      )[0] ?? null;
   const modifier = plan ? Number(plan.baseModifier) : 1;
   const rules = plan?.rules ?? [];
 
@@ -100,12 +130,24 @@ export function quoteStay(
     return { date: night.toISOString().slice(0, 10), amount };
   });
 
-  const totalAmount = nightlyBreakdown.reduce((s, n) => s + n.amount, 0);
+  const roomAmount = nightlyBreakdown.reduce((s, n) => s + n.amount, 0);
+  const guests = Math.max(1, adultCount + childCount);
+  const supplement = plan?.fbSupplementPerGuestPerNight
+    ? Number(plan.fbSupplementPerGuestPerNight)
+    : 0;
+  const hasBundle = Boolean(plan?.inclusionPackageId);
+  const fbAmount = hasBundle && supplement > 0 ? supplement * guests * nights : 0;
+  const totalAmount = roomAmount + fbAmount;
+
   return {
     totalAmount,
+    roomAmount,
+    fbAmount,
     nights,
     ratePlanId: plan?.id ?? null,
     ratePlanName: plan?.name ?? null,
+    inclusionPackageId: hasBundle ? plan!.inclusionPackageId! : null,
+    inclusionPackageName: plan?.inclusionPackage?.name ?? null,
     nightlyBreakdown,
   };
 }
@@ -146,6 +188,7 @@ export function handleRatePlanMutation(
   }
 
   if (method === "POST" && url.includes("/rate-plans") && !url.includes("/rules")) {
+    const pkgId = body?.inclusionPackageId ? String(body.inclusionPackageId) : null;
     const plan: MockRatePlan = {
       id: `rp_${ratePlans.length + 1}`,
       organizationId: "org-test-001",
@@ -155,10 +198,18 @@ export function handleRatePlanMutation(
       validTo: String(body?.validTo ?? "2026-12-31"),
       baseModifier: String(body?.baseModifier ?? "1"),
       isActive: body?.isActive !== false,
+      inclusionPackageId: pkgId,
+      fbSupplementPerGuestPerNight:
+        pkgId && body?.fbSupplementPerGuestPerNight != null
+          ? String(body.fbSupplementPerGuestPerNight)
+          : null,
       roomType: {
         id: String(body?.roomTypeId ?? "rt_001"),
         name: "Standard Double",
       },
+      inclusionPackage: pkgId
+        ? { id: pkgId, name: "Full board (3 meals)" }
+        : null,
       rules: [],
     };
     ratePlans.push(plan);
@@ -178,6 +229,20 @@ export function handleRatePlanMutation(
     if (body.validTo) plan.validTo = String(body.validTo);
     if (body.baseModifier != null) plan.baseModifier = String(body.baseModifier);
     if (body.isActive !== undefined) plan.isActive = Boolean(body.isActive);
+    if (body.inclusionPackageId !== undefined) {
+      plan.inclusionPackageId = body.inclusionPackageId
+        ? String(body.inclusionPackageId)
+        : null;
+      plan.inclusionPackage = plan.inclusionPackageId
+        ? { id: plan.inclusionPackageId, name: "Full board (3 meals)" }
+        : null;
+    }
+    if (body.fbSupplementPerGuestPerNight !== undefined) {
+      plan.fbSupplementPerGuestPerNight =
+        body.fbSupplementPerGuestPerNight != null
+          ? String(body.fbSupplementPerGuestPerNight)
+          : null;
+    }
     return plan;
   }
 

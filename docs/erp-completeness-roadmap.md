@@ -19,7 +19,7 @@ Path from **Phase 1 hospitality operations platform** (current) to a **complete 
 
 **Still a stub:** `integrations` (health check only).
 
-**Optional / Phase 2:** PropelAuth email invite (join-code flow is the MVP), rate-plan room+F&B packages, fiscal periods & period close.
+**Optional / Phase 2:** PropelAuth email invite (join-code flow is the MVP), fiscal periods & period close.
 
 ---
 

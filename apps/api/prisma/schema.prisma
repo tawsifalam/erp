@@ -114,21 +114,24 @@ model RoomType {
 }
 
 model RatePlan {
-  id             String   @id @default(uuid())
-  organizationId String
-  roomTypeId     String
-  name           String
-  validFrom      DateTime
-  validTo        DateTime
-  baseModifier   Decimal  @default(1) @db.Decimal(8, 4)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                         String   @id @default(uuid())
+  organizationId             String
+  roomTypeId                 String
+  name                       String
+  validFrom                  DateTime
+  validTo                    DateTime
+  baseModifier               Decimal  @default(1) @db.Decimal(8, 4)
+  isActive                   Boolean  @default(true)
+  inclusionPackageId         String?
+  fbSupplementPerGuestPerNight Decimal? @db.Decimal(12, 2)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  roomType     RoomType     @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
-  rules        RateRule[]
-  reservations Reservation[]
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roomType          RoomType          @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  inclusionPackage  InclusionPackage? @relation(fields: [inclusionPackageId], references: [id], onDelete: SetNull)
+  rules             RateRule[]
+  reservations      Reservation[]
 
   @@index([organizationId, roomTypeId, validFrom, validTo])
 }
@@ -620,6 +623,7 @@ model InclusionPackage {
   organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rules        InclusionPackageRule[]
   reservations Reservation[]
+  ratePlans    RatePlan[]
 
   @@unique([organizationId, name])
 }

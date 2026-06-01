@@ -4,9 +4,13 @@ import { roundMoney, toNumber } from "@erp/utils";
 
 export type StayQuote = {
   totalAmount: number;
+  roomAmount: number;
+  fbAmount: number;
   nights: number;
   ratePlanId: string | null;
   ratePlanName: string | null;
+  inclusionPackageId: string | null;
+  inclusionPackageName: string | null;
   nightlyBreakdown: { date: string; amount: number }[];
 };
 
@@ -14,7 +18,13 @@ export type StayQuote = {
 export class RatePricingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async quoteStay(roomId: string, checkIn: Date, checkOut: Date): Promise<StayQuote> {
+  async quoteStay(
+    roomId: string,
+    checkIn: Date,
+    checkOut: Date,
+    adultCount = 1,
+    childCount = 0,
+  ): Promise<StayQuote> {
     const room = await this.prisma.room.findUnique({
       where: { id: roomId },
       include: { roomType: true, branch: { select: { organizationId: true } } },
@@ -48,15 +58,34 @@ export class RatePricingService {
       return { date: night.toISOString().slice(0, 10), amount };
     });
 
-    const totalAmount = roundMoney(
+    const roomAmount = roundMoney(
       nightlyBreakdown.reduce((sum, n) => sum + n.amount, 0),
     );
 
+    const guests = Math.max(1, adultCount + childCount);
+    const supplement = plan?.fbSupplementPerGuestPerNight
+      ? toNumber(plan.fbSupplementPerGuestPerNight)
+      : 0;
+    const bundlePackage =
+      plan?.inclusionPackageId && plan.inclusionPackage?.isActive !== false
+        ? plan.inclusionPackage
+        : null;
+    const hasBundle = Boolean(bundlePackage);
+    const fbAmount =
+      hasBundle && supplement > 0
+        ? roundMoney(supplement * guests * nights)
+        : 0;
+    const totalAmount = roundMoney(roomAmount + fbAmount);
+
     return {
       totalAmount,
+      roomAmount,
+      fbAmount,
       nights,
       ratePlanId: plan?.id ?? null,
       ratePlanName: plan?.name ?? null,
+      inclusionPackageId: hasBundle ? plan!.inclusionPackageId : null,
+      inclusionPackageName: bundlePackage?.name ?? null,
       nightlyBreakdown,
     };
   }
@@ -75,7 +104,10 @@ export class RatePricingService {
         validFrom: { lte: checkOut },
         validTo: { gte: checkIn },
       },
-      include: { rules: true },
+      include: {
+        rules: true,
+        inclusionPackage: { select: { id: true, name: true, isActive: true } },
+      },
       orderBy: [{ validFrom: "desc" }, { createdAt: "desc" }],
     });
     return plans[0] ?? null;

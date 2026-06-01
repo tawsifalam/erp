@@ -559,10 +559,25 @@ export async function mockApiRoutes(page: Page) {
     const checkIn = url.searchParams.get("checkIn");
     const checkOut = url.searchParams.get("checkOut");
     const room = getPmsRooms().find((r) => r.id === roomId);
+    const adults = Number(url.searchParams.get("adultCount") ?? "1");
+    const children = Number(url.searchParams.get("childCount") ?? "0");
     if (!room || !checkIn || !checkOut) {
-      return fulfillJson(route, { totalAmount: 0, nights: 0, ratePlanId: null, ratePlanName: null, nightlyBreakdown: [] });
+      return fulfillJson(route, {
+        totalAmount: 0,
+        roomAmount: 0,
+        fbAmount: 0,
+        nights: 0,
+        ratePlanId: null,
+        ratePlanName: null,
+        inclusionPackageId: null,
+        inclusionPackageName: null,
+        nightlyBreakdown: [],
+      });
     }
-    return fulfillJson(route, quoteStay(room, new Date(checkIn), new Date(checkOut)));
+    return fulfillJson(
+      route,
+      quoteStay(room, new Date(checkIn), new Date(checkOut), adults, children),
+    );
   });
 
   await page.route(backendApiRoute("pms/rooms"), async (route) => {

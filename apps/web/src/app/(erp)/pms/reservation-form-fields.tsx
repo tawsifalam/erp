@@ -65,20 +65,41 @@ export function ReservationFormFields({
       roomId: form.roomId,
       checkIn: `${form.checkIn}T14:00:00Z`,
       checkOut: `${form.checkOut}T11:00:00Z`,
+      adultCount: form.adultCount || "1",
+      childCount: form.childCount || "0",
     });
     let cancelled = false;
     apiFetch<{
       totalAmount: number;
+      roomAmount: number;
+      fbAmount: number;
       ratePlanName: string | null;
+      inclusionPackageId: string | null;
+      inclusionPackageName: string | null;
     }>(`/pms/pricing/quote?${params}`, { tenant })
       .then((quote) => {
         if (cancelled) return;
-        onChange({ ...form, totalAmount: String(quote.totalAmount) });
-        onPricingHint?.(
-          quote.ratePlanName
-            ? `Calculated from rate plan: ${quote.ratePlanName}`
-            : "Calculated from room base rate",
-        );
+        const patch: Partial<ReservationFormState> = {
+          totalAmount: String(quote.totalAmount),
+        };
+        if (quote.inclusionPackageId) {
+          patch.packageId = quote.inclusionPackageId;
+        }
+        onChange({ ...form, ...patch });
+        const parts: string[] = [];
+        if (quote.ratePlanName) {
+          parts.push(`Rate plan: ${quote.ratePlanName}`);
+        } else {
+          parts.push("Room base rate");
+        }
+        if (quote.fbAmount > 0 && quote.inclusionPackageName) {
+          parts.push(
+            `F&B (${quote.inclusionPackageName}): ৳${quote.fbAmount.toLocaleString()} for stay`,
+          );
+        } else if (quote.inclusionPackageName) {
+          parts.push(`Includes package: ${quote.inclusionPackageName}`);
+        }
+        onPricingHint?.(parts.join(" · "));
       })
       .catch(() => {
         if (!cancelled) onPricingHint?.(null);
@@ -87,7 +108,14 @@ export function ReservationFormFields({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- quote when stay inputs change
-  }, [form.roomId, form.checkIn, form.checkOut, tenant.organizationId]);
+  }, [
+    form.roomId,
+    form.checkIn,
+    form.checkOut,
+    form.adultCount,
+    form.childCount,
+    tenant.organizationId,
+  ]);
 
   const roomOptions =
     form.status === "INQUIRY" && mode === "create"

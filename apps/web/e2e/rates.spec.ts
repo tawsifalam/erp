@@ -15,7 +15,7 @@ test.describe("PMS rate plans", () => {
       timeout: 15_000,
     });
     await expect(page.getByRole("cell", { name: "Summer standard" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Standard Double" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Standard Double" }).first()).toBeVisible();
     await page.getByRole("button", { name: "Rules" }).first().click();
     await expect(page.getByRole("cell", { name: "Saturday" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "৳5,000" })).toBeVisible();
@@ -35,6 +35,25 @@ test.describe("PMS rate plans", () => {
     });
   });
 
+  test("full board rate plan adds F&B supplement to weekday quote", async ({ page }) => {
+    await page.goto("/pms");
+    await page.getByRole("button", { name: "+ New reservation" }).click();
+    await pickAppSelectInDrawer(page, "New reservation", 1, "Karim Uddin");
+    await page.locator('input[type="date"]').nth(0).fill("2026-06-02");
+    await page.locator('input[type="date"]').nth(1).fill("2026-06-04");
+    await pickAppSelectInDrawer(page, "New reservation", 2, /102.*Standard/);
+    await page.waitForResponse(
+      (r) => r.url().includes("/pms/pricing/quote") && r.ok(),
+      { timeout: 15_000 },
+    );
+    await expect(page.getByText(/Rate plan: Summer full board/i)).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId("reservation-total-amount")).toHaveValue("10200", {
+      timeout: 10_000,
+    });
+  });
+
   test("weekend stay quotes higher total than weekday in reservation drawer", async ({
     page,
   }) => {
@@ -48,7 +67,7 @@ test.describe("PMS rate plans", () => {
       (r) => r.url().includes("/pms/pricing/quote") && r.ok(),
       { timeout: 15_000 },
     );
-    await expect(page.getByText(/Calculated from rate plan/i)).toBeVisible({
+    await expect(page.getByText(/Rate plan:/i)).toBeVisible({
       timeout: 10_000,
     });
     const totalInput = page.getByTestId("reservation-total-amount");
@@ -63,8 +82,8 @@ test.describe("PMS rate plans", () => {
     await page.goto("/pms");
     await page.getByRole("button", { name: "+ New reservation" }).click();
     await pickAppSelectInDrawer(page, "New reservation", 1, "Karim Uddin");
-    await page.locator('input[type="date"]').nth(0).fill("2026-06-02");
-    await page.locator('input[type="date"]').nth(1).fill("2026-06-04");
+    await page.locator('input[type="date"]').nth(0).fill("2026-07-10");
+    await page.locator('input[type="date"]').nth(1).fill("2026-07-12");
     await pickAppSelectInDrawer(page, "New reservation", 2, /102.*Standard/);
     await page.waitForResponse(
       (r) => r.url().includes("/pms/pricing/quote") && r.ok(),

@@ -38,7 +38,9 @@ describe("RatePricingService", () => {
     );
 
     expect(quote.nights).toBe(2);
+    expect(quote.roomAmount).toBe(7000);
     expect(quote.totalAmount).toBe(7000);
+    expect(quote.fbAmount).toBe(0);
     expect(quote.ratePlanId).toBeNull();
   });
 
@@ -68,5 +70,39 @@ describe("RatePricingService", () => {
 
     expect(quote.ratePlanId).toBe("rp_1");
     expect(quote.totalAmount).toBe(8500);
+  });
+
+  it("adds F&B supplement when rate plan bundles a guest package", async () => {
+    mockPrisma.room.findUnique.mockResolvedValue({
+      id: "rm_1",
+      basePrice: 3500,
+      roomTypeId: "rt_1",
+      branch: { organizationId: "org_1" },
+      roomType: { name: "Standard" },
+    });
+    mockPrisma.ratePlan.findMany.mockResolvedValue([
+      {
+        id: "rp_fb",
+        name: "Full board",
+        baseModifier: 1,
+        inclusionPackageId: "pkg_1",
+        fbSupplementPerGuestPerNight: 800,
+        inclusionPackage: { id: "pkg_1", name: "Full board (3 meals)", isActive: true },
+        rules: [],
+      },
+    ]);
+
+    const quote = await service.quoteStay(
+      "rm_1",
+      new Date("2026-06-02T14:00:00Z"),
+      new Date("2026-06-04T11:00:00Z"),
+      2,
+      0,
+    );
+
+    expect(quote.roomAmount).toBe(7000);
+    expect(quote.fbAmount).toBe(3200);
+    expect(quote.totalAmount).toBe(10200);
+    expect(quote.inclusionPackageId).toBe("pkg_1");
   });
 });

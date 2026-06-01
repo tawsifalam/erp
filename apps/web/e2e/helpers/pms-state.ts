@@ -216,7 +216,13 @@ export function handlePmsReservationMutation(
       body?.totalAmount != null ? Number(body.totalAmount) : undefined;
     const room = rooms.find((r) => r.id === String(body?.roomId));
     if (room && body?.checkIn && body?.checkOut) {
-      const q = quoteStay(room, new Date(String(body.checkIn)), new Date(String(body.checkOut)));
+      const q = quoteStay(
+        room,
+        new Date(String(body.checkIn)),
+        new Date(String(body.checkOut)),
+        Number(body?.adultCount ?? 1),
+        Number(body?.childCount ?? 0),
+      );
       total = total ?? q.totalAmount;
     }
     const guestId = String(body?.guestId ?? "");

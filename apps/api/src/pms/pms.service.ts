@@ -317,11 +317,20 @@ export class PmsService {
     checkIn: Date,
     checkOut: Date,
     totalAmount?: number,
+    adultCount?: number,
+    childCount?: number,
   ) {
-    const quote = await this.pricing.quoteStay(roomId, checkIn, checkOut);
+    const quote = await this.pricing.quoteStay(
+      roomId,
+      checkIn,
+      checkOut,
+      adultCount ?? 1,
+      childCount ?? 0,
+    );
     return {
       totalAmount: totalAmount ?? quote.totalAmount,
       ratePlanId: quote.ratePlanId,
+      packageId: quote.inclusionPackageId,
     };
   }
 
@@ -380,15 +389,18 @@ export class PmsService {
     },
     userId?: string,
   ) {
+    this.validateHeadcount(data.adultCount, data.childCount);
     const pricing = await this.resolveStayPricing(
       data.roomId,
       data.checkIn,
       data.checkOut,
       data.totalAmount,
+      data.adultCount,
+      data.childCount,
     );
-    const priced = { ...data, totalAmount: pricing.totalAmount };
+    const packageId = data.packageId ?? pricing.packageId ?? null;
+    const priced = { ...data, totalAmount: pricing.totalAmount, packageId };
     this.validateReservationFields(priced);
-    this.validateHeadcount(data.adultCount, data.childCount);
     if (data.mealsPerGuestPerNightOverride != null) {
       if (
         !Number.isInteger(data.mealsPerGuestPerNightOverride) ||
@@ -399,13 +411,13 @@ export class PmsService {
     }
 
     const orgId = await this.organizationIdForBranch(branchId);
-    await this.inclusions.assertPackageInOrg(orgId, data.packageId);
+    await this.inclusions.assertPackageInOrg(orgId, packageId);
 
     const status = data.status ?? ReservationStatus.CONFIRMED;
     const inclusionData = {
       adultCount: data.adultCount ?? 1,
       childCount: data.childCount ?? 0,
-      packageId: data.packageId ?? null,
+      packageId,
       mealsPerGuestPerNightOverride: data.mealsPerGuestPerNightOverride ?? null,
     };
 
@@ -504,26 +516,40 @@ export class PmsService {
         throw new BadRequestException("mealsPerGuestPerNightOverride must be a positive integer");
       }
     }
-    if (data.packageId) {
-      const orgId = await this.organizationIdForBranch(branchId);
-      await this.inclusions.assertPackageInOrg(orgId, data.packageId);
-    }
-
     const checkIn = data.checkIn ?? reservation.checkIn;
     const checkOut = data.checkOut ?? reservation.checkOut;
     const roomId = data.roomId ?? reservation.roomId;
 
     let totalAmount = data.totalAmount;
     let ratePlanId: string | null | undefined;
+    let packageId = data.packageId;
     const datesOrRoomChanged = Boolean(data.checkIn || data.checkOut || data.roomId);
+    const headcountChanged =
+      data.adultCount !== undefined || data.childCount !== undefined;
     if (
-      datesOrRoomChanged &&
+      (datesOrRoomChanged || headcountChanged) &&
       data.totalAmount === undefined &&
       reservation.status !== ReservationStatus.CHECKED_IN
     ) {
-      const priced = await this.resolveStayPricing(roomId, checkIn, checkOut);
+      const priced = await this.resolveStayPricing(
+        roomId,
+        checkIn,
+        checkOut,
+        undefined,
+        data.adultCount ?? reservation.adultCount,
+        data.childCount ?? reservation.childCount,
+      );
       totalAmount = priced.totalAmount;
       ratePlanId = priced.ratePlanId;
+      if (data.packageId === undefined && priced.packageId) {
+        packageId = priced.packageId;
+      }
+    }
+
+    const resolvedPackageId = packageId ?? reservation.packageId;
+    if (resolvedPackageId) {
+      const orgId = await this.organizationIdForBranch(branchId);
+      await this.inclusions.assertPackageInOrg(orgId, resolvedPackageId);
     }
 
     if (data.checkIn || data.checkOut || data.roomId) {
@@ -551,7 +577,7 @@ export class PmsService {
         ...(data.paidAmount !== undefined ? { paidAmount: data.paidAmount } : {}),
         ...(data.adultCount !== undefined ? { adultCount: data.adultCount } : {}),
         ...(data.childCount !== undefined ? { childCount: data.childCount } : {}),
-        ...(data.packageId !== undefined ? { packageId: data.packageId } : {}),
+        ...(packageId !== undefined ? { packageId } : {}),
         ...(data.mealsPerGuestPerNightOverride !== undefined
           ? { mealsPerGuestPerNightOverride: data.mealsPerGuestPerNightOverride }
           : {}),

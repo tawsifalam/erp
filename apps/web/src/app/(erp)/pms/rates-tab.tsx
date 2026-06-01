@@ -32,6 +32,8 @@ type RateRule = {
   pricePerNight: string | null;
 };
 
+type InclusionPackageOption = { id: string; name: string };
+
 type RatePlan = {
   id: string;
   name: string;
@@ -40,7 +42,10 @@ type RatePlan = {
   validTo: string;
   baseModifier: string;
   isActive: boolean;
+  inclusionPackageId?: string | null;
+  fbSupplementPerGuestPerNight?: string | null;
   roomType: { id: string; name: string };
+  inclusionPackage?: { id: string; name: string } | null;
   rules: RateRule[];
 };
 
@@ -64,6 +69,7 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
   const { ask, dialog } = useConfirmDialog();
   const [plans, setPlans] = useState<RatePlan[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [packages, setPackages] = useState<InclusionPackageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [planDrawer, setPlanDrawer] = useState(false);
   const [rulesPlanId, setRulesPlanId] = useState<string | null>(null);
@@ -74,6 +80,8 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
     validFrom: "",
     validTo: "",
     baseModifier: "1",
+    inclusionPackageId: "",
+    fbSupplementPerGuestPerNight: "",
   });
   const [ruleForm, setRuleForm] = useState({
     dayOfWeek: "",
@@ -85,12 +93,14 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
     if (!tenant.organizationId) return;
     setLoading(true);
     try {
-      const [planData, rtData] = await Promise.all([
+      const [planData, rtData, pkgData] = await Promise.all([
         apiFetch<RatePlan[]>("/pms/rate-plans", { tenant }),
         apiFetch<RoomType[]>("/pms/room-types", { tenant }),
+        apiFetch<InclusionPackageOption[]>("/inclusions/packages", { tenant }),
       ]);
       setPlans(planData);
       setRoomTypes(rtData);
+      setPackages(pkgData);
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to load rate plans");
     } finally {
@@ -110,6 +120,25 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
       validFrom: "2026-01-01",
       validTo: "2026-12-31",
       baseModifier: "1",
+      inclusionPackageId: "",
+      fbSupplementPerGuestPerNight: "",
+    });
+    setPlanDrawer(true);
+  };
+
+  const openEditPlan = (plan: RatePlan) => {
+    setEditingPlanId(plan.id);
+    setPlanForm({
+      name: plan.name,
+      roomTypeId: plan.roomTypeId,
+      validFrom: plan.validFrom.slice(0, 10),
+      validTo: plan.validTo.slice(0, 10),
+      baseModifier: String(plan.baseModifier),
+      inclusionPackageId: plan.inclusionPackageId ?? "",
+      fbSupplementPerGuestPerNight:
+        plan.fbSupplementPerGuestPerNight != null
+          ? String(plan.fbSupplementPerGuestPerNight)
+          : "",
     });
     setPlanDrawer(true);
   };
@@ -123,6 +152,10 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
         validFrom: `${planForm.validFrom}T00:00:00Z`,
         validTo: `${planForm.validTo}T23:59:59Z`,
         baseModifier: Number(planForm.baseModifier) || 1,
+        inclusionPackageId: planForm.inclusionPackageId || null,
+        fbSupplementPerGuestPerNight: planForm.inclusionPackageId
+          ? Number(planForm.fbSupplementPerGuestPerNight) || 0
+          : null,
       };
       if (editingPlanId) {
         await apiFetch(`/pms/rate-plans/${editingPlanId}`, {
@@ -219,6 +252,7 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
                   <Table.ColumnHeader>Room type</Table.ColumnHeader>
                   <Table.ColumnHeader>Valid</Table.ColumnHeader>
                   <Table.ColumnHeader>Modifier</Table.ColumnHeader>
+                  <Table.ColumnHeader>F&B bundle</Table.ColumnHeader>
                   <Table.ColumnHeader>Rules</Table.ColumnHeader>
                   <Table.ColumnHeader />
                 </Table.Row>
@@ -232,9 +266,28 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
                       {p.validFrom.slice(0, 10)} – {p.validTo.slice(0, 10)}
                     </Table.Cell>
                     <Table.Cell>×{Number(p.baseModifier)}</Table.Cell>
+                    <Table.Cell whiteSpace="nowrap">
+                      {p.inclusionPackage ? (
+                        <Text fontSize="xs">
+                          {p.inclusionPackage.name}
+                          {p.fbSupplementPerGuestPerNight
+                            ? ` (+৳${Number(p.fbSupplementPerGuestPerNight).toLocaleString()}/guest/night)`
+                            : ""}
+                        </Text>
+                      ) : (
+                        "—"
+                      )}
+                    </Table.Cell>
                     <Table.Cell>{p.rules.length}</Table.Cell>
                     <Table.Cell>
                       <Flex gap={2} justify="flex-end">
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => openEditPlan(p)}
+                        >
+                          Edit
+                        </Button>
                         <Button
                           size="xs"
                           variant="outline"
@@ -385,6 +438,43 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
               onChange={(e) => setPlanForm({ ...planForm, baseModifier: e.target.value })}
             />
           </FormField>
+          <FormField
+            label="Guest package (F&B bundle)"
+            help="When set, reservations using this plan auto-apply the inclusion package."
+          >
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "", label: "Room only (no package)" },
+                ...packages.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              value={planForm.inclusionPackageId}
+              onValueChange={(v) =>
+                setPlanForm({
+                  ...planForm,
+                  inclusionPackageId: v,
+                  fbSupplementPerGuestPerNight: v ? planForm.fbSupplementPerGuestPerNight : "",
+                })
+              }
+              placeholder="Optional package"
+            />
+          </FormField>
+          {planForm.inclusionPackageId && (
+            <FormField
+              label="F&B supplement per guest per night"
+              help="Added to room total (e.g. full board meals charge)."
+            >
+              <Input
+                size="sm"
+                type="number"
+                min={0}
+                value={planForm.fbSupplementPerGuestPerNight}
+                onChange={(e) =>
+                  setPlanForm({ ...planForm, fbSupplementPerGuestPerNight: e.target.value })
+                }
+              />
+            </FormField>
+          )}
         </Stack>
       </FormDrawer>
     </>

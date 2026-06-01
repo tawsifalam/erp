@@ -2,10 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { JoinRequestStatus } from "@erp/types";
 import type { AuthUserPayload } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { TenantsService } from "../tenants/tenants.service";
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenants: TenantsService,
+  ) {}
 
   async syncUser(claims: AuthUserPayload) {
     const name =
@@ -21,6 +25,8 @@ export class AuthService {
         name,
       },
     });
+
+    await this.tenants.fulfillPendingInvitesForUser(user.id, email);
 
     const membershipCount = await this.prisma.userOrganization.count({
       where: { userId: user.id },

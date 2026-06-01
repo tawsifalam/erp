@@ -28,6 +28,8 @@
 - PropelAuth org ID → `Organization.propelAuthOrgId`
 - PropelAuth user ID → `User.propelAuthUserId`
 - ERP `X-Organization-Id` header uses internal UUID; link orgs at sync time
+- New ERP orgs call PropelAuth `createOrg` when possible; legacy synthetic `erp_*` IDs are upgraded on first email invite
+- **Team invites:** `POST /tenants/invites` → PropelAuth `inviteUserToOrg` (default org role `Member`, override with `PROPELAUTH_ORG_MEMBER_ROLE`). ERP role is stored on `OrganizationInvite` and applied on `POST /auth/sync`.
 
 ## Local env files
 

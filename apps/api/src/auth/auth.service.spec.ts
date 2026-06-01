@@ -14,12 +14,17 @@ const mockPrisma = {
   },
 };
 
+const mockTenants = {
+  fulfillPendingInvitesForUser: jest.fn().mockResolvedValue([]),
+};
+
 describe("AuthService", () => {
   let service: AuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(mockPrisma as never);
+    mockTenants.fulfillPendingInvitesForUser.mockResolvedValue([]);
+    service = new AuthService(mockPrisma as never, mockTenants as never);
   });
 
   it("syncUser upserts user only without creating org membership", async () => {
@@ -41,6 +46,10 @@ describe("AuthService", () => {
     });
 
     expect(mockPrisma.user.upsert).toHaveBeenCalled();
+    expect(mockTenants.fulfillPendingInvitesForUser).toHaveBeenCalledWith(
+      "usr_1",
+      "test@example.com",
+    );
     expect(result.hasActiveMembership).toBe(false);
     expect(result.pendingJoinRequest).toBeNull();
   });

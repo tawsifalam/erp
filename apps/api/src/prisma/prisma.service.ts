@@ -71,6 +71,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get organization() { return this._client.organization; }
   get userOrganization() { return this._client.userOrganization; }
   get organizationJoinRequest() { return this._client.organizationJoinRequest; }
+  get organizationInvite() { return this._client.organizationInvite; }
   get branch() { return this._client.branch; }
   get roomType() { return this._client.roomType; }
   get ratePlan() { return this._client.ratePlan; }

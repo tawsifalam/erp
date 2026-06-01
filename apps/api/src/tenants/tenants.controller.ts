@@ -173,6 +173,48 @@ export class TenantsController {
     return this.tenants.rejectJoinRequest(user.id, t.organizationId, id, body.reason);
   }
 
+  @Get("invites")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  listInvites(@Tenant() t: TenantContext) {
+    return this.tenants.listPendingInvites(t.organizationId);
+  }
+
+  @Post("invites")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  async inviteMember(
+    @CurrentUser() claims: AuthUserPayload,
+    @Tenant() t: TenantContext,
+    @Body() body: { email?: string; role?: string },
+  ) {
+    if (!body.email?.trim()) {
+      throw new BadRequestException("Email is required");
+    }
+    if (!body.role) {
+      throw new BadRequestException("Role is required when inviting a team member");
+    }
+    const user = await this.requireUser(claims);
+    if (!user) return null;
+    return this.tenants.inviteMember(t.organizationId, user.id, {
+      email: body.email,
+      role: body.role,
+    });
+  }
+
+  @Post("invites/:id/revoke")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  async revokeInvite(
+    @CurrentUser() claims: AuthUserPayload,
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+  ) {
+    const user = await this.requireUser(claims);
+    if (!user) return null;
+    return this.tenants.revokeInvite(t.organizationId, id, user.id);
+  }
+
   @Get("members")
   @UseGuards(TenantGuard, PermissionGuard)
   @RequirePermission(Permission.ADMIN)

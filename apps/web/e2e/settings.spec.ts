@@ -102,4 +102,14 @@ test.describe("Settings – Organization & branch management", () => {
     await expect(page.getByTestId("app-breadcrumbs")).toContainText("Team & access");
     await expect(page.getByText("Organization join code")).toBeVisible();
   });
+
+  test("can send and revoke email invite on team tab", async ({ page }) => {
+    await page.goto("/settings?tab=team");
+    await page.getByPlaceholder("colleague@example.com").fill("desk@example.com");
+    await page.getByRole("button", { name: "Send invite" }).click();
+    await expect(page.getByText(/Invite email sent/i)).toBeVisible();
+    await expect(page.getByRole("cell", { name: "desk@example.com" })).toBeVisible();
+    await page.getByRole("button", { name: "Revoke" }).click();
+    await expect(page.getByText(/Invite revoked/i)).toBeVisible();
+  });
 });

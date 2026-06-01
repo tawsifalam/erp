@@ -3,9 +3,11 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { PropelAuthService } from "./propelauth.service";
 import { PropelAuthGuard } from "../common/guards/propelauth.guard";
+import { TenantsModule } from "../tenants/tenants.module";
 
 @Global()
 @Module({
+  imports: [TenantsModule],
   controllers: [AuthController],
   providers: [PropelAuthService, PropelAuthGuard, AuthService],
   exports: [PropelAuthService, PropelAuthGuard, AuthService],

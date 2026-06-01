@@ -61,6 +61,7 @@ import {
   resetTenantState,
 } from "./tenant-state";
 import { listAuditLogs, resetAuditState } from "./audit-state";
+import { handleInviteMutation, resetInviteState } from "./invite-state";
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -313,6 +314,7 @@ export async function mockApiRoutes(page: Page) {
   resetInclusionsState();
   resetReportingState();
   resetTenantState();
+  resetInviteState();
   resetAuditState();
   resetNotificationState();
 
@@ -429,6 +431,15 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("tenants/join-requests"), async (route) => {
     const method = route.request().method();
     if (method === "GET") return fulfillJson(route, []);
+    return fulfillJson(route, {});
+  });
+
+  await page.route(backendApiRoute("tenants/invites"), async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleInviteMutation(method, url, body);
+    if (result !== null) return fulfillJson(route, result);
     return fulfillJson(route, {});
   });
 

@@ -19,7 +19,7 @@ Path from **Phase 1 hospitality operations platform** (current) to a **complete 
 
 **Still a stub:** `integrations` (health check only).
 
-**Optional / Phase 2:** PropelAuth email invite (join-code flow is the MVP), fiscal periods & period close.
+**Optional / Phase 2:** fiscal periods & period close. (PropelAuth email invite + join-code MVP are done.)
 
 ---
 
@@ -208,13 +208,14 @@ Dr 5100 Salary Expense     grossPay
 
 **User admin**
 
-- API: invite user (PropelAuth), assign/change `UserOrganization.role`, deactivate membership
-- Web: Settings → **Team** tab — list members, role dropdown, invite form
+- API: invite user (PropelAuth email + `OrganizationInvite`), assign/change `UserOrganization.role`, deactivate membership
+- Web: Settings → **Team** tab — email invite form, pending invites, members, join-code flow
 
 **Acceptance criteria**
 
 - [ ] Sensitive actions appear in audit log within 1s
-- [ ] Admin can change a user’s role without DB access
+- [x] Admin can change a user’s role without DB access
+- [x] Admin can invite by email (PropelAuth); join-code + approve remains for self-serve joins
 
 ---
 

@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, NotFoundExc
 import { TenantsService } from "./tenants.service";
 
 const mockPrisma = {
+  user: { findUnique: jest.fn() },
   userOrganization: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
   organization: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn() },
   organizationJoinRequest: {
@@ -10,6 +11,12 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
+  },
+  organizationInvite: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
   },
   branch: {
     findMany: jest.fn(),
@@ -29,16 +36,26 @@ const mockInventoryPools = {
   seedDefaultPools: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockPropelAuth = {
+  createOrg: jest.fn(),
+  fetchOrg: jest.fn(),
+  inviteUserToOrg: jest.fn(),
+  revokePendingOrgInvite: jest.fn(),
+};
+
 describe("TenantsService", () => {
   let service: TenantsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
+    mockPropelAuth.fetchOrg.mockResolvedValue({ orgId: "pa_org" });
+    mockPropelAuth.inviteUserToOrg.mockResolvedValue(true);
     service = new TenantsService(
       mockPrisma as never,
       mockInventoryPools as never,
       mockAudit as never,
+      mockPropelAuth as never,
     );
   });
 
@@ -226,6 +243,49 @@ describe("TenantsService", () => {
     await expect(
       service.removeMember("org_1", "usr_founder", "usr_admin"),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("inviteMember sends PropelAuth invite and records pending invite", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue({
+      id: "org_1",
+      name: "Test Org",
+      propelAuthOrgId: "pa_org_1",
+    });
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockPrisma.organizationInvite.findFirst.mockResolvedValue(null);
+    mockPrisma.organizationInvite.create.mockResolvedValue({
+      id: "inv_1",
+      email: "new@example.com",
+      role: "FRONT_DESK",
+    });
+
+    await service.inviteMember("org_1", "usr_admin", {
+      email: "new@example.com",
+      role: "FRONT_DESK",
+    });
+
+    expect(mockPropelAuth.inviteUserToOrg).toHaveBeenCalledWith(
+      "pa_org_1",
+      "new@example.com",
+    );
+    expect(mockPrisma.organizationInvite.create).toHaveBeenCalled();
+  });
+
+  it("inviteMember rejects duplicate pending invite", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue({
+      id: "org_1",
+      propelAuthOrgId: "pa_org_1",
+      name: "Test",
+    });
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    mockPrisma.organizationInvite.findFirst.mockResolvedValue({ id: "inv_existing" });
+
+    await expect(
+      service.inviteMember("org_1", "usr_admin", {
+        email: "dup@example.com",
+        role: "CASHIER",
+      }),
+    ).rejects.toThrow(ConflictException);
   });
 
   it("removeMember deletes non-founder membership", async () => {

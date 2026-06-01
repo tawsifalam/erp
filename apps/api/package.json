@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "predev": "pnpm --filter @erp/types build",
     "dev": "nest start --watch",
     "start": "node dist/main",
     "lint": "echo ok",

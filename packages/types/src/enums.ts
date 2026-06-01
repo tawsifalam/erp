@@ -15,6 +15,12 @@ export enum JoinRequestStatus {
   CANCELLED = "CANCELLED",
 }
 
+export enum InviteStatus {
+  PENDING = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  REVOKED = "REVOKED",
+}
+
 export enum RoomStatus {
   VACANT = "VACANT",
   OCCUPIED = "OCCUPIED",

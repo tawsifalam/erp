@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Flex,
+  Input,
   Stack,
   Table,
   Text,
@@ -37,6 +38,14 @@ type OrganizationDetail = {
   joinCode: string;
 };
 
+type OrgInvite = {
+  id: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  invitedBy: { id: string; email: string; name: string | null };
+};
+
 const ROLE_OPTIONS = Object.values(Role).map((r) => ({
   value: r,
   label: r.replace(/_/g, " "),
@@ -48,8 +57,12 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [invites, setInvites] = useState<OrgInvite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<string>(Role.FRONT_DESK);
   const [approveRoles, setApproveRoles] = useState<Record<string, string>>({});
   const [acting, setActing] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
 
   const load = useCallback(async () => {
     if (!tenant) {
@@ -58,14 +71,16 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
     }
     setLoading(true);
     try {
-      const [orgData, requests, memberList] = await Promise.all([
+      const [orgData, requests, memberList, pendingInvites] = await Promise.all([
         apiFetch<OrganizationDetail>("/tenants/organizations/current", { tenant }),
         apiFetch<JoinRequest[]>("/tenants/join-requests", { tenant }),
         apiFetch<Member[]>("/tenants/members", { tenant }),
+        apiFetch<OrgInvite[]>("/tenants/invites", { tenant }),
       ]);
       setOrg(orgData);
       setJoinRequests(requests);
       setMembers(memberList);
+      setInvites(pendingInvites);
       const defaults: Record<string, string> = {};
       for (const r of requests) {
         defaults[r.id] = Role.FRONT_DESK;
@@ -81,6 +96,43 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
   useEffect(() => {
     load();
   }, [load]);
+
+  const sendInvite = async () => {
+    if (!tenant || !inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      await apiFetch("/tenants/invites", {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      appToast.success("Invite email sent");
+      setInviteEmail("");
+      load();
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to send invite");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const revokeInvite = async (inviteId: string) => {
+    if (!tenant) return;
+    setActing(inviteId);
+    try {
+      await apiFetch(`/tenants/invites/${inviteId}/revoke`, {
+        method: "POST",
+        tenant,
+        body: JSON.stringify({}),
+      });
+      appToast.success("Invite revoked");
+      load();
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to revoke invite");
+    } finally {
+      setActing(null);
+    }
+  };
 
   const copyJoinCode = async () => {
     if (!org?.joinCode) return;
@@ -191,13 +243,98 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
     <>
       {dialog}
       <Stack gap={6}>
+        <ContentCard>
+          <Text fontWeight="semibold" mb={2}>
+            Invite by email
+          </Text>
+          <Text fontSize="sm" color="fg.muted" mb={3}>
+            Sends a PropelAuth signup invite. When they sign in, they are added to your team with
+            the role you choose.
+          </Text>
+          <Flex gap={3} wrap="wrap" align="flex-end">
+            <FormField label="Email" width="min(280px, 100%)">
+              <Input
+                type="email"
+                size="sm"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="colleague@example.com"
+              />
+            </FormField>
+            <FormField label="Role" help="ERP permissions for this member.">
+              <AppSelect
+                items={ROLE_OPTIONS}
+                value={inviteRole}
+                onValueChange={setInviteRole}
+                width="160px"
+                aria-label="Invite role"
+              />
+            </FormField>
+            <Button
+              size="sm"
+              colorPalette="blue"
+              onClick={sendInvite}
+              loading={inviting}
+              disabled={!inviteEmail.trim()}
+            >
+              Send invite
+            </Button>
+          </Flex>
+        </ContentCard>
+
+        <ContentCard>
+          <Text fontWeight="semibold" mb={3}>
+            Pending email invites
+          </Text>
+          {invites.length === 0 ? (
+            <EmptyState
+              title="No pending invites"
+              description="Email invites appear here until the recipient signs in."
+            />
+          ) : (
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Email</Table.ColumnHeader>
+                    <Table.ColumnHeader>Role</Table.ColumnHeader>
+                    <Table.ColumnHeader>Sent</Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {invites.map((inv) => (
+                    <Table.Row key={inv.id}>
+                      <Table.Cell fontSize="sm">{inv.email}</Table.Cell>
+                      <Table.Cell fontSize="sm">{inv.role.replace(/_/g, " ")}</Table.Cell>
+                      <Table.Cell fontSize="sm" color="fg.muted">
+                        {new Date(inv.createdAt).toLocaleDateString()}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => revokeInvite(inv.id)}
+                          loading={acting === inv.id}
+                        >
+                          Revoke
+                        </Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
+          )}
+        </ContentCard>
+
         {org && (
           <ContentCard>
             <Text fontWeight="semibold" mb={2}>
               Organization join code
             </Text>
             <Text fontSize="sm" color="fg.muted" mb={3}>
-              Share this code with staff so they can request to join your organization.
+              Alternative: share this code so staff can request to join (you approve each request).
             </Text>
             <Flex gap={2} align="center">
               <Text fontFamily="mono" fontSize="lg">

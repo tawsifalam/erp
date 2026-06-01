@@ -20,6 +20,7 @@ export const AuditEntityType = {
   ORGANIZATION: "organization",
   USER_ORGANIZATION: "user_organization",
   JOIN_REQUEST: "join_request",
+  ORG_INVITE: "org_invite",
   JOURNAL_ENTRY: "journal_entry",
   INVENTORY_MOVEMENT: "inventory_movement",
   INVENTORY_ITEM: "inventory_item",

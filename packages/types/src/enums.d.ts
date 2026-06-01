@@ -13,6 +13,11 @@ export declare enum JoinRequestStatus {
     REJECTED = "REJECTED",
     CANCELLED = "CANCELLED"
 }
+export declare enum InviteStatus {
+    PENDING = "PENDING",
+    ACCEPTED = "ACCEPTED",
+    REVOKED = "REVOKED"
+}
 export declare enum RoomStatus {
     VACANT = "VACANT",
     OCCUPIED = "OCCUPIED",

@@ -26,6 +26,15 @@ PropelAuth org IDs are **not** the source of tenant membership. ERP onboarding i
 4. `POST /api/tenants/organizations` creates org, `joinCode`, Main Branch, inventory pools, and `UserOrganization` with role `OWNER`.
 5. User is redirected to `/dashboard` (or role default route).
 
+### Invite by email (admin)
+
+1. OWNER/ADMIN opens **Settings → Team & access** → **Invite by email** (email + ERP role).
+2. API calls PropelAuth `inviteUserToOrg` and stores a pending `OrganizationInvite`.
+3. Recipient completes PropelAuth signup from the email link.
+4. On `POST /auth/sync`, pending invites for that email create `UserOrganization` with the assigned role (no manual approval).
+
+Join-by-code remains available for staff who cannot be invited directly.
+
 ### Join by search or join code
 
 1. User opens `/onboarding` → **Join organization**.
@@ -79,6 +88,9 @@ Nav items map to permissions in `apps/web/src/components/nav-config.tsx`. Unauth
 | GET | `/tenants/join-requests` | JWT + tenant + admin | Pending for current org |
 | POST | `/tenants/join-requests/:id/approve` | JWT + tenant + admin | Body: `{ role }` required |
 | POST | `/tenants/join-requests/:id/reject` | JWT + tenant + admin | Body: `{ reason? }` |
+| GET | `/tenants/invites` | JWT + tenant + admin | Pending email invites |
+| POST | `/tenants/invites` | JWT + tenant + admin | Body: `{ email, role }` — PropelAuth email invite |
+| POST | `/tenants/invites/:id/revoke` | JWT + tenant + admin | Revoke pending invite |
 | GET | `/tenants/members` | JWT + tenant + admin | Active members + roles |
 | PATCH | `/tenants/members/:userId/role` | JWT + tenant + admin | Change role (not last OWNER) |
 

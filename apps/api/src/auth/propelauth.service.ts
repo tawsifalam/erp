@@ -3,11 +3,15 @@ import { ConfigService } from "@nestjs/config";
 import { initBaseAuth, type UserClass } from "@propelauth/node";
 import type { AuthUserPayload } from "@erp/types";
 
+type PropelAuthAdmin = ReturnType<typeof initBaseAuth>;
+
 @Injectable()
 export class PropelAuthService implements OnModuleInit {
   private validateAccessToken!: (
     authorizationHeader: string | undefined,
   ) => Promise<UserClass>;
+
+  private admin!: PropelAuthAdmin;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -34,7 +38,39 @@ export class PropelAuthService implements OnModuleInit {
         : {}),
     });
 
+    this.admin = auth;
     this.validateAccessToken = auth.validateAccessTokenAndGetUserClass;
+  }
+
+  /** PropelAuth org role used for email invites (ERP RBAC remains authoritative). */
+  defaultOrgInviteRole(): string {
+    return this.config.get<string>("PROPELAUTH_ORG_MEMBER_ROLE") ?? "Member";
+  }
+
+  async fetchOrg(orgId: string) {
+    return this.admin.fetchOrg(orgId);
+  }
+
+  async createOrg(name: string, legacyOrgId?: string) {
+    return this.admin.createOrg({
+      name,
+      ...(legacyOrgId ? { legacyOrgId } : {}),
+    });
+  }
+
+  async inviteUserToOrg(orgId: string, email: string) {
+    return this.admin.inviteUserToOrg({
+      orgId,
+      email,
+      role: this.defaultOrgInviteRole(),
+    });
+  }
+
+  async revokePendingOrgInvite(orgId: string, email: string) {
+    return this.admin.revokePendingOrgInvite({
+      orgId,
+      inviteeEmail: email,
+    });
   }
 
   async validateAuthorizationHeader(

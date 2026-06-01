@@ -31,7 +31,9 @@ Non-admin users see a read-only notice and can still switch org/branch from the 
 
 | Action | What it does |
 |--------|----------------|
-| **View join code** | Copy org `joinCode` for staff onboarding |
+| **Invite by email** | PropelAuth org invite + pending ERP invite with assigned role; membership on first login sync |
+| **Revoke invite** | Cancels PropelAuth pending invite and marks ERP invite `REVOKED` |
+| **View join code** | Copy org `joinCode` for staff onboarding (MVP self-serve join) |
 | **Approve join request** | Creates `UserOrganization` with selected role (required) |
 | **Reject join request** | Marks request rejected |
 | **Change member role** | Updates `UserOrganization.role` (cannot demote last OWNER) |
@@ -66,6 +68,9 @@ Base path: `/api/tenants`. Requires `Authorization`. Branch/org mutations requir
 | GET | `/tenants/members` | List members + roles |
 | PATCH | `/tenants/members/:userId/role` | Change member role |
 | DELETE | `/tenants/members/:userId` | Remove member (not the founder) |
+| GET | `/tenants/invites` | Pending email invites |
+| POST | `/tenants/invites` | Send email invite `{ email, role }` |
+| POST | `/tenants/invites/:id/revoke` | Revoke pending invite |
 | GET | `/tenants/join-requests` | Pending join requests (admin) |
 | POST | `/tenants/join-requests/:id/approve` | Approve with `{ role }` |
 | POST | `/tenants/join-requests/:id/reject` | Reject request |

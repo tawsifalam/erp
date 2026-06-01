@@ -19,7 +19,9 @@ Path from **Phase 1 hospitality operations platform** (current) to a **complete 
 
 **Still a stub:** `integrations` (health check only).
 
-**Optional / Phase 2:** fiscal periods & period close. (PropelAuth email invite + join-code MVP are done.)
+**Phase 1 sign-off:** [phase1-signoff.md](./phase1-signoff.md) (Feb 2026).
+
+**Deferred to Phase 2:** see [phase2/README.md](./phase2/README.md) § Deferred from Phase 1 (fiscal close, vendor payment, notification preferences, PDF reports, integrations, branch access, …).
 
 ---
 
@@ -52,18 +54,18 @@ Phase 1.6          Platform & control plane
 Phase 2            Distribution & scale         ← existing backlog
 ```
 
-| Phase | Theme | Est. | Outcome |
-|-------|-------|------|---------|
-| **1.5a** | Procurement | 3–4 weeks | Vendors, POs, receiving → inventory + AP |
-| **1.5b** | Inventory costing | 1–2 weeks | Real COGS from weighted-average cost |
-| **1.5c** | Financial reporting | 2–3 weeks | Trial balance, P&L, balance sheet |
-| **1.5d** | Payroll → GL | 1 week | Salary expense / payable journals |
-| **1.6a** | Audit & users | 2 weeks | AuditLog writes, admin UI for members/roles |
-| **1.6b** | Notifications | 1–2 weeks | Email/in-app alerts for ops events |
-| **1.6c** | PMS rates | 2–3 weeks | Rate plans, seasons, packages |
-| **Phase 2** | Distribution | 12–16 weeks | See [phase2/README.md](./phase2/README.md) |
+| Phase | Theme | Status | Outcome |
+|-------|-------|--------|---------|
+| **1.5a** | Procurement | Done | Vendors, POs, receiving → inventory + AP |
+| **1.5b** | Inventory costing | Done | Real COGS from weighted-average cost |
+| **1.5c** | Financial reporting | Done | Trial balance, P&L, balance sheet, general ledger |
+| **1.5d** | Payroll → GL | Done | Salary expense / payable journals + payslip PDF |
+| **1.6a** | Audit & users | Done | AuditLog writes, team invite + join code |
+| **1.6b** | Notifications | Done | Email (Resend) + in-app alerts |
+| **1.6c** | PMS rates | Done | Rate plans, rules, F&B package bundles on plans |
+| **Phase 2** | Distribution | Backlog | See [phase2/README.md](./phase2/README.md) |
 
-**Total to “complete ERP” (Phases 1.5 + 1.6):** ~12–16 weeks after Phase 1 soak.
+Phases **1.5 + 1.6** are complete; next work is production soak and Phase 2.
 
 ---
 
@@ -97,11 +99,11 @@ Phase 2            Distribution & scale         ← existing backlog
 
 **Acceptance criteria**
 
-- [ ] Create vendor and PO with lines referencing inventory SKUs
-- [ ] Receive partial qty → stock increases, PO line `receivedQty` updates
-- [ ] Full receive closes PO; movements appear in inventory ledger
-- [ ] Journal entry created on receipt when AP + Inventory accounts exist
-- [ ] E2E: create PO → receive → verify stock + movement
+- [x] Create vendor and PO with lines referencing inventory SKUs
+- [x] Receive partial qty → stock increases, PO line `receivedQty` updates
+- [x] Full receive closes PO; movements appear in inventory ledger
+- [x] Journal entry created on receipt when AP + Inventory accounts exist
+- [x] E2E: create PO → receive → verify stock + movement (`procurement.spec.ts`)
 
 ---
 
@@ -128,9 +130,9 @@ Phase 2            Distribution & scale         ← existing backlog
 
 **Acceptance criteria**
 
-- [ ] Item shows current average cost in inventory UI
-- [ ] POS complete posts COGS at average × recipe qty
-- [ ] Unit tests for average recalc edge cases (zero stock, first purchase)
+- [x] Item shows current average cost in inventory UI
+- [x] POS complete posts COGS at average × recipe qty
+- [x] Unit tests for average recalc edge cases (zero stock, first purchase)
 
 ---
 
@@ -160,11 +162,12 @@ Phase 2            Distribution & scale         ← existing backlog
 
 **Acceptance criteria**
 
-- [ ] Trial balance debits = credits for seeded data
-- [ ] P&L includes room + F&B revenue from auto-posted journals
-- [ ] CSV download via existing async report pipeline
+- [x] Trial balance debits = credits for seeded data
+- [x] P&L includes room + F&B revenue from auto-posted journals
+- [x] CSV download via existing async report pipeline
+- [x] General ledger export for a single account (`general_ledger`)
 
-**Deferred to 1.6:** Fiscal periods, period close lock, journal reversal.
+**Deferred (post–Phase 1):** Fiscal periods, period close lock, journal reversal.
 
 ---
 
@@ -191,9 +194,9 @@ Dr 5100 Salary Expense     grossPay
 
 **Acceptance criteria**
 
-- [ ] Payroll run creates balanced journal entry(ies)
-- [ ] Accounting → Journals shows payroll reference (`referenceType: payroll_run`)
-- [ ] Payslip file stored and linked from HR payroll tab
+- [x] Payroll run creates balanced journal entry(ies)
+- [x] Accounting → Journals shows payroll reference (`referenceType: payroll_run`)
+- [x] Payslip file stored and linked from HR payroll tab
 
 ---
 
@@ -213,7 +216,7 @@ Dr 5100 Salary Expense     grossPay
 
 **Acceptance criteria**
 
-- [ ] Sensitive actions appear in audit log within 1s
+- [x] Sensitive actions appear in audit log (synchronous writes on mutate; admin UI + E2E `audit.spec.ts`)
 - [x] Admin can change a user’s role without DB access
 - [x] Admin can invite by email (PropelAuth); join-code + approve remains for self-serve joins
 
@@ -236,6 +239,14 @@ Dr 5100 Salary Expense     grossPay
 
 **Dependencies:** Users/members (1.6a); reporting job complete event (existing)
 
+**Acceptance criteria**
+
+- [x] Low stock → in-app + email (when `RESEND_API_KEY` set)
+- [x] Payroll completed / failed → notify HR-capable users
+- [x] PO submitted → in-app for admins (`PO_AWAITING_RECEIPT`)
+- [x] Report export ready → in-app with download link
+- [ ] Per-user `NotificationPreference` (deferred)
+
 ---
 
 ### 1.6c PMS rate management
@@ -248,7 +259,7 @@ Dr 5100 Salary Expense     grossPay
 |-------|---------|
 | `RatePlan` | Name, room type, base modifier, date range |
 | `RateRule` | Day-of-week, min stay, price override |
-| `Package` | Room + F&B bundle (optional) |
+| `RatePlan.inclusionPackageId` | Room + F&B bundle via existing `InclusionPackage` + optional supplement |
 
 **Reservation pricing:** Compute `totalAmount` from rate plan at booking time (store snapshot on reservation).
 
@@ -256,8 +267,9 @@ Dr 5100 Salary Expense     grossPay
 
 **Acceptance criteria**
 
-- [ ] Create seasonal rate plan; new reservation uses computed price
-- [ ] Edit reservation dates recalculates if status allows
+- [x] Create seasonal rate plan; new reservation uses computed price
+- [x] Edit reservation dates recalculates if status allows
+- [x] F&B package bundle adds per-guest supplement to quote (`rates.spec.ts`)
 
 ---
 
@@ -326,12 +338,12 @@ Use this to decide when to call the product a **complete hospitality ERP**:
 ### Finance complete
 - [x] Procurement: PO → receive → stock → AP journal
 - [x] Real inventory costing on all COGS postings
-- [x] Trial balance, P&L, balance sheet exports
+- [x] Trial balance, P&L, balance sheet, general ledger exports
 - [x] Payroll posts to GL; payslip PDF available
 
 ### Control complete
 - [x] Audit log for sensitive writes (admin viewable)
-- [x] Team management UI (roles, join requests)
+- [x] Team management UI (roles, email invite, join code + approve)
 - [x] Operational notifications (low stock, payroll, reports, PO submitted)
 
 ### Operations complete (Phase 1 + rates)
@@ -346,6 +358,7 @@ For **monetization and SaaS launch** (design partners, Stripe, plan limits), see
 
 ## Related docs
 
+- [Phase 1 sign-off](./phase1-signoff.md) — frozen checklist, migrations, smoke tests
 - [App workflow guide](./app-workflow-guide.md) — current module behavior
 - [Phase 2 backlog](./phase2/README.md) — post-ERP distribution features
 - [Architecture v1](../hospitality_erp_architecture_v1.md) — original 12-week MVP plan

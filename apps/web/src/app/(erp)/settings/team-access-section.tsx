@@ -252,15 +252,17 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
             the role you choose.
           </Text>
           <Flex gap={3} wrap="wrap" align="flex-end">
-            <FormField label="Email" width="min(280px, 100%)">
-              <Input
-                type="email"
-                size="sm"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="colleague@example.com"
-              />
-            </FormField>
+            <Box width="min(280px, 100%)">
+              <FormField label="Email">
+                <Input
+                  type="email"
+                  size="sm"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="colleague@example.com"
+                />
+              </FormField>
+            </Box>
             <FormField label="Role" help="ERP permissions for this member.">
               <AppSelect
                 items={ROLE_OPTIONS}

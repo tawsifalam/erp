@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
 import { acceptConfirmDialog } from "./helpers/confirm-dialog";
 import { clickRowAction } from "./helpers/row-actions";
+import { showAllPosOrders } from "./helpers/pos";
 
 test.describe("POS – Orders", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("loads POS page with tabs", async ({ page }) => {
@@ -29,6 +29,7 @@ test.describe("POS – Orders", () => {
 
   test("displays order seed data", async ({ page }) => {
     await page.goto("/pos");
+    await showAllPosOrders(page);
 
     await expect(page.getByRole("cell", { name: "T-3" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "T-7" })).toBeVisible();
@@ -37,8 +38,7 @@ test.describe("POS – Orders", () => {
 
 test.describe("POS – lifecycle", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("submit draft → complete with payment", async ({ page }) => {
@@ -50,9 +50,10 @@ test.describe("POS – lifecycle", () => {
     await expect(draftRow.getByText("SUBMITTED")).toBeVisible({ timeout: 5000 });
 
     await draftRow.getByRole("button", { name: "Complete & Pay" }).click();
-    await expect(page.getByText("Complete & pay")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Complete & pay" })).toBeVisible();
     await page.getByRole("button", { name: "Complete" }).click();
-    await expect(draftRow.getByText("COMPLETED")).toBeVisible({ timeout: 5000 });
+    await showAllPosOrders(page);
+    await expect(draftRow.getByText("COMPLETED", { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
   test("cancel submitted order", async ({ page }) => {
@@ -60,7 +61,8 @@ test.describe("POS – lifecycle", () => {
     const row = page.getByRole("row").filter({ hasText: "T-3" });
     await clickRowAction(row, "Cancel");
     await acceptConfirmDialog(page);
-    await expect(row.getByText("CANCELLED")).toBeVisible({ timeout: 5000 });
+    await showAllPosOrders(page);
+    await expect(row.getByText("CANCELLED", { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
   test("partial payment on submitted order", async ({ page }) => {
@@ -70,7 +72,8 @@ test.describe("POS – lifecycle", () => {
     const input = page.locator('input[type="number"]').last();
     await input.fill("300");
     await page.getByRole("button", { name: "Complete" }).click();
-    await expect(row.getByText("PARTIAL")).toBeVisible({ timeout: 5000 });
+    await showAllPosOrders(page);
+    await expect(row.getByText("PARTIAL", { exact: true })).toBeVisible({ timeout: 5000 });
   });
 
   test("menu tab add category", async ({ page }) => {
@@ -85,7 +88,9 @@ test.describe("POS – lifecycle", () => {
 
   test("delete cancelled order removes row", async ({ page }) => {
     await page.goto("/pos");
-    await page.getByRole("combobox").selectOption("CANCELLED");
+    const ordersPanel = page.getByRole("tabpanel", { name: "Orders" });
+    await ordersPanel.getByRole("combobox").click();
+    await page.getByRole("option", { name: "Cancelled" }).click();
     const row = page.getByRole("row").filter({ hasText: "T-9" });
     await expect(row).toBeVisible();
     await clickRowAction(row, "Delete");

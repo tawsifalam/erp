@@ -30,7 +30,7 @@ export default function PmsPage() {
           <ReservationsTab tenant={tenant} />
         </Tabs.Content>
         <Tabs.Content value="rooms">
-          <RoomsTab tenant={tenant} />
+          <RoomsTab tenant={tenant} active={tab === "rooms"} />
         </Tabs.Content>
         <Tabs.Content value="room-types">
           <RoomTypesTab tenant={tenant} />

@@ -29,6 +29,10 @@ export function getTenantBranches() {
   return branches.map((b) => ({ ...b }));
 }
 
+export function getOrgName() {
+  return orgName;
+}
+
 export function getCurrentOrganization(): MockOrgCurrent {
   return {
     id: "org-test-001",

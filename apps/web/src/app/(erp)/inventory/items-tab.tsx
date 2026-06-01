@@ -22,6 +22,7 @@ type Item = {
   sku: string;
   unit: string;
   currentStock: number;
+  averageUnitCost?: string | number;
   lowStockThreshold?: string | null;
   pool?: { id: string; code: string; name: string };
 };
@@ -48,6 +49,7 @@ const emptyMovForm = () => ({
   movementType: "PURCHASE",
   adjustmentDirection: "IN",
   quantity: "",
+  unitCost: "",
   notes: "",
 });
 
@@ -196,6 +198,13 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
       };
       if (movForm.movementType === "ADJUSTMENT") {
         body.direction = movForm.adjustmentDirection;
+      }
+      if (
+        (movForm.movementType === "PURCHASE" ||
+          (movForm.movementType === "ADJUSTMENT" && movForm.adjustmentDirection === "IN")) &&
+        movForm.unitCost
+      ) {
+        body.unitCost = Number(movForm.unitCost);
       }
       await apiFetch("/inventory/movements", {
         method: "POST",
@@ -457,6 +466,18 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
               onChange={(e) => setMovForm({ ...movForm, quantity: e.target.value })}
             />
           </FormField>
+          {(movForm.movementType === "PURCHASE" ||
+            (movForm.movementType === "ADJUSTMENT" && movForm.adjustmentDirection === "IN")) && (
+            <FormField label="Unit cost" help="Updates weighted-average cost on inbound movements.">
+              <Input
+                size="sm"
+                width="100%"
+                type="number"
+                value={movForm.unitCost}
+                onChange={(e) => setMovForm({ ...movForm, unitCost: e.target.value })}
+              />
+            </FormField>
+          )}
           <FormField label="Notes">
             <Input
               size="sm"
@@ -505,6 +526,11 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
               }
             />
           </FormField>
+          {detailItem && (
+            <Text fontSize="sm" color="fg.muted">
+              Average unit cost: {Number(detailItem.averageUnitCost ?? 0).toFixed(4)}
+            </Text>
+          )}
           <Box>
             <Text fontWeight="semibold" mb={2}>
               Recent movements

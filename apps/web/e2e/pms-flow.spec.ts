@@ -1,47 +1,51 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
 import { acceptConfirmDialog } from "./helpers/confirm-dialog";
 import { clickRowAction, clickRowActionOnPage } from "./helpers/row-actions";
 
 test.describe("PMS – reservation lifecycle", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("confirm inquiry → check-in → check-out → housekeeping", async ({ page }) => {
     await page.goto("/pms");
 
-    await expect(page.getByRole("cell", { name: "INQUIRY" }).or(page.getByText("INQUIRY"))).toBeVisible();
+    await expect(page.getByRole("cell", { name: "INQUIRY" }).first()).toBeVisible();
 
-    const inquiryRow = page.getByRole("row").filter({ hasText: "INQUIRY" });
-    await inquiryRow.getByRole("button", { name: "Confirm" }).click();
-    await expect(inquiryRow.getByText("CONFIRMED")).toBeVisible({ timeout: 5000 });
+    const lifecycleRow = (status: string) =>
+      page.getByRole("row").filter({
+        hasText: "102",
+        has: page.getByText(status, { exact: true }),
+      });
 
-    await inquiryRow.getByRole("button", { name: "Check in" }).click();
-    await expect(inquiryRow.getByText("CHECKED_IN")).toBeVisible({ timeout: 5000 });
+    await lifecycleRow("INQUIRY").getByRole("button", { name: "Confirm" }).click();
+    await expect(lifecycleRow("CONFIRMED")).toBeVisible({ timeout: 10_000 });
 
-    await inquiryRow.getByRole("button", { name: "Check out" }).click();
-    await expect(inquiryRow.getByText("CHECKED_OUT")).toBeVisible({ timeout: 5000 });
+    await lifecycleRow("CONFIRMED").getByRole("button", { name: "Check in" }).click();
+    await expect(lifecycleRow("CHECKED_IN")).toBeVisible({ timeout: 10_000 });
+
+    await lifecycleRow("CHECKED_IN").getByRole("button", { name: "Check out" }).click();
+    await expect(lifecycleRow("CHECKED_OUT")).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole("tab", { name: "Rooms" }).click();
-    const dirtyRoom = page.getByRole("row").filter({ hasText: "DIRTY" });
-    await expect(dirtyRoom).toBeVisible();
+    await expect(page.getByRole("cell", { name: "DIRTY" })).toBeVisible({ timeout: 10_000 });
+    const dirtyRoom = page.getByRole("row").filter({ hasText: "102" });
     await dirtyRoom.getByRole("button", { name: "→ VACANT" }).click();
-    await expect(dirtyRoom.getByText("VACANT")).toBeVisible({ timeout: 5000 });
+    await expect(dirtyRoom.getByRole("cell", { name: "VACANT" })).toBeVisible({ timeout: 5000 });
   });
 
   test("edit confirmed reservation opens drawer", async ({ page }) => {
     await page.goto("/pms");
     await clickRowActionOnPage(page, "Fatima Khan", "Edit");
-    await expect(page.getByText("Edit reservation")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Edit reservation" })).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).first().click();
   });
 
   test("checked-in reservation shows inclusions drawer", async ({ page }) => {
     await page.goto("/pms");
-    await clickRowActionOnPage(page, "Rahim Ahmed", "Inclusions");
-    await expect(page.getByText("Guest inclusions")).toBeVisible();
+    await clickRowActionOnPage(page, "CHECKED_IN", "Inclusions");
+    await expect(page.getByRole("heading", { name: "Guest inclusions" })).toBeVisible();
     await expect(page.getByText(/meals used/)).toBeVisible();
     await page.getByRole("button", { name: "Record comp meal (1)" }).click();
     await expect(page.getByText(/1 \/ 18 meals used/)).toBeVisible({ timeout: 5000 });
@@ -58,22 +62,21 @@ test.describe("PMS – reservation lifecycle", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/pms");
     await page.getByRole("button", { name: "+ New reservation" }).click();
-    await expect(page.getByText("New reservation")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New reservation" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create" })).toBeVisible();
   });
 });
 
 test.describe("PMS – delete and payment", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("record payment updates paid amount", async ({ page }) => {
     await page.goto("/pms");
     const row = page.getByRole("row").filter({ hasText: "Fatima Khan" });
     await clickRowAction(row, "Payment");
-    await expect(page.getByText("Record payment")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Record payment" })).toBeVisible();
 
     const input = page.locator('input[type="number"]').last();
     await input.fill("10000");
@@ -84,7 +87,9 @@ test.describe("PMS – delete and payment", () => {
 
   test("delete inquiry reservation removes row", async ({ page }) => {
     await page.goto("/pms");
-    const inquiryRow = page.getByRole("row").filter({ hasText: "INQUIRY" });
+    const inquiryRow = page.getByRole("row").filter({
+      has: page.getByText("INQUIRY", { exact: true }),
+    });
     await expect(inquiryRow).toHaveCount(1);
     await clickRowAction(inquiryRow, "Delete");
     await acceptConfirmDialog(page);

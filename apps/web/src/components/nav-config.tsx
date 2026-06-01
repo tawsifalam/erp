@@ -68,6 +68,12 @@ export const NAV_GROUPS: NavGroup[] = [
         permission: Permission.INVENTORY_READ,
       },
       {
+        href: "/procurement",
+        label: "Procurement",
+        icon: PackageIcon,
+        permission: Permission.INVENTORY_READ,
+      },
+      {
         href: "/accounting",
         label: "Accounting",
         icon: LedgerIcon,

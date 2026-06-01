@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "echo ok",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && playwright test",
+    "test": "vitest run",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.19.1",

@@ -45,6 +45,30 @@ import {
   handleInclusionsMutation,
   resetInclusionsState,
 } from "./inclusions-state";
+import {
+  getOrgName,
+  getTenantBranches,
+  handleTenantMutation,
+  resetTenantState,
+} from "./tenant-state";
+
+/** Nest API on port 3001 (localhost or 127.0.0.1). */
+export function isBackendApiUrl(url: string): boolean {
+  return /https?:\/\/(localhost|127\.0\.0\.1):3001\/api\//.test(url);
+}
+
+export function backendApiRoute(pathContains: string) {
+  return (url: URL) => isBackendApiUrl(url.href) && url.href.includes(pathContains);
+}
+
+/** Match a single list endpoint (avoids swallowing `/organizations/current`, etc.). */
+export function backendApiListRoute(pathSuffix: string) {
+  return (url: URL) => {
+    if (!isBackendApiUrl(url.href)) return false;
+    const pathname = new URL(url.href).pathname;
+    return pathname === `/api/${pathSuffix}` || pathname.endsWith(`/api/${pathSuffix}`);
+  };
+}
 
 export const FAKE_ORG_ID = "org-test-001";
 export const FAKE_ORG_ID_2 = "org-test-002";
@@ -60,9 +84,13 @@ export async function mockAuth(page: Page) {
   // 1. PropelAuth client SDK fetches auth info from the hosted auth URL.
   //    Intercept any request to the PropelAuth domain so the AuthProvider
   //    thinks the user is logged in.
-  await page.route("**/propelauthtest.com/**", (route) => {
+  const fulfillPropelAuth = (route: import("@playwright/test").Route) => {
     const url = route.request().url();
-    if (url.includes("/api/v1/refresh_token") || url.includes("/api/be/v1/")) {
+    if (
+      url.includes("/api/v1/refresh_token") ||
+      url.includes("/api/be/v1/") ||
+      url.includes("/api/v1/whoami")
+    ) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -82,7 +110,9 @@ export async function mockAuth(page: Page) {
       });
     }
     return route.fulfill({ status: 200, body: "{}" });
-  });
+  };
+
+  await page.route(/propelauth/i, fulfillPropelAuth);
 
   // Intercept /api/auth/userinfo (PropelAuth AuthProvider session refresh)
   await page.route("**/api/auth/userinfo", (route) =>
@@ -119,50 +149,54 @@ export async function mockAuth(page: Page) {
   ]);
 }
 
-/** Seed data: tenant organisations returned by GET /api/tenants/organizations */
-export const MOCK_ORGANIZATIONS = [
-  {
-    organizationId: FAKE_ORG_ID,
-    role: "ADMIN",
-    organization: {
-      id: FAKE_ORG_ID,
-      name: "Boulevard Café",
-      branches: [
-        { id: FAKE_BRANCH_ID, name: "Main Branch" },
-        { id: FAKE_BRANCH_ID_2, name: "Annex Branch" },
-      ],
+/** Organizations list for GET /api/tenants/organizations (branches stay in sync with tenant-state). */
+export function getMockOrganizations() {
+  return [
+    {
+      organizationId: FAKE_ORG_ID,
+      role: "ADMIN",
+      organization: {
+        id: FAKE_ORG_ID,
+        name: getOrgName(),
+        branches: getTenantBranches().map((b) => ({ id: b.id, name: b.name })),
+      },
     },
-  },
-  {
-    organizationId: FAKE_ORG_ID_2,
-    role: "ADMIN",
-    organization: {
-      id: FAKE_ORG_ID_2,
-      name: "Harbor Hotel Group",
-      branches: [{ id: FAKE_BRANCH_ID_2B, name: "Harbor Downtown" }],
+    {
+      organizationId: FAKE_ORG_ID_2,
+      role: "ADMIN",
+      organization: {
+        id: FAKE_ORG_ID_2,
+        name: "Harbor Hotel Group",
+        branches: [{ id: FAKE_BRANCH_ID_2B, name: "Harbor Downtown" }],
+      },
     },
-  },
-];
+  ];
+}
 
 /** Dashboard metrics vary by org/branch for E2E tenant switching */
+const emptyLowStock: unknown[] = [];
+
 export const MOCK_DASHBOARD_BY_TENANT: Record<string, Record<string, unknown>> = {
   [`${FAKE_ORG_ID}:${FAKE_BRANCH_ID}`]: {
     occupancyPct: 72,
     activeReservations: 5,
     revenueToday: 12450.0,
     lowStockAlerts: 3,
+    lowStockItems: emptyLowStock,
   },
   [`${FAKE_ORG_ID}:${FAKE_BRANCH_ID_2}`]: {
     occupancyPct: 45,
     activeReservations: 2,
     revenueToday: 3200.0,
     lowStockAlerts: 1,
+    lowStockItems: emptyLowStock,
   },
   [`${FAKE_ORG_ID_2}:${FAKE_BRANCH_ID_2B}`]: {
     occupancyPct: 88,
     activeReservations: 12,
     revenueToday: 28900.0,
     lowStockAlerts: 0,
+    lowStockItems: emptyLowStock,
   },
 };
 
@@ -282,7 +316,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   };
 
-  await page.route("**/localhost:3001/api/tenants/onboarding/status**", (route) =>
+  await page.route(backendApiRoute("tenants/onboarding/status"), (route) =>
     fulfillJson(route, {
       hasMembership: true,
       canAccessApp: true,
@@ -290,57 +324,51 @@ export async function mockApiRoutes(page: Page) {
     }),
   );
 
-  await page.route("**/localhost:3001/api/tenants/join-requests**", async (route) => {
+  await page.route(backendApiRoute("tenants/join-requests"), async (route) => {
     const method = route.request().method();
     if (method === "GET") return fulfillJson(route, []);
     return fulfillJson(route, {});
   });
 
-  await page.route("**/localhost:3001/api/tenants/members**", (route) =>
+  await page.route(backendApiRoute("tenants/members"), (route) =>
     fulfillJson(route, []),
   );
 
-  await page.route("**/localhost:3001/api/tenants/organizations/search**", (route) =>
+  await page.route(backendApiRoute("tenants/organizations/search"), (route) =>
     fulfillJson(route, []),
   );
 
-  await page.route("**/localhost:3001/api/tenants/organizations/by-join-code/**", (route) =>
+  await page.route(backendApiRoute("tenants/organizations/by-join-code/"), (route) =>
     fulfillJson(route, null),
   );
 
-  await page.route("**/localhost:3001/api/tenants/organizations/current**", async (route) => {
+  await page.route(backendApiRoute("tenants/organizations/current"), async (route) => {
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleTenantMutation(method, route.request().url(), body);
     return fulfillTenantMutation(route, result);
   });
 
-  await page.route("**/localhost:3001/api/tenants/branches/**", async (route) => {
+  await page.route(backendApiRoute("tenants/branches/"), async (route) => {
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleTenantMutation(method, route.request().url(), body);
     return fulfillTenantMutation(route, result);
   });
 
-  await page.route("**/localhost:3001/api/tenants/branches**", async (route) => {
+  await page.route(backendApiListRoute("tenants/branches"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
-    if (url.match(/\/branches\/[^/?]+/)) {
-      return route.continue();
-    }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleTenantMutation(method, url, body);
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/tenants/organizations**", async (route) => {
+  await page.route(backendApiListRoute("tenants/organizations"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
-    if (url.includes("/current")) {
-      return route.continue();
-    }
     if (method === "GET") {
-      return fulfillJson(route, MOCK_ORGANIZATIONS);
+      return fulfillJson(route, getMockOrganizations());
     }
     if (method === "POST") {
       const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -349,7 +377,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, {});
   });
 
-  await page.route("**/localhost:3001/api/reporting/dashboard**", (route) => {
+  await page.route(backendApiRoute("reporting/dashboard"), (route) => {
     const orgId = route.request().headers()["x-organization-id"];
     const branchId = route.request().headers()["x-branch-id"];
     const key = `${orgId ?? FAKE_ORG_ID}:${branchId ?? FAKE_BRANCH_ID}`;
@@ -362,7 +390,7 @@ export async function mockApiRoutes(page: Page) {
     });
   });
 
-  await page.route("**/localhost:3001/api/pms/reservations**", async (route) => {
+  await page.route(backendApiRoute("pms/reservations"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET") return fulfillJson(route, getPmsReservations());
@@ -371,7 +399,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pms/guests**", async (route) => {
+  await page.route(backendApiRoute("pms/guests"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET") return fulfillJson(route, getPmsGuests());
@@ -380,7 +408,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pms/room-types**", async (route) => {
+  await page.route(backendApiRoute("pms/room-types"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET") return fulfillJson(route, getPmsRoomTypes());
@@ -388,11 +416,11 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pms/availability**", (route) =>
+  await page.route(backendApiRoute("pms/availability"), (route) =>
     fulfillJson(route, getPmsRooms().filter((r) => r.status === "VACANT")),
   );
 
-  await page.route("**/localhost:3001/api/pms/rooms**", async (route) => {
+  await page.route(backendApiRoute("pms/rooms"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/rooms\/[^/?]+$/)) {
@@ -403,7 +431,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/inclusions/**", async (route) => {
+  await page.route(backendApiRoute("inclusions/"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -411,7 +439,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pos/orders**", async (route) => {
+  await page.route(backendApiRoute("pos/orders"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/orders\/[^/?]+$/)) {
@@ -422,7 +450,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pos/menu/categories**", async (route) => {
+  await page.route(backendApiRoute("pos/menu/categories"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/categories\/[^/?]+$/)) {
@@ -433,7 +461,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/pos/menu/items**", async (route) => {
+  await page.route(backendApiRoute("pos/menu/items"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -441,7 +469,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/inventory/pools**", async (route) => {
+  await page.route(backendApiRoute("inventory/pools"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -449,7 +477,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/inventory/items**", async (route) => {
+  await page.route(backendApiRoute("inventory/items"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -457,7 +485,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/inventory/movements**", async (route) => {
+  await page.route(backendApiRoute("inventory/movements"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -465,15 +493,20 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/inventory/items/*/movements**", async (route) => {
-    const method = route.request().method();
-    const url = route.request().url();
-    const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleInventoryMovementMutation(method, url, body);
-    return fulfillJson(route, result);
-  });
+  await page.route(
+    (url) =>
+      isBackendApiUrl(url.href) &&
+      /\/inventory\/items\/[^/]+\/movements/.test(new URL(url.href).pathname),
+    async (route) => {
+      const method = route.request().method();
+      const url = route.request().url();
+      const body = route.request().postDataJSON() as Record<string, unknown> | null;
+      const result = handleInventoryMovementMutation(method, url, body);
+      return fulfillJson(route, result);
+    },
+  );
 
-  await page.route("**/localhost:3001/api/inventory/recipes**", async (route) => {
+  await page.route(backendApiRoute("inventory/recipes"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const idMatch = url.match(/\/recipes\/([^/?]+)/);
@@ -500,7 +533,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, {});
   });
 
-  await page.route("**/localhost:3001/api/accounting/**", async (route) => {
+  await page.route(backendApiRoute("accounting/"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -515,7 +548,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/hr/**", async (route) => {
+  await page.route(backendApiRoute("hr/"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -533,7 +566,7 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/payroll/runs**", async (route) => {
+  await page.route(backendApiRoute("payroll/runs"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -541,17 +574,17 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/reporting/types**", async (route) => {
+  await page.route(backendApiRoute("reporting/types"), async (route) => {
     const result = handleReportingMutation(route.request().method(), route.request().url(), null);
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/reporting/jobs**", async (route) => {
+  await page.route(backendApiRoute("reporting/jobs"), async (route) => {
     const result = handleReportingMutation(route.request().method(), route.request().url(), null);
     return fulfillJson(route, result);
   });
 
-  await page.route("**/localhost:3001/api/reporting/export**", async (route) => {
+  await page.route(backendApiRoute("reporting/export"), async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleReportingMutation(route.request().method(), route.request().url(), body);
     return fulfillJson(route, result);

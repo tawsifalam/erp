@@ -3,6 +3,7 @@ import { ReportsProcessor } from "./reports.processor";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { ReportGeneratorsService } from "./report-generators.service";
+import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
 
 const mockPrisma = {
   reportJob: { findUnique: jest.fn(), update: jest.fn() },
@@ -13,6 +14,10 @@ const mockStorage = {
 };
 
 const mockGenerators = {
+  generate: jest.fn(),
+};
+
+const mockFinancialGenerators = {
   generate: jest.fn(),
 };
 
@@ -27,6 +32,7 @@ describe("ReportsProcessor", () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: StorageService, useValue: mockStorage },
         { provide: ReportGeneratorsService, useValue: mockGenerators },
+        { provide: FinancialReportGeneratorsService, useValue: mockFinancialGenerators },
       ],
     }).compile();
     processor = module.get(ReportsProcessor);
@@ -35,8 +41,10 @@ describe("ReportsProcessor", () => {
   it("generates CSV and marks job COMPLETED", async () => {
     mockPrisma.reportJob.findUnique.mockResolvedValue({
       id: "rpt-1",
+      organizationId: "org-1",
       type: "branch_summary",
       branchId: "branch-1",
+      params: null,
     });
     mockGenerators.generate.mockResolvedValue("metric,value\noccupancyPct,20\n");
     mockStorage.upload.mockResolvedValue({ url: "https://storage/report.csv", key: "reports/rpt-1.csv" });
@@ -62,8 +70,10 @@ describe("ReportsProcessor", () => {
   it("marks job FAILED on generator error", async () => {
     mockPrisma.reportJob.findUnique.mockResolvedValue({
       id: "rpt-2",
+      organizationId: "org-1",
       type: "low_stock",
       branchId: "branch-1",
+      params: null,
     });
     mockGenerators.generate.mockRejectedValue(new Error("boom"));
 

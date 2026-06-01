@@ -6,8 +6,11 @@ import {
   BRANCH_SCOPED_REPORT_TYPES,
   REPORT_TYPE_LABELS,
   REPORT_TYPES,
+  ReportExportParams,
+  isFinancialReportType,
   isValidReportType,
   normalizeReportType,
+  parseReportDate,
 } from "./reporting.constants";
 
 @Injectable()
@@ -74,6 +77,9 @@ export class ReportingService {
       code,
       label: REPORT_TYPE_LABELS[code],
       requiresBranch: BRANCH_SCOPED_REPORT_TYPES.has(code),
+      requiresDateRange: code === "profit_and_loss" || code === "general_ledger",
+      requiresAsOf: code === "trial_balance" || code === "balance_sheet",
+      requiresAccountCode: code === "general_ledger",
     }));
   }
 
@@ -85,7 +91,12 @@ export class ReportingService {
     });
   }
 
-  requestExport(organizationId: string, type: string, branchId?: string) {
+  requestExport(
+    organizationId: string,
+    type: string,
+    branchId?: string,
+    params?: ReportExportParams,
+  ) {
     if (!type?.trim()) throw new BadRequestException("Report type is required");
     if (!isValidReportType(type)) {
       throw new BadRequestException(
@@ -98,13 +109,48 @@ export class ReportingService {
       throw new BadRequestException("Branch is required for this report type");
     }
 
+    const storedParams = this.validateExportParams(normalizedType, params);
+
     return this.prisma.reportJob.create({
       data: {
         organizationId,
         branchId: branchId ?? null,
         type: normalizedType,
         status: "PENDING",
+        params: storedParams ?? undefined,
       },
     });
+  }
+
+  private validateExportParams(
+    type: string,
+    params?: ReportExportParams,
+  ): ReportExportParams | null {
+    if (!isFinancialReportType(type)) return null;
+
+    const stored: ReportExportParams = {
+      from: params?.from,
+      to: params?.to,
+      asOf: params?.asOf,
+      accountCode: params?.accountCode,
+    };
+
+    try {
+      if (type === "profit_and_loss" || type === "general_ledger") {
+        parseReportDate(stored.to, new Date());
+        parseReportDate(stored.from, new Date());
+      }
+      if (type === "trial_balance" || type === "balance_sheet") {
+        parseReportDate(stored.asOf ?? stored.to, new Date());
+      }
+      if (type === "general_ledger" && !stored.accountCode?.trim()) {
+        throw new BadRequestException("accountCode is required for general ledger");
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException(e instanceof Error ? e.message : "Invalid report params");
+    }
+
+    return stored;
   }
 }

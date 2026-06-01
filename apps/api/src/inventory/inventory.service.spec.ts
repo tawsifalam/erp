@@ -7,6 +7,7 @@ import { PrismaService } from "../prisma/prisma.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
+  roundMoney: (v: number) => Math.round(v * 10000) / 10000,
 }));
 
 const mockPrisma = {
@@ -94,26 +95,26 @@ describe("InventoryService", () => {
   });
 
   describe("createMovement", () => {
-    it("throws BadRequestException when quantity <= 0", () => {
-      expect(() =>
+    it("throws BadRequestException when quantity <= 0", async () => {
+      await expect(
         service.createMovement({
           itemId: "item-1",
           branchId: "branch-1",
           movementType: MovementType.PURCHASE,
           quantity: 0,
         }),
-      ).toThrow(BadRequestException);
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it("throws BadRequestException when quantity is negative", () => {
-      expect(() =>
+    it("throws BadRequestException when quantity is negative", async () => {
+      await expect(
         service.createMovement({
           itemId: "item-1",
           branchId: "branch-1",
           movementType: MovementType.PURCHASE,
           quantity: -5,
         }),
-      ).toThrow(BadRequestException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("assigns direction IN for PURCHASE", async () => {

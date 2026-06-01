@@ -3,6 +3,7 @@ import { EmployeeStatus, PayrollRunStatus } from "@erp/types";
 import { PayrollProcessor, computePayrollLine } from "./payroll.processor";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { PayrollJournalService } from "../accounting/payroll-journal.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
@@ -17,6 +18,10 @@ const mockPrisma = {
 
 const mockStorage = {
   upload: jest.fn(),
+};
+
+const mockPayrollJournal = {
+  postPayrollRunJournal: jest.fn(),
 };
 
 describe("computePayrollLine", () => {
@@ -43,6 +48,7 @@ describe("PayrollProcessor", () => {
         PayrollProcessor,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: StorageService, useValue: mockStorage },
+        { provide: PayrollJournalService, useValue: mockPayrollJournal },
       ],
     }).compile();
     processor = module.get(PayrollProcessor);
@@ -78,6 +84,7 @@ describe("PayrollProcessor", () => {
       where: { id: { in: ["sm-1"] } },
       data: { payrollDeducted: true },
     });
+    expect(mockPayrollJournal.postPayrollRunJournal).toHaveBeenCalledWith("pr-1", "org-1");
     expect(mockPrisma.payrollRun.update).toHaveBeenLastCalledWith({
       where: { id: "pr-1" },
       data: {

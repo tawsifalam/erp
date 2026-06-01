@@ -1,10 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
 
 test.describe("Reports", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("loads report jobs table", async ({ page }) => {
@@ -24,7 +23,8 @@ test.describe("Reports", () => {
 
   test("report type selector lists options", async ({ page }) => {
     await page.goto("/reports");
-    await expect(page.getByRole("option", { name: "Branch summary" })).toBeVisible();
-    await expect(page.getByRole("option", { name: "Low stock items" })).toBeVisible();
+    await expect(page.locator("select option", { hasText: "Branch summary" })).toHaveCount(1);
+    await expect(page.locator("select option", { hasText: "Trial balance" })).toHaveCount(1);
+    await expect(page.locator("select option", { hasText: "Profit & loss" })).toHaveCount(1);
   });
 });

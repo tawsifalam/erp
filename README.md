@@ -133,10 +133,12 @@ The seed creates a realistic working dataset:
 ## Testing
 
 ```bash
-pnpm test                        # API unit tests (Jest)
-pnpm --filter @erp/web test:unit # Web unit tests (Vitest)
-pnpm --filter @erp/web test:e2e  # E2E tests (Playwright)
+pnpm test              # Unit tests (API Jest + web Vitest + utils Vitest)
+pnpm test:e2e:install  # One-time: download Playwright Chromium
+pnpm test:e2e          # E2E (Playwright; needs API/web stack + seed data)
 ```
+
+E2E expects Postgres/Redis running and seed data (`pnpm db:reset`). Playwright starts `pnpm dev` from the repo root unless `CI` is set.
 
 ## Documentation
 

@@ -1,17 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
+import { pickAppSelectInDrawer } from "./helpers/app-select";
 
 test.describe("Accounting", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("loads journal entries tab", async ({ page }) => {
     await page.goto("/accounting");
     await expect(page.getByRole("heading", { name: /Accounting/i })).toBeVisible();
     await expect(page.getByText("Room payment")).toBeVisible();
-    await expect(page.getByText("Cash")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Journal entries" })).toBeVisible();
   });
 
   test("shows chart of accounts tab", async ({ page }) => {
@@ -25,7 +25,7 @@ test.describe("Accounting", () => {
     await page.goto("/accounting");
     await page.getByRole("tab", { name: /Chart of accounts/i }).click();
     await page.getByRole("button", { name: "+ Add account" }).click();
-    await expect(page.getByText("Add account")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add account" })).toBeVisible();
     await page.getByPlaceholder("Code").fill("5400");
     await page.getByPlaceholder("Name").fill("Marketing Expense");
     await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -35,15 +35,12 @@ test.describe("Accounting", () => {
   test("post balanced journal entry", async ({ page }) => {
     await page.goto("/accounting");
     await page.getByRole("button", { name: "+ Post journal" }).click();
-    await expect(page.getByText("Post journal entry")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Post journal entry" })).toBeVisible();
     await page.getByPlaceholder("Description").fill("Utility bill");
     await page.getByRole("button", { name: "+ Line" }).click();
 
-    const comboboxes = page.getByRole("combobox");
-    await comboboxes.nth(0).click();
-    await page.getByRole("option", { name: /5200.*Utilities/ }).click();
-    await comboboxes.nth(1).click();
-    await page.getByRole("option", { name: /1100.*Bank/ }).click();
+    await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
+    await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
 
     const numberInputs = page.locator('input[type="number"]');
     await numberInputs.nth(0).fill("5000");
@@ -58,19 +55,15 @@ test.describe("Accounting", () => {
     await page.goto("/accounting");
     await page.getByRole("button", { name: "+ Post journal" }).click();
 
-    const comboboxes = page.getByRole("combobox");
-    await comboboxes.nth(0).click();
-    await page.getByRole("option", { name: /1000.*Cash/ }).click();
+    await pickAppSelectInDrawer(page, "Post journal entry", 0, /1000 — Cash/);
     await page.getByRole("button", { name: "+ Line" }).click();
-    await comboboxes.nth(1).click();
-    await page.getByRole("option", { name: /4000.*Room Revenue/ }).click();
+    await pickAppSelectInDrawer(page, "Post journal entry", 1, /4000 — Room Revenue/);
 
     const numberInputs = page.locator('input[type="number"]');
     await numberInputs.nth(0).fill("100");
     await numberInputs.nth(3).fill("50");
 
     await expect(page.getByText("Not balanced")).toBeVisible();
-    await page.getByRole("button", { name: "Post journal", exact: true }).click();
-    await expect(page.getByText(/not balanced/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Post journal", exact: true })).toBeDisabled();
   });
 });

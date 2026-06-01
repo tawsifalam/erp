@@ -72,6 +72,7 @@ describe("ReportingService", () => {
           branchId: "branch-1",
           type: "branch_summary",
           status: "PENDING",
+          params: undefined,
         },
       });
     });
@@ -98,11 +99,18 @@ describe("ReportingService", () => {
   describe("listReportTypes", () => {
     it("returns catalog with labels", () => {
       const types = service.listReportTypes();
-      expect(types.map((t) => t.code)).toEqual([
-        "branch_summary",
-        "low_stock",
-        "revenue_today",
-      ]);
+      expect(types.map((t) => t.code)).toEqual(
+        expect.arrayContaining([
+          "branch_summary",
+          "low_stock",
+          "revenue_today",
+          "trial_balance",
+          "profit_and_loss",
+          "balance_sheet",
+          "general_ledger",
+        ]),
+      );
+      expect(types).toHaveLength(7);
     });
   });
 });

@@ -3,6 +3,9 @@ import { Job } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { ReportGeneratorsService } from "./report-generators.service";
+import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
+import { isFinancialReportType } from "./reporting.constants";
+import type { ReportExportParams } from "./reporting.constants";
 
 @Processor("reports")
 export class ReportsProcessor extends WorkerHost {
@@ -10,6 +13,7 @@ export class ReportsProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly generators: ReportGeneratorsService,
+    private readonly financialGenerators: FinancialReportGeneratorsService,
   ) {
     super();
   }
@@ -26,11 +30,21 @@ export class ReportsProcessor extends WorkerHost {
     });
 
     try {
-      if (!reportJob.branchId) {
+      if (!isFinancialReportType(reportJob.type) && !reportJob.branchId) {
         throw new Error("Report job missing branchId");
       }
 
-      const csv = await this.generators.generate(reportJob.type, reportJob.branchId);
+      const params = (reportJob.params ?? {}) as ReportExportParams;
+      const csv = isFinancialReportType(reportJob.type)
+        ? await this.financialGenerators.generate(
+            reportJob.type,
+            reportJob.organizationId,
+            params,
+          )
+        : await this.generators.generate(
+            reportJob.type,
+            reportJob.branchId!,
+          );
       const result = await this.storage.upload(
         `reports/${reportJob.id}.csv`,
         Buffer.from(csv),

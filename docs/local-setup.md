@@ -70,7 +70,15 @@ pnpm dev
 - API: http://localhost:3001/api/health
 - Login: http://localhost:3000/api/auth/login
 
-## 6. API headers
+## 6. Tests
+
+```bash
+pnpm test                    # Unit tests only (fast)
+pnpm test:e2e:install        # Once: Playwright browser
+pnpm db:reset && pnpm test:e2e   # Full browser tests (stack must be reachable)
+```
+
+## 7. API headers
 
 Authenticated requests require:
 

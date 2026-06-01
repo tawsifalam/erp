@@ -12,6 +12,16 @@ const REPORT_TYPES = [
   { code: "branch_summary", label: "Branch summary", requiresBranch: true },
   { code: "low_stock", label: "Low stock items", requiresBranch: true },
   { code: "revenue_today", label: "Today's revenue (POS)", requiresBranch: true },
+  { code: "trial_balance", label: "Trial balance", requiresBranch: false, requiresAsOf: true },
+  { code: "profit_and_loss", label: "Profit & loss", requiresBranch: false, requiresDateRange: true },
+  { code: "balance_sheet", label: "Balance sheet", requiresBranch: false, requiresAsOf: true },
+  {
+    code: "general_ledger",
+    label: "General ledger",
+    requiresBranch: false,
+    requiresDateRange: true,
+    requiresAccountCode: true,
+  },
 ];
 
 const INITIAL_JOBS: MockReportJob[] = [

@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { MovementDirection, MovementType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
-import { toNumber } from "@erp/utils";
+import { roundMoney, toNumber } from "@erp/utils";
 import { InventoryPoolsService } from "./inventory-pools.service";
 
 function directionFor(
@@ -154,6 +154,15 @@ export class InventoryService {
     return stock;
   }
 
+  async getAverageUnitCost(itemId: string, branchId: string): Promise<number> {
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { id: itemId, branchId },
+      select: { averageUnitCost: true },
+    });
+    if (!item) throw new NotFoundException("Inventory item not found");
+    return toNumber(item.averageUnitCost);
+  }
+
   async listItemsWithStock(
     branchId: string,
     filter?: { poolId?: string; poolCode?: string },
@@ -167,12 +176,13 @@ export class InventoryService {
     );
   }
 
-  createMovement(params: {
+  async createMovement(params: {
     itemId: string;
     branchId: string;
     movementType: MovementType;
     quantity: number;
     direction?: MovementDirection;
+    unitCost?: number;
     referenceType?: string;
     referenceId?: string;
     notes?: string;
@@ -190,11 +200,41 @@ export class InventoryService {
       throw new BadRequestException("direction must be IN or OUT for ADJUSTMENT");
     }
 
+    if (params.unitCost != null && params.unitCost < 0) {
+      throw new BadRequestException("unitCost cannot be negative");
+    }
+
     const direction = directionFor(
       params.movementType,
       params.quantity,
       params.direction,
     );
+
+    if (
+      direction === MovementDirection.IN &&
+      params.unitCost != null &&
+      params.unitCost >= 0
+    ) {
+      const stock = await this.getCurrentStock(params.itemId, params.branchId);
+      const item = await this.getItem(params.branchId, params.itemId);
+      const oldAvg = toNumber(item.averageUnitCost);
+      const newAvg =
+        stock <= 0
+          ? params.unitCost
+          : roundMoney(
+              (stock * oldAvg + params.quantity * params.unitCost) /
+                (stock + params.quantity),
+            );
+      await this.prisma.inventoryItem.update({
+        where: { id: params.itemId },
+        data: { averageUnitCost: newAvg },
+      });
+    }
+
+    const unitCost =
+      direction === MovementDirection.IN && params.unitCost != null
+        ? params.unitCost
+        : undefined;
 
     return this.prisma.inventoryMovement.create({
       data: {
@@ -203,6 +243,7 @@ export class InventoryService {
         movementType: params.movementType,
         direction,
         quantity: params.quantity,
+        unitCost,
         referenceType: params.referenceType,
         referenceId: params.referenceId,
         notes: params.notes,

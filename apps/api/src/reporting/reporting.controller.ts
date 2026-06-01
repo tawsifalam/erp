@@ -34,10 +34,28 @@ export class ReportingController {
   @RequirePermission(Permission.REPORTS_READ)
   async export(
     @Tenant() t: TenantContext,
-    @Body() body: { type: string; branchId?: string },
+    @Body()
+    body: {
+      type: string;
+      branchId?: string;
+      from?: string;
+      to?: string;
+      asOf?: string;
+      accountCode?: string;
+    },
   ) {
     const branchId = body.branchId || t.branchId;
-    const job = await this.reporting.requestExport(t.organizationId, body.type, branchId);
+    const job = await this.reporting.requestExport(
+      t.organizationId,
+      body.type,
+      branchId,
+      {
+        from: body.from,
+        to: body.to,
+        asOf: body.asOf,
+        accountCode: body.accountCode,
+      },
+    );
     await this.reportsQueue.add("export", { reportJobId: job.id });
     return job;
   }

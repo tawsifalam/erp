@@ -26,7 +26,14 @@ const HOUSEKEEPING: Record<string, string[]> = {
   MAINTENANCE: ["VACANT"],
 };
 
-export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
+export function RoomsTab({
+  tenant,
+  active = true,
+}: {
+  tenant: TenantHeaders;
+  /** When false, skip fetch until the Rooms tab is selected (avoids stale status). */
+  active?: boolean;
+}) {
   const { ask, dialog } = useConfirmDialog();
   const branchId = tenant.branchId;
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -58,8 +65,8 @@ export function RoomsTab({ tenant }: { tenant: TenantHeaders }) {
   }, [tenant.organizationId, branchId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (active) load();
+  }, [active, load]);
 
   useEffect(() => {
     if (!branchId) return;

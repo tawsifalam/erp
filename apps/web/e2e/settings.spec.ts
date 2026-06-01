@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { FAKE_BRANCH_ID_2 } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
 
 test.describe("Settings – Organization & branch management", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("loads settings page with organization and branches", async ({ page }) => {
@@ -26,28 +26,51 @@ test.describe("Settings – Organization & branch management", () => {
 
   test("can delete a branch after confirmation", async ({ page }) => {
     await page.goto("/settings");
-    const annexRow = page.getByRole("row").filter({ hasText: "Annex Branch" });
+    const branchesPanel = page.getByRole("tabpanel", { name: "Organization & branches" });
+    const annexRow = branchesPanel.getByRole("row", { name: /Annex Branch/ });
     await annexRow.getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await expect(page.getByRole("alertdialog")).toContainText("Annex Branch");
+    const deleteDone = page.waitForResponse(
+      (res) =>
+        res.request().method() === "DELETE" &&
+        res.url().includes(`/tenants/branches/${FAKE_BRANCH_ID_2}`),
+    );
     await page.getByTestId("confirm-dialog-confirm").click();
+    const deleteResponse = await deleteDone;
+    expect(deleteResponse.ok()).toBeTruthy();
     await expect(page.getByText(/Branch deleted/i)).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Annex Branch" })).toHaveCount(0);
-    await expect(page.getByRole("cell", { name: "Main Branch" })).toBeVisible();
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.getByRole("cell", { name: "Annex Branch", exact: true })).toHaveCount(0, {
+      timeout: 10_000,
+    });
+    await expect(page.getByRole("cell", { name: "Main Branch", exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("cannot delete the only remaining branch", async ({ page }) => {
     await page.goto("/settings");
-    const annexRow = page.getByRole("row").filter({ hasText: "Annex Branch" });
-    await annexRow.getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByRole("cell", { name: "Main Branch", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Annex Branch", exact: true })).toBeVisible();
+
+    const annexRow = page.getByRole("row", {
+      has: page.getByRole("cell", { name: "Annex Branch", exact: true }),
+    });
+    await annexRow.getByRole("button", { name: "Delete" }).first().click();
     await page.getByTestId("confirm-dialog-confirm").click();
     await expect(page.getByText(/Branch deleted/i)).toBeVisible();
-    const mainRow = page.getByRole("row").filter({ hasText: "Main Branch" });
-    await expect(mainRow.getByRole("button", { name: "Delete" })).toBeDisabled();
+
+    await page.goto("/settings");
+    const mainRow = page.getByRole("row", {
+      has: page.getByRole("cell", { name: "Main Branch", exact: true }),
+    });
+    await expect(mainRow.getByRole("button", { name: "Delete" }).first()).toBeDisabled();
   });
 
   test("can save organization name", async ({ page }) => {
     await page.goto("/settings");
-    const nameInput = page.locator('input[value="Boulevard Café"]').first();
+    const nameInput = page.getByRole("textbox", { name: /organization name/i }).first();
     await nameInput.fill("Boulevard Group");
     await page.getByRole("button", { name: "Save name" }).click();
     await expect(page.getByText(/Organization updated/i)).toBeVisible();
@@ -57,9 +80,10 @@ test.describe("Settings – Organization & branch management", () => {
   test("inventory pools tab lists default pools", async ({ page }) => {
     await page.goto("/settings");
     await page.getByRole("tab", { name: /Inventory pools/i }).click();
-    await expect(page.getByText("Inventory pools")).toBeVisible();
-    await expect(page.getByRole("cell", { name: "guest" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "staff" })).toBeVisible();
+    const poolsPanel = page.getByRole("tabpanel", { name: "Inventory pools" });
+    await expect(poolsPanel).toBeVisible();
+    await expect(poolsPanel.getByRole("cell", { name: /guest/ })).toBeVisible();
+    await expect(poolsPanel.getByRole("cell", { name: /staff/ })).toBeVisible();
   });
 
   test("settings link appears in navigation", async ({ page }) => {

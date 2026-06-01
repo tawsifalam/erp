@@ -3,6 +3,7 @@ import { Job } from "bullmq";
 import { EmployeeStatus, PayrollRunStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { PayrollJournalService } from "../accounting/payroll-journal.service";
 import { toNumber } from "@erp/utils";
 
 export function computePayrollLine(
@@ -20,6 +21,7 @@ export class PayrollProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly payrollJournal: PayrollJournalService,
   ) {
     super();
   }
@@ -78,6 +80,8 @@ export class PayrollProcessor extends WorkerHost {
     const pdfKey = `payroll/${payrollRunId}.txt`;
     const content = Buffer.from(`Payroll run ${payrollRunId} completed`);
     await this.storage.upload(pdfKey, content, "text/plain");
+
+    await this.payrollJournal.postPayrollRunJournal(payrollRunId, run.organizationId);
 
     await this.prisma.payrollRun.update({
       where: { id: payrollRunId },

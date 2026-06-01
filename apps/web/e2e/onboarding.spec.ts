@@ -1,11 +1,13 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { backendApiListRoute, backendApiRoute, mockAuth, mockApiRoutes } from "./helpers/auth";
 
 test.describe("Onboarding gate", () => {
   test("user without membership is redirected to onboarding", async ({ page }) => {
     await mockAuth(page);
+    await mockApiRoutes(page);
+    await page.unroute(backendApiRoute("tenants/onboarding/status"));
 
-    await page.route("**/localhost:3001/api/tenants/onboarding/status**", (route) =>
+    await page.route(backendApiRoute("tenants/onboarding/status"), (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -17,7 +19,7 @@ test.describe("Onboarding gate", () => {
       }),
     );
 
-    await page.route("**/localhost:3001/api/tenants/organizations**", (route) => {
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
       if (route.request().method() === "GET") {
         return route.fulfill({
           status: 200,
@@ -25,11 +27,11 @@ test.describe("Onboarding gate", () => {
           body: JSON.stringify([]),
         });
       }
-      return route.continue();
+      return route.fallback();
     });
 
-    await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/onboarding/);
+    await page.goto("/dashboard", { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(/\/onboarding/, { timeout: 15_000 });
   });
 });
 
@@ -37,8 +39,10 @@ test.describe("Role-based navigation", () => {
   test("FRONT_DESK user sees PMS only in sidebar", async ({ page }) => {
     await mockAuth(page);
 
-    await page.route("**/localhost:3001/api/tenants/organizations**", (route) => {
-      if (route.request().method() === "GET" && !route.request().url().includes("/search")) {
+    await mockApiRoutes(page);
+
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -55,10 +59,8 @@ test.describe("Role-based navigation", () => {
           ]),
         });
       }
-      return route.continue();
+      return route.fallback();
     });
-
-    await mockApiRoutes(page);
 
     await page.goto("/pms");
     await expect(page.getByRole("heading", { name: /PMS|Property/i }).first()).toBeVisible({
@@ -72,9 +74,10 @@ test.describe("Role-based navigation", () => {
 
   test("FRONT_DESK user navigating to /dashboard is redirected to /pms", async ({ page }) => {
     await mockAuth(page);
+    await mockApiRoutes(page);
 
-    await page.route("**/localhost:3001/api/tenants/organizations**", (route) => {
-      if (route.request().method() === "GET" && !route.request().url().includes("/search")) {
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -91,10 +94,8 @@ test.describe("Role-based navigation", () => {
           ]),
         });
       }
-      return route.continue();
+      return route.fallback();
     });
-
-    await mockApiRoutes(page);
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/pms/, { timeout: 10000 });
@@ -102,9 +103,10 @@ test.describe("Role-based navigation", () => {
 
   test("FRONT_DESK user navigating to /hr is redirected to /pms", async ({ page }) => {
     await mockAuth(page);
+    await mockApiRoutes(page);
 
-    await page.route("**/localhost:3001/api/tenants/organizations**", (route) => {
-      if (route.request().method() === "GET" && !route.request().url().includes("/search")) {
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -121,10 +123,8 @@ test.describe("Role-based navigation", () => {
           ]),
         });
       }
-      return route.continue();
+      return route.fallback();
     });
-
-    await mockApiRoutes(page);
 
     await page.goto("/hr");
     await expect(page).toHaveURL(/\/pms/, { timeout: 10000 });

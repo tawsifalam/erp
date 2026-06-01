@@ -75,7 +75,21 @@ export class InventoryRecipesService {
   async deductForOrder(orderId: string, branchId: string): Promise<number> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { lines: { include: { menuItem: { include: { recipe: { include: { lines: true } } } } } } },
+      include: {
+        lines: {
+          include: {
+            menuItem: {
+              include: {
+                recipe: {
+                  include: {
+                    lines: { include: { inventoryItem: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     if (!order) return 0;
 
@@ -95,7 +109,7 @@ export class InventoryRecipesService {
           referenceType: "Order",
           referenceId: orderId,
         });
-        cogs += qty * 1;
+        cogs += qty * toNumber(recipeLine.inventoryItem.averageUnitCost);
       }
     }
 

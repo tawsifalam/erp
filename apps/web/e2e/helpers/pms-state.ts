@@ -59,9 +59,9 @@ const INITIAL_RESERVATIONS: MockReservation[] = [
     totalAmount: "7000",
     paidAmount: "0",
     guestId: "gst_001",
-    roomId: "rm_101",
+    roomId: "rm_102",
     guest: { fullName: "Rahim Ahmed", id: "gst_001" },
-    room: { roomNumber: "101", id: "rm_101", roomType: { name: "Standard Double" } },
+    room: { roomNumber: "102", id: "rm_102", roomType: { name: "Standard Double" } },
   },
 ];
 
@@ -240,16 +240,16 @@ export function handlePmsReservationMutation(
     res.status = "CONFIRMED";
     return res;
   }
-  if (url.includes("/check-in")) {
-    res.status = "CHECKED_IN";
-    const room = rooms.find((r) => r.id === res.roomId);
-    if (room) room.status = "OCCUPIED";
-    return res;
-  }
   if (url.includes("/check-out")) {
     res.status = "CHECKED_OUT";
     const room = rooms.find((r) => r.id === res.roomId);
     if (room) room.status = "DIRTY";
+    return res;
+  }
+  if (url.includes("/check-in")) {
+    res.status = "CHECKED_IN";
+    const room = rooms.find((r) => r.id === res.roomId);
+    if (room) room.status = "OCCUPIED";
     return res;
   }
   if (url.includes("/cancel")) {

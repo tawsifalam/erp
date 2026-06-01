@@ -109,6 +109,7 @@ export class InventoryController {
       movementType: MovementType;
       quantity: number;
       direction?: MovementDirection;
+      unitCost?: number;
       referenceType?: string;
       referenceId?: string;
       notes?: string;

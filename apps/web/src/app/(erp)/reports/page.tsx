@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, Flex, Table, Text } from "@chakra-ui/react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Flex, Input, Table, Text } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { ModulePageHeader } from "@/components/module-page-header";
@@ -35,11 +35,33 @@ type ReportType = {
   code: string;
   label: string;
   requiresBranch: boolean;
+  requiresDateRange?: boolean;
+  requiresAsOf?: boolean;
+  requiresAccountCode?: boolean;
 };
+
+const FINANCIAL_TYPES = new Set([
+  "trial_balance",
+  "profit_and_loss",
+  "balance_sheet",
+  "general_ledger",
+]);
+
+function defaultDateRange() {
+  const to = new Date();
+  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+    asOf: to.toISOString().slice(0, 10),
+  };
+}
 
 export default function ReportsPage() {
   const tenant = useTenantHeaders();
   const [exportType, setExportType] = useState("branch_summary");
+  const [dates, setDates] = useState(defaultDateRange);
+  const [accountCode, setAccountCode] = useState("1000");
 
   const typesQuery = useAsync(
     () => apiFetch<ReportType[]>("/reporting/types", { tenant }),
@@ -50,6 +72,13 @@ export default function ReportsPage() {
     () => apiFetch<ReportJob[]>("/reporting/jobs", { tenant }),
     [tenant.organizationId],
   );
+
+  const selectedType = useMemo(
+    () => typesQuery.data?.find((t) => t.code === exportType),
+    [typesQuery.data, exportType],
+  );
+
+  const isFinancial = FINANCIAL_TYPES.has(exportType);
 
   useEffect(() => {
     if (typesQuery.data?.length && !typesQuery.data.find((t) => t.code === exportType)) {
@@ -70,15 +99,25 @@ export default function ReportsPage() {
   }, [jobsQuery.error]);
 
   const exportCsv = async () => {
-    if (!tenant.branchId) {
-      appToast.error("Select a branch in the header to export branch reports.");
+    if (selectedType?.requiresBranch && !tenant.branchId) {
+      appToast.error("Select a branch in the header for this report.");
       return;
     }
     try {
       await apiFetch<{ id: string }>("/reporting/export", {
         method: "POST",
         tenant,
-        body: JSON.stringify({ type: exportType, branchId: tenant.branchId }),
+        body: JSON.stringify({
+          type: exportType,
+          branchId: selectedType?.requiresBranch ? tenant.branchId : undefined,
+          from: selectedType?.requiresDateRange ? dates.from : undefined,
+          to:
+            selectedType?.requiresDateRange || selectedType?.requiresAsOf
+              ? dates.to
+              : undefined,
+          asOf: selectedType?.requiresAsOf ? dates.asOf : undefined,
+          accountCode: selectedType?.requiresAccountCode ? accountCode : undefined,
+        }),
       });
       appToast.success("Export queued — refresh or wait for completion");
       jobsQuery.reload();
@@ -94,14 +133,22 @@ export default function ReportsPage() {
     <DashboardShell>
       <ModulePageHeader />
 
-      {!tenant.branchId && <BranchRequiredNotice />}
+      {!tenant.branchId && !isFinancial && <BranchRequiredNotice />}
 
       <Text fontSize="sm" color="fg.muted" mb={3}>
-        Exports run in the background — completed files appear in the table below.
+        Exports run in the background — completed files appear in the table below. Financial
+        reports are organization-wide and use your chart of accounts.
       </Text>
 
       <Flex gap={2} mb={4} wrap="wrap" align="flex-end">
-        <FormField label="Report type" help="Branch-scoped reports require a branch in the header.">
+        <FormField
+          label="Report type"
+          help={
+            isFinancial
+              ? "GL reports use journal entries for your organization."
+              : "Branch-scoped reports require a branch in the header."
+          }
+        >
           {typesQuery.loading ? (
             <SelectSkeleton width="220px" />
           ) : (
@@ -109,11 +156,55 @@ export default function ReportsPage() {
               items={types.map((t) => ({ value: t.code, label: t.label }))}
               value={exportType}
               onValueChange={setExportType}
-              width="220px"
+              width="260px"
               placeholder="Report type"
             />
           )}
         </FormField>
+
+        {selectedType?.requiresDateRange && (
+          <>
+            <FormField label="From">
+              <Input
+                size="sm"
+                type="date"
+                value={dates.from}
+                onChange={(e) => setDates({ ...dates, from: e.target.value })}
+              />
+            </FormField>
+            <FormField label="To">
+              <Input
+                size="sm"
+                type="date"
+                value={dates.to}
+                onChange={(e) => setDates({ ...dates, to: e.target.value })}
+              />
+            </FormField>
+          </>
+        )}
+
+        {selectedType?.requiresAsOf && (
+          <FormField label="As of">
+            <Input
+              size="sm"
+              type="date"
+              value={dates.asOf}
+              onChange={(e) => setDates({ ...dates, asOf: e.target.value })}
+            />
+          </FormField>
+        )}
+
+        {selectedType?.requiresAccountCode && (
+          <FormField label="Account code">
+            <Input
+              size="sm"
+              width="120px"
+              value={accountCode}
+              onChange={(e) => setAccountCode(e.target.value)}
+            />
+          </FormField>
+        )}
+
         <Button
           size="sm"
           colorPalette="blue"

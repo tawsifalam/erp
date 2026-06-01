@@ -224,7 +224,7 @@ export class HrService {
   async getStaffMealRecipe(branchId: string, recipeId: string) {
     const recipe = await this.prisma.staffMealRecipe.findFirst({
       where: { id: recipeId, branchId },
-      include: { lines: true },
+      include: { lines: { include: { inventoryItem: true } } },
     });
     if (!recipe) throw new NotFoundException("Staff meal recipe not found");
     if (recipe.lines.length === 0) {

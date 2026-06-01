@@ -6,6 +6,8 @@
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter @erp/web test:e2e",
+    "test:e2e:install": "pnpm --filter @erp/web test:e2e:install",
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @erp/api db:generate",
     "db:migrate": "pnpm --filter @erp/api db:migrate",

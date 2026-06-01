@@ -33,8 +33,16 @@ const sampleRecipe = {
   branchId: "branch-1",
   name: "Staff Lunch",
   lines: [
-    { inventoryItemId: "item-rice", quantity: 0.3 },
-    { inventoryItemId: "item-chicken", quantity: 0.15 },
+    {
+      inventoryItemId: "item-rice",
+      quantity: 0.3,
+      inventoryItem: { averageUnitCost: 1 },
+    },
+    {
+      inventoryItemId: "item-chicken",
+      quantity: 0.15,
+      inventoryItem: { averageUnitCost: 1 },
+    },
   ],
 };
 

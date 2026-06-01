@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
+import { acceptConfirmDialog } from "./helpers/confirm-dialog";
+import { clickRowAction } from "./helpers/row-actions";
+import { showAllPosOrders } from "./helpers/pos";
 
 test.describe("Kitchen display", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("loads kitchen display with active orders", async ({ page }) => {
@@ -34,11 +36,13 @@ test.describe("Kitchen display", () => {
 
     await page.goto("/pos");
     const row = page.getByRole("row").filter({ hasText: "T-3" });
-    await row.getByRole("button", { name: "Cancel" }).click();
-    await expect(row.getByText("CANCELLED")).toBeVisible({ timeout: 5000 });
+    await clickRowAction(row, "Cancel");
+    await acceptConfirmDialog(page);
+    await showAllPosOrders(page);
+    await expect(row.getByText("CANCELLED", { exact: true })).toBeVisible({ timeout: 5000 });
 
     await page.goto("/pos/kitchen");
     await expect(page.getByText(/Chicken Biryani/i)).not.toBeVisible();
-    await expect(page.getByText(/No active kitchen tickets/i)).toBeVisible();
+    await expect(page.getByText(/No active tickets/i)).toBeVisible();
   });
 });

@@ -1,31 +1,19 @@
 import { test, expect } from "@playwright/test";
-import {
-  mockAuth,
-  mockApiRoutes,
-  FAKE_ORG_ID,
-  FAKE_ORG_ID_2,
-  FAKE_BRANCH_ID,
-  FAKE_BRANCH_ID_2,
-  FAKE_BRANCH_ID_2B,
-} from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
+import { pickTenantSelect } from "./helpers/tenant-select";
+import { backendApiRoute, FAKE_BRANCH_ID_2, FAKE_ORG_ID_2, FAKE_BRANCH_ID_2B } from "./helpers/auth";
 
 test.describe("Organization & branch selection", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
     await page.goto("/dashboard");
     await expect(page.getByTestId("tenant-selector")).toBeVisible();
   });
 
   test("shows organization and branch dropdowns with seed data", async ({ page }) => {
-    const orgSelect = page.getByTestId("tenant-org-select");
-    const branchSelect = page.getByTestId("tenant-branch-select");
-
-    await expect(orgSelect).toBeVisible();
-    await expect(branchSelect).toBeVisible();
-    await expect(orgSelect.locator("option")).toHaveCount(2);
-    await expect(branchSelect.locator("option", { hasText: "Main Branch" })).toBeVisible();
-    await expect(branchSelect.locator("option", { hasText: "Annex Branch" })).toBeVisible();
+    const selector = page.getByTestId("tenant-selector");
+    await expect(selector.getByRole("combobox").nth(0)).toContainText("Boulevard Café");
+    await expect(selector.getByRole("combobox").nth(1)).toContainText("Main Branch");
   });
 
   test("defaults to first org and first branch metrics", async ({ page }) => {
@@ -34,37 +22,42 @@ test.describe("Organization & branch selection", () => {
   });
 
   test("switching branch updates dashboard metrics", async ({ page }) => {
-    await page.getByTestId("tenant-branch-select").selectOption(FAKE_BRANCH_ID_2);
+    await pickTenantSelect(page, "branch", "Annex Branch");
     await expect(page.getByText("45%")).toBeVisible();
     await expect(page.getByText("$3200.00")).toBeVisible();
   });
 
   test("switching organization resets branch list and metrics", async ({ page }) => {
-    await page.getByTestId("tenant-org-select").selectOption(FAKE_ORG_ID_2);
-    const branchSelect = page.getByTestId("tenant-branch-select");
-    await expect(branchSelect.locator("option", { hasText: "Harbor Downtown" })).toBeVisible();
-    await expect(branchSelect).toHaveValue(FAKE_BRANCH_ID_2B);
+    await pickTenantSelect(page, "organization", "Harbor Hotel Group");
+    await expect(page.getByTestId("tenant-selector").getByRole("combobox").nth(1)).toContainText(
+      "Harbor Downtown",
+      { timeout: 10_000 },
+    );
     await expect(page.getByText("88%")).toBeVisible();
     await expect(page.getByText("$28900.00")).toBeVisible();
   });
 
   test("persists tenant selection in localStorage", async ({ page }) => {
-    await page.getByTestId("tenant-org-select").selectOption(FAKE_ORG_ID_2);
-    await page.getByTestId("tenant-branch-select").selectOption(FAKE_BRANCH_ID_2B);
+    await pickTenantSelect(page, "organization", "Harbor Hotel Group");
+    await pickTenantSelect(page, "branch", "Harbor Downtown");
 
     const stored = await page.evaluate(() => localStorage.getItem("erp:tenant"));
     expect(stored).toContain(FAKE_ORG_ID_2);
     expect(stored).toContain(FAKE_BRANCH_ID_2B);
 
     await page.reload();
-    await expect(page.getByTestId("tenant-org-select")).toHaveValue(FAKE_ORG_ID_2);
-    await expect(page.getByTestId("tenant-branch-select")).toHaveValue(FAKE_BRANCH_ID_2B);
+    await expect(page.getByTestId("tenant-selector").getByRole("combobox").nth(0)).toContainText(
+      "Harbor Hotel Group",
+    );
+    await expect(page.getByTestId("tenant-selector").getByRole("combobox").nth(1)).toContainText(
+      "Harbor Downtown",
+    );
     await expect(page.getByText("88%")).toBeVisible();
   });
 
   test("sends tenant headers on API requests", async ({ page }) => {
     const dashboardRequests: { org?: string; branch?: string }[] = [];
-    await page.route("**/localhost:3001/api/reporting/dashboard**", (route) => {
+    await page.route(backendApiRoute("reporting/dashboard"), (route) => {
       dashboardRequests.push({
         org: route.request().headers()["x-organization-id"],
         branch: route.request().headers()["x-branch-id"],
@@ -77,22 +70,23 @@ test.describe("Organization & branch selection", () => {
           activeReservations: 1,
           revenueToday: 100,
           lowStockAlerts: 0,
+          lowStockItems: [],
         }),
       });
     });
 
     await page.goto("/dashboard");
-    await page.getByTestId("tenant-branch-select").selectOption(FAKE_BRANCH_ID_2);
+    await pickTenantSelect(page, "branch", "Annex Branch");
     await page.waitForTimeout(500);
 
     expect(
       dashboardRequests.some(
-        (r) => r.org === FAKE_ORG_ID && r.branch === FAKE_BRANCH_ID,
+        (r) => r.org === "org-test-001" && r.branch === "branch-test-001",
       ),
     ).toBe(true);
     expect(
       dashboardRequests.some(
-        (r) => r.org === FAKE_ORG_ID && r.branch === FAKE_BRANCH_ID_2,
+        (r) => r.org === "org-test-001" && r.branch === FAKE_BRANCH_ID_2,
       ),
     ).toBe(true);
   });

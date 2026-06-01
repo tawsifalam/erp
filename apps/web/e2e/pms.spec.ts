@@ -1,10 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockApiRoutes } from "./helpers/auth";
+import { setupE2ePage } from "./helpers/setup";
 
 test.describe("PMS – Reservations", () => {
   test.beforeEach(async ({ page }) => {
-    await mockAuth(page);
-    await mockApiRoutes(page);
+    await setupE2ePage(page);
   });
 
   test("loads PMS page", async ({ page }) => {
@@ -26,9 +25,9 @@ test.describe("PMS – Reservations", () => {
   test("displays reservation seed data", async ({ page }) => {
     await page.goto("/pms");
 
-    await expect(page.getByRole("cell", { name: "Rahim Ahmed" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "101" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Fatima Khan" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "204" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Rahim Ahmed" }).first()).toBeVisible();
+    await expect(page.getByRole("cell", { name: "101" }).first()).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Fatima Khan" }).first()).toBeVisible();
+    await expect(page.getByRole("cell", { name: "204" }).first()).toBeVisible();
   });
 });

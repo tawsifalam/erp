@@ -1,13 +1,10 @@
-/** Phase 1 placeholder unit cost per inventory unit (same as staff meals / COGS). */
-export const INCLUSION_UNIT_COST = 1;
-
 export function computeInclusionUnitCost(
-  lines: { quantity: unknown }[],
+  lines: { quantity: unknown; inventoryItem?: { averageUnitCost: unknown } }[],
 ): number {
-  return lines.reduce(
-    (sum, line) => sum + Number(line.quantity) * INCLUSION_UNIT_COST,
-    0,
-  );
+  return lines.reduce((sum, line) => {
+    const unitCost = Number(line.inventoryItem?.averageUnitCost ?? 0);
+    return sum + Number(line.quantity) * unitCost;
+  }, 0);
 }
 
 /** Calendar nights between check-in and check-out (minimum 1). */

@@ -62,7 +62,13 @@ describe("InventoryRecipesService", () => {
           quantity: 2,
           menuItem: {
             recipe: {
-              lines: [{ inventoryItemId: "inv-rice", quantity: 0.3 }],
+              lines: [
+                {
+                  inventoryItemId: "inv-rice",
+                  quantity: 0.3,
+                  inventoryItem: { averageUnitCost: 5 },
+                },
+              ],
             },
           },
         },
@@ -79,7 +85,7 @@ describe("InventoryRecipesService", () => {
       referenceType: "Order",
       referenceId: "ord-1",
     });
-    expect(cogs).toBe(0.6);
+    expect(cogs).toBe(3);
   });
 
   it("deductForOrder returns 0 when order missing", async () => {

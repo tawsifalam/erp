@@ -10,6 +10,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AvailabilityService } from "./availability.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { InclusionsService } from "../inclusions/inclusions.service";
 
 const mockPrisma = {
   branch: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
@@ -55,11 +56,16 @@ const mockEvents = {
   emit: jest.fn(),
 };
 
+const mockInclusions = {
+  assertPackageInOrg: jest.fn().mockResolvedValue(undefined),
+};
+
 describe("PmsService", () => {
   let service: PmsService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrisma.branch.findUnique.mockResolvedValue({ organizationId: "org-1" });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,6 +74,7 @@ describe("PmsService", () => {
         { provide: AvailabilityService, useValue: mockAvailability },
         { provide: RealtimeGateway, useValue: mockRealtime },
         { provide: EventEmitter2, useValue: mockEvents },
+        { provide: InclusionsService, useValue: mockInclusions },
       ],
     }).compile();
 
@@ -170,8 +177,12 @@ describe("PmsService", () => {
           totalAmount: 200,
           paidAmount: 0,
           status: ReservationStatus.CONFIRMED,
+          adultCount: 1,
+          childCount: 0,
+          packageId: null,
+          mealsPerGuestPerNightOverride: null,
         },
-        include: { guest: true, room: { include: { roomType: true } } },
+        include: { guest: true, room: { include: { roomType: true } }, package: true },
       });
     });
 
@@ -362,7 +373,7 @@ describe("PmsService", () => {
       expect(mockPrisma.reservation.update).toHaveBeenCalledWith({
         where: { id: "res-1" },
         data: { status: ReservationStatus.CANCELLED },
-        include: { guest: true, room: { include: { roomType: true } } },
+        include: { guest: true, room: { include: { roomType: true } }, package: true },
       });
     });
   });

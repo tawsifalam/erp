@@ -84,6 +84,28 @@ export class AccountingListenersService {
     });
   }
 
+  async postGoodsReceipt(
+    organizationId: string,
+    goodsReceiptId: string,
+    amount: number,
+  ) {
+    if (amount <= 0) return;
+    const inventory = await this.accounting.getAccountByCode(organizationId, "1200");
+    const ap = await this.accounting.getAccountByCode(organizationId, "2000");
+    if (!inventory || !ap) return;
+
+    return this.accounting.createJournalEntry({
+      organizationId,
+      referenceType: "goods_receipt",
+      referenceId: goodsReceiptId,
+      description: "Goods received — inventory and AP",
+      lines: [
+        { accountId: inventory.id, debit: amount, credit: 0 },
+        { accountId: ap.id, debit: 0, credit: amount },
+      ],
+    });
+  }
+
   async postRoomReceivable(
     organizationId: string,
     reservationId: string,

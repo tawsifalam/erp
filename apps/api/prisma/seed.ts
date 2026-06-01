@@ -193,6 +193,11 @@ async function main() {
     { code: "4200", name: "Other Revenue", type: AccountType.REVENUE },
     { code: "5000", name: "Cost of Goods Sold", type: AccountType.EXPENSE },
     { code: "5100", name: "Salary Expense", type: AccountType.EXPENSE },
+    {
+      code: "5150",
+      name: "Payroll Deductions — Staff Meals",
+      type: AccountType.LIABILITY,
+    },
     { code: "5200", name: "Utilities Expense", type: AccountType.EXPENSE },
     { code: "5300", name: "Maintenance Expense", type: AccountType.EXPENSE },
   ];

@@ -36,6 +36,7 @@ model Organization {
   roomTypes    RoomType[]
   guests       Guest[]
   accounts     Account[]
+  vendors      Vendor[]
   employees    Employee[]
   menuCategories MenuCategory[]
   inventoryPools InventoryPool[]
@@ -94,6 +95,7 @@ model Branch {
   staffMeals     StaffMeal[]
   reportJobs     ReportJob[]
   inclusionRecipes InclusionRecipe[]
+  purchaseOrders PurchaseOrder[]
 }
 
 model RoomType {
@@ -253,6 +255,7 @@ model InventoryItem {
   sku               String
   unit              String
   lowStockThreshold Decimal? @db.Decimal(12, 4)
+  averageUnitCost   Decimal  @default(0) @db.Decimal(12, 4)
 
   branch    Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
   pool      InventoryPool       @relation(fields: [poolId], references: [id], onDelete: Restrict)
@@ -260,6 +263,7 @@ model InventoryItem {
   recipeLines RecipeLine[]
   staffMealRecipeLines StaffMealRecipeLine[]
   inclusionRecipeLines InclusionRecipeLine[]
+  purchaseOrderLines   PurchaseOrderLine[]
 
   @@unique([branchId, sku])
 }
@@ -271,12 +275,14 @@ model InventoryMovement {
   direction     String
   movementType  String
   quantity      Decimal           @db.Decimal(12, 4)
+  unitCost      Decimal?          @db.Decimal(12, 4)
   referenceType String?
   referenceId   String?
   notes         String?
   createdAt     DateTime          @default(now())
 
-  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  goodsReceipts GoodsReceipt[]
 
   @@index([itemId, branchId, createdAt])
 }
@@ -445,12 +451,78 @@ model ReportJob {
   branchId       String?
   type           String
   status         String   @default("PENDING")
+  params         Json?
   fileUrl        String?
   errorMessage   String?
   createdAt      DateTime @default(now())
   completedAt    DateTime?
 
   branch Branch? @relation(fields: [branchId], references: [id])
+}
+
+model Vendor {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  paymentTerms   String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@index([organizationId, name])
+}
+
+model PurchaseOrder {
+  id             String    @id @default(uuid())
+  organizationId String
+  branchId       String
+  vendorId       String
+  status         String    @default("DRAFT")
+  expectedDate   DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  branch   Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  vendor   Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  lines    PurchaseOrderLine[]
+  receipts GoodsReceipt[]
+
+  @@index([branchId, status])
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(uuid())
+  purchaseOrderId String
+  inventoryItemId String
+  quantity        Decimal @db.Decimal(12, 4)
+  unitPrice       Decimal @db.Decimal(12, 4)
+  receivedQty     Decimal @default(0) @db.Decimal(12, 4)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  receipts      GoodsReceipt[]
+
+  @@index([purchaseOrderId])
+}
+
+model GoodsReceipt {
+  id                  String   @id @default(uuid())
+  purchaseOrderId     String
+  purchaseOrderLineId String
+  inventoryMovementId String?  @unique
+  quantity            Decimal  @db.Decimal(12, 4)
+  receivedAt          DateTime @default(now())
+
+  purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderLine PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Cascade)
+  inventoryMovement InventoryMovement? @relation(fields: [inventoryMovementId], references: [id], onDelete: SetNull)
 }
 
 model InclusionRecipe {

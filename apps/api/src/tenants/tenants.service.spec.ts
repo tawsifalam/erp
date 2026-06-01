@@ -34,7 +34,12 @@ describe("TenantsService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TenantsService(mockPrisma as never, mockInventoryPools as never);
+    const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
+    service = new TenantsService(
+      mockPrisma as never,
+      mockInventoryPools as never,
+      mockAudit as never,
+    );
   });
 
   it("listBranches returns branches for organization", async () => {
@@ -63,16 +68,16 @@ describe("TenantsService", () => {
     });
   });
 
-  it("createBranch rejects empty name", () => {
-    expect(() =>
+  it("createBranch rejects empty name", async () => {
+    await expect(
       service.createBranch("org_1", { name: "  ", timezone: "Asia/Dhaka" }),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it("createBranch rejects empty timezone", () => {
-    expect(() =>
+  it("createBranch rejects empty timezone", async () => {
+    await expect(
       service.createBranch("org_1", { name: "Annex", timezone: "" }),
-    ).toThrow(BadRequestException);
+    ).rejects.toThrow(BadRequestException);
   });
 
   it("updateBranch throws when branch not in org", async () => {
@@ -139,8 +144,8 @@ describe("TenantsService", () => {
     await expect(service.deleteBranch("br_2", "org_1")).rejects.toThrow(ConflictException);
   });
 
-  it("updateOrganization rejects empty name", () => {
-    expect(() => service.updateOrganization("org_1", { name: "  " })).toThrow(
+  it("updateOrganization rejects empty name", async () => {
+    await expect(service.updateOrganization("org_1", { name: "  " })).rejects.toThrow(
       BadRequestException,
     );
   });

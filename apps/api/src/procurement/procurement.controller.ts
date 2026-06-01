@@ -32,7 +32,7 @@ export class ProcurementController {
       paymentTerms?: string;
     },
   ) {
-    return this.procurement.createVendor(t.organizationId, body);
+    return this.procurement.createVendor(t.organizationId, body, t.userId);
   }
 
   @Patch("vendors/:id")
@@ -50,7 +50,7 @@ export class ProcurementController {
       isActive?: boolean;
     },
   ) {
-    return this.procurement.updateVendor(t.organizationId, id, body);
+    return this.procurement.updateVendor(t.organizationId, id, body, t.userId);
   }
 
   @Get("purchase-orders")
@@ -80,6 +80,7 @@ export class ProcurementController {
     return this.procurement.createPurchaseOrder({
       organizationId: t.organizationId,
       branchId: t.branchId!,
+      userId: t.userId,
       ...body,
     });
   }
@@ -87,7 +88,7 @@ export class ProcurementController {
   @Post("purchase-orders/:id/submit")
   @RequirePermission(Permission.INVENTORY_WRITE)
   submitPurchaseOrder(@Tenant() t: TenantContext, @Param("id") id: string) {
-    return this.procurement.submitPurchaseOrder(t.branchId!, id);
+    return this.procurement.submitPurchaseOrder(t.branchId!, id, t.organizationId, t.userId);
   }
 
   @Post("purchase-orders/:id/receive")
@@ -103,6 +104,7 @@ export class ProcurementController {
       purchaseOrderId: id,
       purchaseOrderLineId: body.purchaseOrderLineId,
       quantity: body.quantity,
+      userId: t.userId,
     });
   }
 }

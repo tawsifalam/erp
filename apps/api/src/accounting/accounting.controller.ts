@@ -48,6 +48,7 @@ export class AccountingController {
   ) {
     return this.accounting.createJournalEntry({
       organizationId: t.organizationId,
+      userId: t.userId,
       ...body,
     });
   }

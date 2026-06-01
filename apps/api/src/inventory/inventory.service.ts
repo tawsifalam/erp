@@ -5,6 +5,8 @@ import {
 } from "@nestjs/common";
 import { MovementDirection, MovementType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 import { roundMoney, toNumber } from "@erp/utils";
 import { InventoryPoolsService } from "./inventory-pools.service";
 
@@ -33,6 +35,7 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pools: InventoryPoolsService,
+    private readonly audit: AuditService,
   ) {}
 
   private async branchOrganizationId(branchId: string): Promise<string> {
@@ -86,6 +89,7 @@ export class InventoryService {
       lowStockThreshold?: number;
       poolId?: string;
     },
+    userId?: string,
   ) {
     if (!data.name?.trim()) throw new BadRequestException("Item name is required");
     if (!data.sku?.trim()) throw new BadRequestException("SKU is required");
@@ -99,7 +103,7 @@ export class InventoryService {
       data.poolId ?? (await this.pools.defaultGuestPoolId(organizationId));
     await this.pools.getPool(organizationId, poolId);
 
-    return this.prisma.inventoryItem.create({
+    const item = await this.prisma.inventoryItem.create({
       data: {
         branchId,
         poolId,
@@ -110,6 +114,17 @@ export class InventoryService {
       },
       include: { pool: { select: { id: true, code: true, name: true } } },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.INVENTORY_ITEM,
+      entityId: item.id,
+      metadata: { name: item.name, sku: item.sku },
+    });
+
+    return item;
   }
 
   async updateItem(
@@ -186,6 +201,7 @@ export class InventoryService {
     referenceType?: string;
     referenceId?: string;
     notes?: string;
+    userId?: string;
   }) {
     if (params.quantity <= 0) {
       throw new BadRequestException("quantity must be positive");
@@ -236,7 +252,8 @@ export class InventoryService {
         ? params.unitCost
         : undefined;
 
-    return this.prisma.inventoryMovement.create({
+    const organizationId = await this.branchOrganizationId(params.branchId);
+    const movement = await this.prisma.inventoryMovement.create({
       data: {
         itemId: params.itemId,
         branchId: params.branchId,
@@ -249,6 +266,21 @@ export class InventoryService {
         notes: params.notes,
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: params.userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.INVENTORY_MOVEMENT,
+      entityId: movement.id,
+      metadata: {
+        itemId: params.itemId,
+        movementType: params.movementType,
+        quantity: params.quantity,
+      },
+    });
+
+    return movement;
   }
 
   listMovements(itemId: string, branchId: string) {

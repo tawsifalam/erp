@@ -7,6 +7,8 @@ import { MovementType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { AccountingListenersService } from "../accounting/accounting-listeners.service";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 import { generatePrefixedId, roundMoney, toNumber } from "@erp/utils";
 import {
   PO_RECEIVABLE_STATUSES,
@@ -22,6 +24,7 @@ export class ProcurementService {
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
     private readonly accounting: AccountingListenersService,
+    private readonly audit: AuditService,
   ) {}
 
   listVendors(organizationId: string) {
@@ -31,7 +34,7 @@ export class ProcurementService {
     });
   }
 
-  createVendor(
+  async createVendor(
     organizationId: string,
     data: {
       name: string;
@@ -40,9 +43,10 @@ export class ProcurementService {
       phone?: string;
       paymentTerms?: string;
     },
+    userId?: string,
   ) {
     if (!data.name?.trim()) throw new BadRequestException("Vendor name is required");
-    return this.prisma.vendor.create({
+    const vendor = await this.prisma.vendor.create({
       data: {
         id: generatePrefixedId("ven"),
         organizationId,
@@ -53,6 +57,15 @@ export class ProcurementService {
         paymentTerms: data.paymentTerms?.trim() || null,
       },
     });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.VENDOR,
+      entityId: vendor.id,
+      metadata: { name: vendor.name },
+    });
+    return vendor;
   }
 
   async updateVendor(
@@ -66,13 +79,14 @@ export class ProcurementService {
       paymentTerms?: string;
       isActive?: boolean;
     },
+    userId?: string,
   ) {
     const vendor = await this.prisma.vendor.findFirst({
       where: { id: vendorId, organizationId },
     });
     if (!vendor) throw new NotFoundException("Vendor not found");
 
-    return this.prisma.vendor.update({
+    const updated = await this.prisma.vendor.update({
       where: { id: vendorId },
       data: {
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
@@ -87,6 +101,14 @@ export class ProcurementService {
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
       },
     });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.VENDOR,
+      entityId: vendorId,
+    });
+    return updated;
   }
 
   listPurchaseOrders(branchId: string) {
@@ -120,6 +142,7 @@ export class ProcurementService {
     expectedDate?: string;
     notes?: string;
     lines: { inventoryItemId: string; quantity: number; unitPrice: number }[];
+    userId?: string;
   }) {
     if (!params.lines.length) {
       throw new BadRequestException("At least one line is required");
@@ -137,7 +160,7 @@ export class ProcurementService {
       await this.inventory.getItem(params.branchId, line.inventoryItemId);
     }
 
-    return this.prisma.purchaseOrder.create({
+    const po = await this.prisma.purchaseOrder.create({
       data: {
         id: generatePrefixedId("po"),
         organizationId: params.organizationId,
@@ -160,17 +183,39 @@ export class ProcurementService {
         lines: { include: { inventoryItem: true } },
       },
     });
+    await this.audit.record({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.PURCHASE_ORDER,
+      entityId: po.id,
+      metadata: { vendorId: params.vendorId, lineCount: params.lines.length },
+    });
+    return po;
   }
 
-  async submitPurchaseOrder(branchId: string, purchaseOrderId: string) {
+  async submitPurchaseOrder(
+    branchId: string,
+    purchaseOrderId: string,
+    organizationId: string,
+    userId?: string,
+  ) {
     const po = await this.getPurchaseOrder(branchId, purchaseOrderId);
     if (po.status !== PO_STATUS_DRAFT) {
       throw new BadRequestException("Only draft purchase orders can be submitted");
     }
-    return this.prisma.purchaseOrder.update({
+    const updated = await this.prisma.purchaseOrder.update({
       where: { id: purchaseOrderId },
       data: { status: PO_STATUS_SUBMITTED },
     });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.SUBMIT,
+      entityType: AuditEntityType.PURCHASE_ORDER,
+      entityId: purchaseOrderId,
+    });
+    return updated;
   }
 
   async receiveGoods(params: {
@@ -179,6 +224,7 @@ export class ProcurementService {
     purchaseOrderId: string;
     purchaseOrderLineId: string;
     quantity: number;
+    userId?: string;
   }) {
     if (params.quantity <= 0) {
       throw new BadRequestException("quantity must be positive");
@@ -247,6 +293,20 @@ export class ProcurementService {
 
     const amount = roundMoney(params.quantity * unitPrice);
     await this.accounting.postGoodsReceipt(params.organizationId, receipt.id, amount);
+
+    await this.audit.record({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      action: AuditAction.RECEIVE,
+      entityType: AuditEntityType.GOODS_RECEIPT,
+      entityId: receipt.id,
+      metadata: {
+        purchaseOrderId: po.id,
+        purchaseOrderLineId: line.id,
+        quantity: params.quantity,
+        movementId: movement.id,
+      },
+    });
 
     return receipt;
   }

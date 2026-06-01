@@ -1,12 +1,15 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException } from "@nestjs/common";
 import { AccountingService } from "./accounting.service";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 jest.mock("@erp/utils", () => ({
   roundMoney: (v: number) => Math.round(v * 100) / 100,
   generatePrefixedId: () => "jl_test",
 }));
+
+const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
 
 const mockPrisma = {
   account: {
@@ -30,6 +33,7 @@ describe("AccountingService", () => {
       providers: [
         AccountingService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();
 

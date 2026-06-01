@@ -9,6 +9,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PosService } from "./pos.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { AuditService } from "../audit/audit.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
@@ -74,6 +75,7 @@ describe("PosService", () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEvents },
         { provide: RealtimeGateway, useValue: mockRealtime },
+        { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = module.get(PosService);
@@ -206,7 +208,7 @@ describe("PosService", () => {
         status: OrderStatus.COMPLETED,
       });
 
-      await expect(service.cancelOrder("order-1", "branch-1")).rejects.toThrow(
+      await expect(service.cancelOrder("order-1", "branch-1", "org-1")).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -224,7 +226,7 @@ describe("PosService", () => {
         }),
       );
 
-      const result = await service.cancelOrder("order-1", "branch-1");
+      const result = await service.cancelOrder("order-1", "branch-1", "org-1");
       expect(result.status).toBe(OrderStatus.CANCELLED);
     });
   });

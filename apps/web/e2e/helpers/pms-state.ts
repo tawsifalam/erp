@@ -1,5 +1,7 @@
 /** Mutable PMS state for Playwright route mocks (reset per test via resetPmsState). */
 
+import { recordAudit } from "./audit-state";
+
 export type MockReservation = {
   id: string;
   status: string;
@@ -230,6 +232,11 @@ export function handlePmsReservationMutation(
   if (method === "DELETE") {
     const idx = reservations.findIndex((r) => r.id === id);
     if (idx >= 0) reservations.splice(idx, 1);
+    recordAudit({
+      action: "DELETE",
+      entityType: "reservation",
+      entityId: id,
+    });
     return { id };
   }
 
@@ -238,22 +245,46 @@ export function handlePmsReservationMutation(
 
   if (url.includes("/confirm")) {
     res.status = "CONFIRMED";
+    recordAudit({
+      action: "UPDATE",
+      entityType: "reservation",
+      entityId: id,
+      metadata: { status: "CONFIRMED" },
+    });
     return res;
   }
   if (url.includes("/check-out")) {
     res.status = "CHECKED_OUT";
     const room = rooms.find((r) => r.id === res.roomId);
     if (room) room.status = "DIRTY";
+    recordAudit({
+      action: "UPDATE",
+      entityType: "reservation",
+      entityId: id,
+      metadata: { status: "CHECKED_OUT", roomId: res.roomId },
+    });
     return res;
   }
   if (url.includes("/check-in")) {
     res.status = "CHECKED_IN";
     const room = rooms.find((r) => r.id === res.roomId);
     if (room) room.status = "OCCUPIED";
+    recordAudit({
+      action: "UPDATE",
+      entityType: "reservation",
+      entityId: id,
+      metadata: { status: "CHECKED_IN", roomId: res.roomId },
+    });
     return res;
   }
   if (url.includes("/cancel")) {
     res.status = "CANCELLED";
+    recordAudit({
+      action: "UPDATE",
+      entityType: "reservation",
+      entityId: id,
+      metadata: { status: "CANCELLED" },
+    });
     return res;
   }
   if (url.includes("/payment") && body) {

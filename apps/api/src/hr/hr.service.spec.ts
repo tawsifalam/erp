@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { EmployeeStatus, MovementType } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { HrService } from "./hr.service";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
 
@@ -64,6 +65,7 @@ describe("HrService", () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: InventoryService, useValue: mockInventory },
         { provide: EventEmitter2, useValue: mockEvents },
+        { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 
@@ -171,10 +173,10 @@ describe("HrService", () => {
   });
 
   describe("createEmployee", () => {
-    it("throws when name is empty", () => {
-      expect(() =>
+    it("throws when name is empty", async () => {
+      await expect(
         service.createEmployee("org-1", { name: "  ", designation: "Chef", salary: 1000 }),
-      ).toThrow(BadRequestException);
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -268,7 +268,7 @@ export class PmsController {
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.confirmReservation(this.branchId(t, branchId), id);
+    return this.pms.confirmReservation(this.branchId(t, branchId), id, t.userId);
   }
 
   @Patch("reservations/:id/payment")
@@ -308,7 +308,7 @@ export class PmsController {
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.checkIn(id, this.branchId(t, branchId));
+    return this.pms.checkIn(id, this.branchId(t, branchId), t.userId);
   }
 
   @Patch("reservations/:id/check-out")
@@ -318,7 +318,7 @@ export class PmsController {
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.checkOut(id, this.branchId(t, branchId));
+    return this.pms.checkOut(id, this.branchId(t, branchId), t.userId);
   }
 
   @Patch("reservations/:id/cancel")
@@ -328,7 +328,7 @@ export class PmsController {
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.cancelReservation(id, this.branchId(t, branchId));
+    return this.pms.cancelReservation(id, this.branchId(t, branchId), t.userId);
   }
 
   @Delete("reservations/:id")
@@ -338,6 +338,6 @@ export class PmsController {
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.deleteReservation(this.branchId(t, branchId), id);
+    return this.pms.deleteReservation(this.branchId(t, branchId), id, t.userId);
   }
 }

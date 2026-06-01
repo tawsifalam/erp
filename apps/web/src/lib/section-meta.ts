@@ -10,6 +10,7 @@ export const MODULE_SECTIONS: Record<string, Record<string, SectionMeta>> = {
   "/settings": {
     organization: { label: "Organization & branches" },
     team: { label: "Team & access" },
+    audit: { label: "Audit log" },
     pools: { label: "Inventory pools" },
   },
   "/hr": {

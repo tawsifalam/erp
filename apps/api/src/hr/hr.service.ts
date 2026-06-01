@@ -11,6 +11,8 @@ import { PayrollRunRequestedEvent } from "../common/events/payroll-run-requested
 import { toNumber, generatePrefixedId } from "@erp/utils";
 import { computeStaffMealUnitCost } from "./hr.constants";
 import { POOL_CODE_STAFF } from "../inventory/inventory.constants";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 
 @Injectable()
 export class HrService {
@@ -18,6 +20,7 @@ export class HrService {
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
     private readonly events: EventEmitter2,
+    private readonly audit: AuditService,
   ) {}
 
   listEmployees(organizationId: string) {
@@ -44,7 +47,7 @@ export class HrService {
     return employee;
   }
 
-  createEmployee(
+  async createEmployee(
     organizationId: string,
     data: {
       name: string;
@@ -53,6 +56,7 @@ export class HrService {
       userId?: string;
       branchId?: string;
     },
+    actingUserId?: string,
   ) {
     if (!data.name?.trim()) throw new BadRequestException("Employee name is required");
     if (!data.designation?.trim()) {
@@ -60,7 +64,7 @@ export class HrService {
     }
     if (data.salary < 0) throw new BadRequestException("Salary cannot be negative");
 
-    return this.prisma.employee.create({
+    const employee = await this.prisma.employee.create({
       data: {
         organizationId,
         name: data.name.trim(),
@@ -71,6 +75,17 @@ export class HrService {
         status: EmployeeStatus.ACTIVE,
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.EMPLOYEE,
+      entityId: employee.id,
+      metadata: { name: employee.name },
+    });
+
+    return employee;
   }
 
   async updateEmployee(
@@ -83,6 +98,7 @@ export class HrService {
       branchId?: string | null;
       status?: EmployeeStatus;
     },
+    actingUserId?: string,
   ) {
     await this.getEmployee(organizationId, employeeId);
 
@@ -119,11 +135,25 @@ export class HrService {
       }
     }
 
-    return this.prisma.employee.update({
+    const employee = await this.prisma.employee.update({
       where: { id: employeeId },
       data: updateData,
       include: { branch: true, user: true },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.EMPLOYEE,
+      entityId: employeeId,
+      metadata: {
+        status: employee.status,
+        name: employee.name,
+      },
+    });
+
+    return employee;
   }
 
   async clockAttendance(

@@ -145,7 +145,13 @@ export class PosController {
     @Body() body: { paidAmount?: number },
     @Query("branchId") branchId?: string,
   ) {
-    return this.pos.completeOrder(id, this.branch(t, branchId), t.organizationId, body.paidAmount);
+    return this.pos.completeOrder(
+      id,
+      this.branch(t, branchId),
+      t.organizationId,
+      body.paidAmount,
+      t.userId,
+    );
   }
 
   @Post("orders/:id/cancel")
@@ -155,7 +161,7 @@ export class PosController {
     @Tenant() t: TenantContext,
     @Query("branchId") branchId?: string,
   ) {
-    return this.pos.cancelOrder(id, this.branch(t, branchId));
+    return this.pos.cancelOrder(id, this.branch(t, branchId), t.organizationId, t.userId);
   }
 
   @Patch("orders/:id/status")

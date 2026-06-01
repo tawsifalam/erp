@@ -1,3 +1,5 @@
+import { recordAudit } from "./audit-state";
+
 type MockEmployee = {
   id: string;
   name: string;
@@ -140,6 +142,12 @@ export function handleHrMutation(
       emp.status = "ACTIVE";
       emp.terminatedAt = null;
     }
+    recordAudit({
+      action: "UPDATE",
+      entityType: "employee",
+      entityId: id,
+      metadata: { status: emp.status, name: emp.name },
+    });
     return { ...emp };
   }
 
@@ -155,6 +163,12 @@ export function handleHrMutation(
         branchId: body?.branchId ? String(body.branchId) : undefined,
       };
       employees.push(emp);
+      recordAudit({
+        action: "CREATE",
+        entityType: "employee",
+        entityId: emp.id,
+        metadata: { name: emp.name },
+      });
       return emp;
     }
   }

@@ -105,7 +105,7 @@ export class TenantsController {
     @Tenant() t: TenantContext,
     @Body() body: { name: string },
   ) {
-    return this.tenants.updateOrganization(t.organizationId, { name: body.name });
+    return this.tenants.updateOrganization(t.organizationId, { name: body.name }, t.userId);
   }
 
   @Post("join-requests")
@@ -221,7 +221,7 @@ export class TenantsController {
     @Tenant() t: TenantContext,
     @Body() body: { name: string; timezone: string },
   ) {
-    return this.tenants.createBranch(t.organizationId, body);
+    return this.tenants.createBranch(t.organizationId, body, t.userId);
   }
 
   @Patch("branches/:id")
@@ -232,14 +232,14 @@ export class TenantsController {
     @Param("id") id: string,
     @Body() body: { name?: string; timezone?: string },
   ) {
-    return this.tenants.updateBranch(id, t.organizationId, body);
+    return this.tenants.updateBranch(id, t.organizationId, body, t.userId);
   }
 
   @Delete("branches/:id")
   @UseGuards(TenantGuard, PermissionGuard)
   @RequirePermission(Permission.ADMIN)
   deleteBranch(@Tenant() t: TenantContext, @Param("id") id: string) {
-    return this.tenants.deleteBranch(id, t.organizationId);
+    return this.tenants.deleteBranch(id, t.organizationId, t.userId);
   }
 
   @Get("context")

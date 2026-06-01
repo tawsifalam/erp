@@ -73,7 +73,7 @@ export class InventoryController {
       lowStockThreshold?: number;
     },
   ) {
-    return this.inventory.createItem(body.branchId || t.branchId!, body);
+    return this.inventory.createItem(body.branchId || t.branchId!, body, t.userId);
   }
 
   @Patch("items/:id")
@@ -118,6 +118,7 @@ export class InventoryController {
     return this.inventory.createMovement({
       ...body,
       branchId: body.branchId || t.branchId!,
+      userId: t.userId,
     });
   }
 

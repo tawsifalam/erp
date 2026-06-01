@@ -1,5 +1,7 @@
 /** Mutable POS state for Playwright route mocks (reset via resetPosState). */
 
+import { recordAudit } from "./audit-state";
+
 export type MockMenuItem = {
   id: string;
   name: string;
@@ -285,6 +287,12 @@ export function handlePosOrderMutation(
     order.paidAmount = String(paid);
     order.paymentStatus =
       paid >= Number(order.totalAmount) ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
+    recordAudit({
+      action: "UPDATE",
+      entityType: "order",
+      entityId: id,
+      metadata: { status: "COMPLETED", paidAmount: paid },
+    });
     return order;
   }
 
@@ -296,6 +304,12 @@ export function handlePosOrderMutation(
 
   if (url.includes("/cancel")) {
     order.status = "CANCELLED";
+    recordAudit({
+      action: "UPDATE",
+      entityType: "order",
+      entityId: id,
+      metadata: { status: "CANCELLED" },
+    });
     return order;
   }
 

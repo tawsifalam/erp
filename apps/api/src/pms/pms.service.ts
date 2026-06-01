@@ -13,6 +13,8 @@ import { ReservationCheckedInEvent } from "../common/events/reservation-checked-
 import { ReservationPaymentEvent } from "../common/events/reservation-payment.event";
 import { ReservationCheckedOutEvent } from "../common/events/reservation-checked-out.event";
 import { InclusionsService } from "../inclusions/inclusions.service";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 
 const CANCELLABLE: string[] = [
   ReservationStatus.INQUIRY,
@@ -33,7 +35,26 @@ export class PmsService {
     private readonly realtime: RealtimeGateway,
     private readonly events: EventEmitter2,
     private readonly inclusions: InclusionsService,
+    private readonly audit: AuditService,
   ) {}
+
+  private async logReservationAudit(
+    branchId: string,
+    userId: string | undefined,
+    action: string,
+    reservationId: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    const organizationId = await this.organizationIdForBranch(branchId);
+    await this.audit.record({
+      organizationId,
+      userId,
+      action,
+      entityType: AuditEntityType.RESERVATION,
+      entityId: reservationId,
+      metadata,
+    });
+  }
 
   listBranches(organizationId: string) {
     return this.prisma.branch.findMany({ where: { organizationId } });
@@ -491,7 +512,11 @@ export class PmsService {
     });
   }
 
-  async confirmReservation(branchId: string, reservationId: string) {
+  async confirmReservation(
+    branchId: string,
+    reservationId: string,
+    userId?: string,
+  ) {
     const reservation = await this.getReservation(branchId, reservationId);
 
     if (reservation.status !== ReservationStatus.INQUIRY) {
@@ -506,11 +531,15 @@ export class PmsService {
       reservationId,
     );
 
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: { status: ReservationStatus.CONFIRMED },
       include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
+    await this.logReservationAudit(branchId, userId, AuditAction.UPDATE, reservationId, {
+      status: ReservationStatus.CONFIRMED,
+    });
+    return updated;
   }
 
   async recordPayment(
@@ -549,7 +578,7 @@ export class PmsService {
     return updated;
   }
 
-  async checkIn(reservationId: string, branchId: string) {
+  async checkIn(reservationId: string, branchId: string, userId?: string) {
     const reservation = await this.getReservation(branchId, reservationId);
 
     if (reservation.status !== ReservationStatus.CONFIRMED) {
@@ -573,10 +602,15 @@ export class PmsService {
     );
     this.realtime.emitRoomStatus(branchId, reservation.roomId, RoomStatus.OCCUPIED);
 
+    await this.logReservationAudit(branchId, userId, AuditAction.UPDATE, reservationId, {
+      status: ReservationStatus.CHECKED_IN,
+      roomId: reservation.roomId,
+    });
+
     return this.getReservation(branchId, reservationId);
   }
 
-  async checkOut(reservationId: string, branchId: string) {
+  async checkOut(reservationId: string, branchId: string, userId?: string) {
     const reservation = await this.getReservation(branchId, reservationId);
 
     if (reservation.status !== ReservationStatus.CHECKED_IN) {
@@ -604,10 +638,20 @@ export class PmsService {
     }
 
     this.realtime.emitRoomStatus(branchId, reservation.roomId, RoomStatus.DIRTY);
+
+    await this.logReservationAudit(branchId, userId, AuditAction.UPDATE, reservationId, {
+      status: ReservationStatus.CHECKED_OUT,
+      roomId: reservation.roomId,
+    });
+
     return this.getReservation(branchId, reservationId);
   }
 
-  async cancelReservation(reservationId: string, branchId: string) {
+  async cancelReservation(
+    reservationId: string,
+    branchId: string,
+    userId?: string,
+  ) {
     const reservation = await this.getReservation(branchId, reservationId);
 
     if (!CANCELLABLE.includes(reservation.status)) {
@@ -616,14 +660,22 @@ export class PmsService {
       );
     }
 
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: { status: ReservationStatus.CANCELLED },
       include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
+    await this.logReservationAudit(branchId, userId, AuditAction.UPDATE, reservationId, {
+      status: ReservationStatus.CANCELLED,
+    });
+    return updated;
   }
 
-  async deleteReservation(branchId: string, reservationId: string) {
+  async deleteReservation(
+    branchId: string,
+    reservationId: string,
+    userId?: string,
+  ) {
     const reservation = await this.getReservation(branchId, reservationId);
 
     if (reservation.status === ReservationStatus.CHECKED_IN) {
@@ -632,6 +684,8 @@ export class PmsService {
       );
     }
 
-    return this.prisma.reservation.delete({ where: { id: reservationId } });
+    await this.prisma.reservation.delete({ where: { id: reservationId } });
+    await this.logReservationAudit(branchId, userId, AuditAction.DELETE, reservationId);
+    return { id: reservationId };
   }
 }

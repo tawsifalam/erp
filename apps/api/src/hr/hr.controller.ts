@@ -26,7 +26,7 @@ export class HrController {
     @Tenant() t: TenantContext,
     @Body() body: { name: string; designation: string; salary: number; branchId?: string },
   ) {
-    return this.hr.createEmployee(t.organizationId, body);
+    return this.hr.createEmployee(t.organizationId, body, t.userId);
   }
 
   @Patch("employees/:id")
@@ -43,7 +43,7 @@ export class HrController {
       status?: EmployeeStatus;
     },
   ) {
-    return this.hr.updateEmployee(t.organizationId, id, body);
+    return this.hr.updateEmployee(t.organizationId, id, body, t.userId);
   }
 
   @Get("attendance")

@@ -9,6 +9,8 @@ import { JoinRequestStatus, ReservationStatus, Role } from "@erp/types";
 import { generateId, generateJoinCode, generatePrefixedId } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryPoolsService } from "../inventory/inventory-pools.service";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 
 const VALID_ROLES = new Set(Object.values(Role));
 
@@ -32,6 +34,7 @@ export class TenantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryPools: InventoryPoolsService,
+    private readonly audit: AuditService,
   ) {}
 
   listOrganizations(userId: string) {
@@ -53,16 +56,31 @@ export class TenantsService {
     });
   }
 
-  updateOrganization(organizationId: string, data: { name?: string }) {
+  async updateOrganization(
+    organizationId: string,
+    data: { name?: string },
+    actingUserId?: string,
+  ) {
     if (data.name !== undefined && !data.name.trim()) {
       throw new BadRequestException("Organization name is required");
     }
 
-    return this.prisma.organization.update({
+    const org = await this.prisma.organization.update({
       where: { id: organizationId },
       data: data.name !== undefined ? { name: data.name.trim() } : data,
       include: { branches: { orderBy: { name: "asc" } } },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.ORGANIZATION,
+      entityId: organizationId,
+      metadata: { name: org.name },
+    });
+
+    return org;
   }
 
   private async uniqueJoinCode(): Promise<string> {
@@ -285,7 +303,7 @@ export class TenantsService {
       throw new ConflictException("User is already a member of this organization");
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       await tx.userOrganization.create({
         data: {
           userId: request.userId,
@@ -294,7 +312,7 @@ export class TenantsService {
         },
       });
 
-      const updated = await tx.organizationJoinRequest.update({
+      const result = await tx.organizationJoinRequest.update({
         where: { id: requestId },
         data: {
           status: JoinRequestStatus.APPROVED,
@@ -317,8 +335,19 @@ export class TenantsService {
         data: { status: JoinRequestStatus.CANCELLED },
       });
 
-      return updated;
+      return result;
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: reviewerUserId,
+      action: AuditAction.APPROVE,
+      entityType: AuditEntityType.JOIN_REQUEST,
+      entityId: requestId,
+      metadata: { memberUserId: request.userId, role: assignedRole },
+    });
+
+    return updated;
   }
 
   async rejectJoinRequest(
@@ -332,7 +361,7 @@ export class TenantsService {
     });
     if (!request) throw new NotFoundException("Pending join request not found");
 
-    return this.prisma.organizationJoinRequest.update({
+    const updated = await this.prisma.organizationJoinRequest.update({
       where: { id: requestId },
       data: {
         status: JoinRequestStatus.REJECTED,
@@ -341,6 +370,16 @@ export class TenantsService {
         reviewedAt: new Date(),
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: reviewerUserId,
+      action: AuditAction.REJECT,
+      entityType: AuditEntityType.JOIN_REQUEST,
+      entityId: requestId,
+    });
+
+    return updated;
   }
 
   private async getFounderUserId(organizationId: string): Promise<string | null> {
@@ -397,13 +436,24 @@ export class TenantsService {
       }
     }
 
-    return this.prisma.userOrganization.update({
+    const updated = await this.prisma.userOrganization.update({
       where: { id: membership.id },
       data: { role: newRole },
       include: {
         user: { select: { id: true, email: true, name: true } },
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.ROLE_CHANGE,
+      entityType: AuditEntityType.USER_ORGANIZATION,
+      entityId: membership.id,
+      metadata: { targetUserId, role: newRole },
+    });
+
+    return updated;
   }
 
   async removeMember(organizationId: string, targetUserId: string, actingUserId: string) {
@@ -436,6 +486,15 @@ export class TenantsService {
       where: { id: membership.id },
     });
 
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.REMOVE_MEMBER,
+      entityType: AuditEntityType.USER_ORGANIZATION,
+      entityId: membership.id,
+      metadata: { targetUserId },
+    });
+
     return { removed: true, userId: targetUserId };
   }
 
@@ -446,28 +505,44 @@ export class TenantsService {
     });
   }
 
-  createBranch(organizationId: string, data: { name: string; timezone: string }) {
+  async createBranch(
+    organizationId: string,
+    data: { name: string; timezone: string },
+    actingUserId?: string,
+  ) {
     if (!data.name?.trim()) throw new BadRequestException("Branch name is required");
     if (!data.timezone?.trim()) throw new BadRequestException("Timezone is required");
 
-    return this.prisma.branch.create({
+    const branch = await this.prisma.branch.create({
       data: {
         organizationId,
         name: data.name.trim(),
         timezone: data.timezone.trim(),
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.BRANCH,
+      entityId: branch.id,
+      metadata: { name: branch.name },
+    });
+
+    return branch;
   }
 
   async updateBranch(
     branchId: string,
     organizationId: string,
     data: { name?: string; timezone?: string },
+    actingUserId?: string,
   ) {
-    const branch = await this.prisma.branch.findFirst({
+    const existing = await this.prisma.branch.findFirst({
       where: { id: branchId, organizationId },
     });
-    if (!branch) throw new NotFoundException("Branch not found");
+    if (!existing) throw new NotFoundException("Branch not found");
 
     if (data.name !== undefined && !data.name.trim()) {
       throw new BadRequestException("Branch name is required");
@@ -476,13 +551,24 @@ export class TenantsService {
       throw new BadRequestException("Timezone is required");
     }
 
-    return this.prisma.branch.update({
+    const branch = await this.prisma.branch.update({
       where: { id: branchId },
       data: {
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
         ...(data.timezone !== undefined ? { timezone: data.timezone.trim() } : {}),
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.BRANCH,
+      entityId: branchId,
+      metadata: { name: branch.name },
+    });
+
+    return branch;
   }
 
   getBranch(branchId: string, organizationId: string) {
@@ -491,7 +577,7 @@ export class TenantsService {
     });
   }
 
-  async deleteBranch(branchId: string, organizationId: string) {
+  async deleteBranch(branchId: string, organizationId: string, actingUserId?: string) {
     const branch = await this.prisma.branch.findFirst({
       where: { id: branchId, organizationId },
     });
@@ -526,6 +612,15 @@ export class TenantsService {
         data: { branchId: null },
       });
       await tx.branch.delete({ where: { id: branchId } });
+    });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.BRANCH,
+      entityId: branchId,
+      metadata: { name: branch.name },
     });
 
     return { deleted: true, id: branchId };

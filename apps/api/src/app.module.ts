@@ -22,6 +22,7 @@ import { StorageModule } from "./storage/storage.module";
 import { EventsModule } from "./common/events/events.module";
 import { InclusionsModule } from "./inclusions/inclusions.module";
 import { ProcurementModule } from "./procurement/procurement.module";
+import { AuditModule } from "./audit/audit.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -43,6 +44,7 @@ import { HealthController } from "./health.controller";
       { name: "pdf" },
     ),
     PrismaModule,
+    AuditModule,
     StorageModule,
     AuthModule,
     TenantsModule,

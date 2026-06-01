@@ -1,11 +1,16 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { AccountType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 import { roundMoney, generatePrefixedId } from "@erp/utils";
 
 @Injectable()
 export class AccountingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   listAccounts(organizationId: string) {
     return this.prisma.account.findMany({ where: { organizationId } });
@@ -47,6 +52,7 @@ export class AccountingService {
     referenceType?: string;
     referenceId?: string;
     description?: string;
+    userId?: string;
   }) {
     const totalDebit = roundMoney(
       params.lines.reduce((s, l) => s + l.debit, 0),
@@ -65,7 +71,7 @@ export class AccountingService {
       throw new BadRequestException("At least two journal lines required");
     }
 
-    return this.prisma.journalEntry.create({
+    const entry = await this.prisma.journalEntry.create({
       data: {
         organizationId: params.organizationId,
         description: params.description,
@@ -82,6 +88,21 @@ export class AccountingService {
       },
       include: { lines: { include: { account: true } } },
     });
+
+    await this.audit.record({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.JOURNAL_ENTRY,
+      entityId: entry.id,
+      metadata: {
+        referenceType: params.referenceType,
+        referenceId: params.referenceId,
+        lineCount: params.lines.length,
+      },
+    });
+
+    return entry;
   }
 
   async getAccountByCode(organizationId: string, code: string) {

@@ -1,3 +1,5 @@
+import { recordAudit } from "./audit-state";
+
 type MockAccount = { id: string; code: string; name: string; type: string };
 
 type MockJournal = {
@@ -104,6 +106,12 @@ export function handleAccountingMutation(
         }),
       };
       journals.unshift(entry);
+      recordAudit({
+        action: "CREATE",
+        entityType: "journal_entry",
+        entityId: entry.id,
+        metadata: { lineCount: lines.length },
+      });
       return entry;
     }
   }

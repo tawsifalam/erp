@@ -1,3 +1,5 @@
+import { recordAudit } from "./audit-state";
+
 type MockPool = {
   id: string;
   code: string;
@@ -176,6 +178,12 @@ export function handleInventoryItemMutation(
       pool: { id: pool.id, code: pool.code, name: pool.name },
     };
     items.push(item);
+    recordAudit({
+      action: "CREATE",
+      entityType: "inventory_item",
+      entityId: item.id,
+      metadata: { name: item.name, sku: item.sku },
+    });
     return item;
   }
 
@@ -235,6 +243,12 @@ export function handleInventoryMovementMutation(
     if (item) {
       item.currentStock += direction === "IN" ? qty : -qty;
     }
+    recordAudit({
+      action: "CREATE",
+      entityType: "inventory_movement",
+      entityId: mov.id,
+      metadata: { itemId: mov.itemId, movementType, quantity: qty },
+    });
     return mov;
   }
 

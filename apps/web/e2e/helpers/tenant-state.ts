@@ -1,3 +1,5 @@
+import { E2E_ORG_ID, recordAudit } from "./audit-state";
+
 type MockBranch = {
   id: string;
   name: string;
@@ -52,6 +54,12 @@ export function handleTenantMutation(
     if (method === "GET") return getCurrentOrganization();
     if (method === "PATCH" && body?.name) {
       orgName = String(body.name);
+      recordAudit({
+        action: "UPDATE",
+        entityType: "organization",
+        entityId: E2E_ORG_ID,
+        metadata: { name: orgName },
+      });
       return getCurrentOrganization();
     }
   }
@@ -63,6 +71,12 @@ export function handleTenantMutation(
     if (!branch) return { status: 404, message: "Branch not found" };
     if (body?.name) branch.name = String(body.name);
     if (body?.timezone) branch.timezone = String(body.timezone);
+    recordAudit({
+      action: "UPDATE",
+      entityType: "branch",
+      entityId: id,
+      metadata: { name: branch.name },
+    });
     return { ...branch };
   }
 
@@ -75,6 +89,12 @@ export function handleTenantMutation(
       return { status: 400, message: "Cannot delete the last branch in the organization" };
     }
     branches = branches.filter((b) => b.id !== id);
+    recordAudit({
+      action: "DELETE",
+      entityType: "branch",
+      entityId: id,
+      metadata: { name: branch.name },
+    });
     return { deleted: true, id };
   }
 
@@ -87,6 +107,12 @@ export function handleTenantMutation(
         timezone: String(body?.timezone ?? "Asia/Dhaka"),
       };
       branches.push(branch);
+      recordAudit({
+        action: "CREATE",
+        entityType: "branch",
+        entityId: branch.id,
+        metadata: { name: branch.name },
+      });
       return branch;
     }
   }

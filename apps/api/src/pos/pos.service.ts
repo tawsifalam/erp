@@ -10,6 +10,8 @@ import { PrismaService, TransactionClient } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { OrderCompletedEvent } from "../common/events/order-completed.event";
 import { toNumber, generatePrefixedId } from "@erp/utils";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 
 const CANCELLABLE: string[] = [OrderStatus.DRAFT, OrderStatus.SUBMITTED];
 const COMPLETABLE: string[] = [
@@ -28,6 +30,7 @@ export class PosService {
     private readonly prisma: PrismaService,
     private readonly events: EventEmitter2,
     private readonly realtime: RealtimeGateway,
+    private readonly audit: AuditService,
   ) {}
 
   listCategories(branchId: string) {
@@ -260,6 +263,7 @@ export class PosService {
     branchId: string,
     organizationId: string,
     paidAmount?: number,
+    userId?: string,
   ) {
     const order = await this.getOrder(branchId, orderId);
 
@@ -301,10 +305,25 @@ export class PosService {
       new OrderCompletedEvent(orderId, branchId, organizationId, total, paid),
     );
     this.realtime.emitOrderUpdate(branchId, updated);
+
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.ORDER,
+      entityId: orderId,
+      metadata: { status: OrderStatus.COMPLETED, paidAmount: paid },
+    });
+
     return updated;
   }
 
-  async cancelOrder(orderId: string, branchId: string) {
+  async cancelOrder(
+    orderId: string,
+    branchId: string,
+    organizationId: string,
+    userId?: string,
+  ) {
     const order = await this.getOrder(branchId, orderId);
 
     if (!CANCELLABLE.includes(order.status)) {
@@ -325,6 +344,16 @@ export class PosService {
     });
 
     this.realtime.emitOrderUpdate(branchId, updated);
+
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.ORDER,
+      entityId: orderId,
+      metadata: { status: OrderStatus.CANCELLED },
+    });
+
     return updated;
   }
 

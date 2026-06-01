@@ -51,6 +51,7 @@ import {
   handleTenantMutation,
   resetTenantState,
 } from "./tenant-state";
+import { listAuditLogs, resetAuditState } from "./audit-state";
 
 /** Nest API on port 3001 (localhost or 127.0.0.1). */
 export function isBackendApiUrl(url: string): boolean {
@@ -294,6 +295,7 @@ export async function mockApiRoutes(page: Page) {
   resetInclusionsState();
   resetReportingState();
   resetTenantState();
+  resetAuditState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -315,6 +317,24 @@ export async function mockApiRoutes(page: Page) {
     }
     return fulfillJson(route, result);
   };
+
+  await page.route(backendApiRoute("audit/logs"), async (route) => {
+    if (route.request().method() !== "GET") {
+      return fulfillJson(route, {});
+    }
+    const url = new URL(route.request().url());
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const result = listAuditLogs(String(orgId), {
+      entityType: url.searchParams.get("entityType") || undefined,
+      userId: url.searchParams.get("userId") || undefined,
+      from: url.searchParams.get("from") || undefined,
+      to: url.searchParams.get("to") || undefined,
+      limit: url.searchParams.get("limit")
+        ? Number.parseInt(url.searchParams.get("limit")!, 10)
+        : undefined,
+    });
+    return fulfillJson(route, result);
+  });
 
   await page.route(backendApiRoute("tenants/onboarding/status"), (route) =>
     fulfillJson(route, {

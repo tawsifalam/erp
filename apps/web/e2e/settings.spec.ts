@@ -91,6 +91,12 @@ test.describe("Settings – Organization & branch management", () => {
     await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
   });
 
+  test("audit log tab loads for admins", async ({ page }) => {
+    await page.goto("/settings?tab=audit");
+    await expect(page.getByRole("tab", { name: "Audit log" })).toBeVisible();
+    await expect(page.getByText("Recent activity")).toBeVisible();
+  });
+
   test("deep-link opens team and access tab with breadcrumb", async ({ page }) => {
     await page.goto("/settings?tab=team");
     await expect(page.getByTestId("app-breadcrumbs")).toContainText("Team & access");

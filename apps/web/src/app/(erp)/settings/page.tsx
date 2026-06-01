@@ -25,6 +25,7 @@ import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 import { useModuleTab } from "@/lib/use-module-tab";
 import { InventoryPoolsSection } from "./inventory-pools-section";
 import { TeamAccessSection } from "./team-access-section";
+import { AuditLogSection } from "./audit-log-section";
 
 type Branch = {
   id: string;
@@ -209,6 +210,7 @@ export default function SettingsPage() {
             <Tabs.List mb={4}>
               <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
               <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
+              <Tabs.Trigger value="audit">Audit log</Tabs.Trigger>
               <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
             </Tabs.List>
           </ScrollableTabsList>
@@ -307,6 +309,10 @@ export default function SettingsPage() {
 
           <Tabs.Content value="team" pt={2}>
             <TeamAccessSection tenant={tenantHeaders} />
+          </Tabs.Content>
+
+          <Tabs.Content value="audit" pt={2}>
+            <AuditLogSection tenant={tenantHeaders} />
           </Tabs.Content>
 
           <Tabs.Content value="pools" pt={2}>

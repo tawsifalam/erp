@@ -3,6 +3,7 @@ export const NotificationType = {
   PAYROLL_COMPLETED: "PAYROLL_COMPLETED",
   PAYROLL_FAILED: "PAYROLL_FAILED",
   REPORT_READY: "REPORT_READY",
+  PO_AWAITING_RECEIPT: "PO_AWAITING_RECEIPT",
 } as const;
 
 export type NotificationTypeValue =

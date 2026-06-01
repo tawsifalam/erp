@@ -26,5 +26,20 @@ test.describe("Reports", () => {
     await expect(page.locator("select option", { hasText: "Branch summary" })).toHaveCount(1);
     await expect(page.locator("select option", { hasText: "Trial balance" })).toHaveCount(1);
     await expect(page.locator("select option", { hasText: "Profit & loss" })).toHaveCount(1);
+    await expect(page.locator("select option", { hasText: "Balance sheet" })).toHaveCount(1);
+  });
+
+  test("queues profit and loss financial export", async ({ page }) => {
+    await page.goto("/reports");
+    const hidden = page.locator("select").filter({
+      has: page.locator('option[value="profit_and_loss"]'),
+    });
+    await hidden.selectOption("profit_and_loss", { force: true });
+    await expect(page.getByText("From")).toBeVisible();
+    await page.getByRole("button", { name: "Export CSV" }).click();
+    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("cell", { name: "profit_and_loss" }).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });

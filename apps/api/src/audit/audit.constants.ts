@@ -26,4 +26,6 @@ export const AuditEntityType = {
   RESERVATION: "reservation",
   ORDER: "order",
   EMPLOYEE: "employee",
+  RATE_PLAN: "rate_plan",
+  RATE_RULE: "rate_rule",
 } as const;

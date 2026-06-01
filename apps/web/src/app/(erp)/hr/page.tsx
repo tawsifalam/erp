@@ -29,7 +29,7 @@ import {
   StatusBadge,
 } from "@erp/ui";
 import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, apiFetchBlob } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
@@ -51,6 +51,7 @@ type PayrollRun = {
   periodStart: string;
   periodEnd: string;
   createdAt: string;
+  payslipKey?: string | null;
   lines: {
     employee: { name: string };
     grossPay: string;
@@ -667,13 +668,41 @@ export default function HrPage() {
             payrollRuns.map((run) => (
               <ContentCard key={run.id} mb={4} p={0} overflow="hidden">
                 <Box px={4} pt={4} pb={2}>
-                  <Flex justify="space-between" wrap="wrap" gap={2}>
+                  <Flex justify="space-between" wrap="wrap" gap={2} align="center">
                     <Text fontWeight="semibold">
                       {formatDateTime(run.periodStart)} — {formatDateTime(run.periodEnd)}
                     </Text>
-                    <Text fontSize="sm" color="fg.muted">
-                      {run.status}
-                    </Text>
+                    <Flex gap={2} align="center">
+                      {run.status === "COMPLETED" && run.payslipKey && (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          data-testid="download-payslip"
+                          onClick={async () => {
+                            try {
+                              const blob = await apiFetchBlob(`/payroll/runs/${run.id}/payslip`, {
+                                tenant,
+                              });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `payroll-${run.id}.pdf`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            } catch (e) {
+                              appToast.error(
+                                e instanceof Error ? e.message : "Failed to download payslip",
+                              );
+                            }
+                          }}
+                        >
+                          Download payslip
+                        </Button>
+                      )}
+                      <Text fontSize="sm" color="fg.muted">
+                        {run.status}
+                      </Text>
+                    </Flex>
                   </Flex>
                 </Box>
                 <TableScrollArea>

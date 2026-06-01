@@ -8,13 +8,14 @@ import { NotificationsService } from "../notifications/notifications.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
+  buildMinimalPdf: () => Buffer.from("%PDF-1.4"),
 }));
 
 const mockPrisma = {
   payrollRun: { findUnique: jest.fn(), update: jest.fn() },
   employee: { findMany: jest.fn() },
   staffMeal: { findMany: jest.fn(), updateMany: jest.fn() },
-  payrollLine: { create: jest.fn() },
+  payrollLine: { create: jest.fn(), findMany: jest.fn() },
 };
 
 const mockStorage = {
@@ -63,12 +64,22 @@ describe("PayrollProcessor", () => {
     mockPrisma.payrollRun.findUnique.mockResolvedValue({
       id: "pr-1",
       organizationId: "org-1",
+      periodStart: new Date("2026-06-01"),
+      periodEnd: new Date("2026-06-30"),
     });
     mockPrisma.employee.findMany.mockResolvedValue([
       { id: "emp-1", salary: 45000 },
     ]);
     mockPrisma.staffMeal.findMany.mockResolvedValue([
       { id: "sm-1", mealCount: 2, unitCostPerMeal: 50, deductFromPayroll: true },
+    ]);
+    mockPrisma.payrollLine.findMany.mockResolvedValue([
+      {
+        grossPay: 45000,
+        deductions: 100,
+        netPay: 44900,
+        employee: { name: "Karim Hossain" },
+      },
     ]);
 
     await processor.process({ data: { payrollRunId: "pr-1" } } as never);
@@ -90,11 +101,17 @@ describe("PayrollProcessor", () => {
       data: { payrollDeducted: true },
     });
     expect(mockPayrollJournal.postPayrollRunJournal).toHaveBeenCalledWith("pr-1", "org-1");
+    expect(mockStorage.upload).toHaveBeenCalledWith(
+      "payroll/pr-1.pdf",
+      expect.any(Buffer),
+      "application/pdf",
+    );
     expect(mockPrisma.payrollRun.update).toHaveBeenLastCalledWith({
       where: { id: "pr-1" },
       data: {
         status: PayrollRunStatus.COMPLETED,
         completedAt: expect.any(Date),
+        payslipKey: "payroll/pr-1.pdf",
       },
     });
   });

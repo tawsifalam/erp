@@ -17,6 +17,9 @@ export const apiEnvSchema = z.object({
     .string()
     .transform((v) => v === "true")
     .default("false"),
+  /** Optional — when set, notification emails send via Resend. */
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
 });
 
 export const webEnvSchema = z.object({

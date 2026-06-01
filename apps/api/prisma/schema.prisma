@@ -415,6 +415,7 @@ model PayrollRun {
   periodStart    DateTime
   periodEnd      DateTime
   status         String   @default("PENDING")
+  payslipKey     String?
   createdAt      DateTime         @default(now())
   completedAt    DateTime?
 

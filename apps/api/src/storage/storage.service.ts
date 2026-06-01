@@ -36,4 +36,15 @@ export class StorageService implements OnModuleInit {
     });
     return { key, url: `${this.bucket}/${key}` };
   }
+
+  async download(key: string): Promise<Buffer | null> {
+    if (!this.enabled) return null;
+    const stream = await this.client.getObject(this.bucket, key);
+    const chunks: Buffer[] = [];
+    return new Promise((resolve, reject) => {
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("end", () => resolve(Buffer.concat(chunks)));
+      stream.on("error", reject);
+    });
+  }
 }

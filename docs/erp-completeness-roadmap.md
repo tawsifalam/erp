@@ -6,23 +6,20 @@ Path from **Phase 1 hospitality operations platform** (current) to a **complete 
 
 | Module | Scope | Doc |
 |--------|-------|-----|
-| Settings | Orgs, branches, inventory pools | [settings-module.md](./settings-module.md) |
-| PMS | Rooms, guests, reservations, housekeeping | [pms-module.md](./pms-module.md) |
+| Settings | Orgs, branches, inventory pools, audit log, team & roles | [settings-module.md](./settings-module.md) |
+| PMS | Rooms, guests, reservations, rates, housekeeping | [pms-module.md](./pms-module.md) |
 | POS | Menu, orders, kitchen, payments | [pos-module.md](./pos-module.md) |
-| Inventory | Ledger, movements, recipes/BOM, pools | [inventory-module.md](./inventory-module.md) |
-| Accounting | CoA, manual journals, PMS/POS auto-posting | [accounting-module.md](./accounting-module.md) |
-| HR | Employees, attendance, staff meal recipes | [hr-module.md](./hr-module.md) |
-| Payroll | Async runs, staff-meal deductions | [hr-module.md](./hr-module.md) § Payroll |
-| Reporting | Dashboard metrics, CSV exports | [reporting-module.md](./reporting-module.md) |
+| Inventory | Ledger, movements, weighted-average costing, recipes/BOM, pools | [inventory-module.md](./inventory-module.md) |
+| Procurement | Vendors, POs, receive → stock + AP journal | — |
+| Accounting | CoA, manual journals, PMS/POS/payroll auto-posting | [accounting-module.md](./accounting-module.md) |
+| HR | Employees, attendance, staff meals, payroll runs | [hr-module.md](./hr-module.md) |
+| Payroll | Async runs, GL journals, PDF payslip | [hr-module.md](./hr-module.md) § Payroll |
+| Reporting | Dashboard metrics, operational + financial CSV exports | [reporting-module.md](./reporting-module.md) |
+| Notifications | In-app bell; email via Resend when `RESEND_API_KEY` is set | — |
 
-**Stubs (not modules yet):** `notifications` (log-only worker), `integrations` (health stub), `AuditLog` (schema only), user admin (list members API only).
+**Still a stub:** `integrations` (health check only).
 
-**Known Phase 1 placeholders:**
-
-- COGS estimate: recipe qty × `1` (not real unit cost)
-- Payroll artifact: `.txt` upload, not PDF payslip
-- Payroll does not post accounting journals
-- No vendor / PO workflow — `PURCHASE` movements are manual
+**Optional / Phase 2:** PropelAuth email invite (join-code flow is the MVP), rate-plan room+F&B packages, fiscal periods & period close.
 
 ---
 
@@ -326,18 +323,18 @@ flowchart TD
 Use this to decide when to call the product a **complete hospitality ERP**:
 
 ### Finance complete
-- [ ] Procurement: PO → receive → stock → AP journal
-- [ ] Real inventory costing on all COGS postings
-- [ ] Trial balance, P&L, balance sheet exports
-- [ ] Payroll posts to GL; payslip PDF available
+- [x] Procurement: PO → receive → stock → AP journal
+- [x] Real inventory costing on all COGS postings
+- [x] Trial balance, P&L, balance sheet exports
+- [x] Payroll posts to GL; payslip PDF available
 
 ### Control complete
-- [ ] Audit log for all write operations (admin viewable)
-- [ ] Team management UI (roles, invite)
-- [ ] Operational notifications (low stock, payroll, reports)
+- [x] Audit log for sensitive writes (admin viewable)
+- [x] Team management UI (roles, join requests)
+- [x] Operational notifications (low stock, payroll, reports, PO submitted)
 
 ### Operations complete (Phase 1 + rates)
-- [ ] Rate plans drive reservation pricing
+- [x] Rate plans drive reservation pricing
 - [ ] (Phase 2) Channel manager imports OTA bookings
 
 When **Finance complete** + **Control complete** are checked, the product meets the internal **complete ERP** bar for hospitality. Phase 2 items extend reach and UX, not core ERP completeness.

@@ -223,19 +223,23 @@ export class PmsController {
       mealsPerGuestPerNightOverride?: number;
     },
   ) {
-    return this.pms.createReservation(body.branchId || t.branchId!, {
-      guestId: body.guestId,
-      roomId: body.roomId,
-      checkIn: new Date(body.checkIn),
-      checkOut: new Date(body.checkOut),
-      totalAmount: body.totalAmount,
-      paidAmount: body.paidAmount,
-      status: body.status,
-      adultCount: body.adultCount,
-      childCount: body.childCount,
-      packageId: body.packageId,
-      mealsPerGuestPerNightOverride: body.mealsPerGuestPerNightOverride,
-    });
+    return this.pms.createReservation(
+      body.branchId || t.branchId!,
+      {
+        guestId: body.guestId,
+        roomId: body.roomId,
+        checkIn: new Date(body.checkIn),
+        checkOut: new Date(body.checkOut),
+        totalAmount: body.totalAmount,
+        paidAmount: body.paidAmount,
+        status: body.status,
+        adultCount: body.adultCount,
+        childCount: body.childCount,
+        packageId: body.packageId,
+        mealsPerGuestPerNightOverride: body.mealsPerGuestPerNightOverride,
+      },
+      t.userId,
+    );
   }
 
   @Patch("reservations/:id")
@@ -258,11 +262,16 @@ export class PmsController {
       mealsPerGuestPerNightOverride?: number | null;
     },
   ) {
-    return this.pms.updateReservation(this.branchId(t, branchId), id, {
-      ...body,
-      checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
-      checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
-    });
+    return this.pms.updateReservation(
+      this.branchId(t, branchId),
+      id,
+      {
+        ...body,
+        checkIn: body.checkIn ? new Date(body.checkIn) : undefined,
+        checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
+      },
+      t.userId,
+    );
   }
 
   @Patch("reservations/:id/confirm")
@@ -365,7 +374,7 @@ export class PmsController {
       isActive?: boolean;
     },
   ) {
-    return this.ratePlans.create(t.organizationId, body);
+    return this.ratePlans.create(t.organizationId, body, t.userId);
   }
 
   @Patch("rate-plans/:id")
@@ -382,13 +391,13 @@ export class PmsController {
       isActive?: boolean;
     },
   ) {
-    return this.ratePlans.update(t.organizationId, id, body);
+    return this.ratePlans.update(t.organizationId, id, body, t.userId);
   }
 
   @Delete("rate-plans/:id")
   @RequirePermission(Permission.PMS_WRITE)
   deleteRatePlan(@Tenant() t: TenantContext, @Param("id") id: string) {
-    return this.ratePlans.delete(t.organizationId, id);
+    return this.ratePlans.delete(t.organizationId, id, t.userId);
   }
 
   @Post("rate-plans/:id/rules")
@@ -403,7 +412,7 @@ export class PmsController {
       pricePerNight?: number | null;
     },
   ) {
-    return this.ratePlans.addRule(t.organizationId, id, body);
+    return this.ratePlans.addRule(t.organizationId, id, body, t.userId);
   }
 
   @Delete("rate-plans/:planId/rules/:ruleId")
@@ -413,7 +422,7 @@ export class PmsController {
     @Param("planId") planId: string,
     @Param("ruleId") ruleId: string,
   ) {
-    return this.ratePlans.deleteRule(t.organizationId, planId, ruleId);
+    return this.ratePlans.deleteRule(t.organizationId, planId, ruleId, t.userId);
   }
 
   @Get("pricing/quote")

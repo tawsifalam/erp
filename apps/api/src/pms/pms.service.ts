@@ -378,6 +378,7 @@ export class PmsService {
       packageId?: string;
       mealsPerGuestPerNightOverride?: number;
     },
+    userId?: string,
   ) {
     const pricing = await this.resolveStayPricing(
       data.roomId,
@@ -409,7 +410,7 @@ export class PmsService {
     };
 
     if (status === ReservationStatus.INQUIRY) {
-      return this.prisma.reservation.create({
+      const created = await this.prisma.reservation.create({
         data: {
           branchId,
           guestId: data.guestId,
@@ -424,11 +425,15 @@ export class PmsService {
         },
         include: { guest: true, room: { include: { roomType: true } }, package: true },
       });
+      await this.logReservationAudit(branchId, userId, AuditAction.CREATE, created.id, {
+        status: ReservationStatus.INQUIRY,
+      });
+      return created;
     }
 
     await this.assertRoomAvailable(branchId, data.roomId, data.checkIn, data.checkOut);
 
-    return this.prisma.reservation.create({
+    const created = await this.prisma.reservation.create({
       data: {
         branchId,
         guestId: data.guestId,
@@ -443,6 +448,10 @@ export class PmsService {
       },
       include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
+    await this.logReservationAudit(branchId, userId, AuditAction.CREATE, created.id, {
+      status,
+    });
+    return created;
   }
 
   async updateReservation(
@@ -460,6 +469,7 @@ export class PmsService {
       packageId?: string | null;
       mealsPerGuestPerNightOverride?: number | null;
     },
+    userId?: string,
   ) {
     const reservation = await this.getReservation(branchId, reservationId);
 
@@ -529,7 +539,7 @@ export class PmsService {
       }
     }
 
-    return this.prisma.reservation.update({
+    const updated = await this.prisma.reservation.update({
       where: { id: reservationId },
       data: {
         ...(data.guestId !== undefined ? { guestId: data.guestId } : {}),
@@ -548,6 +558,8 @@ export class PmsService {
       },
       include: { guest: true, room: { include: { roomType: true } }, package: true },
     });
+    await this.logReservationAudit(branchId, userId, AuditAction.UPDATE, reservationId);
+    return updated;
   }
 
   async confirmReservation(

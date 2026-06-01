@@ -16,6 +16,10 @@ import {
   resetRatesState,
 } from "./rates-state";
 import {
+  handleProcurementMutation,
+  resetProcurementState,
+} from "./procurement-state";
+import {
   getPosCategories,
   getPosOrders,
   handlePosCategoryMutation,
@@ -300,6 +304,7 @@ export const MOCK_INVENTORY = getInventoryItems();
 export async function mockApiRoutes(page: Page) {
   resetPmsState();
   resetRatesState();
+  resetProcurementState();
   resetPosState();
   resetRecipeState();
   resetInventoryState();
@@ -317,6 +322,15 @@ export async function mockApiRoutes(page: Page) {
       contentType: "application/json",
       body: JSON.stringify(body),
     });
+
+  const isMockApiError = (
+    result: unknown,
+  ): result is { status: number; message: string } =>
+    !!result &&
+    typeof result === "object" &&
+    typeof (result as { status?: unknown }).status === "number" &&
+    (result as { status: number }).status >= 400 &&
+    typeof (result as { message?: unknown }).message === "string";
 
   const fulfillTenantMutation = (route: import("@playwright/test").Route, result: unknown) => {
     if (result && typeof result === "object" && "status" in result) {
@@ -508,17 +522,32 @@ export async function mockApiRoutes(page: Page) {
     fulfillJson(route, getPmsRooms().filter((r) => r.status === "VACANT")),
   );
 
+  await page.route(backendApiRoute("procurement/"), async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleProcurementMutation(method, url, body);
+    if (isMockApiError(result)) {
+      const err = result;
+      return route.fulfill({
+        status: err.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: err.message }),
+      });
+    }
+    return fulfillJson(route, result);
+  });
+
   await page.route(backendApiRoute("pms/rate-plans"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleRatePlanMutation(method, url, body);
-    if (result && typeof result === "object" && "status" in result) {
-      const err = result as { status: number; message: string };
+    if (isMockApiError(result)) {
       return route.fulfill({
-        status: err.status,
+        status: result.status,
         contentType: "application/json",
-        body: JSON.stringify({ message: err.message }),
+        body: JSON.stringify({ message: result.message }),
       });
     }
     return fulfillJson(route, result);

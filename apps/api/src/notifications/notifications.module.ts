@@ -3,12 +3,13 @@ import { BullModule } from "@nestjs/bullmq";
 import { NotificationsProcessor } from "./notifications.processor";
 import { NotificationsService } from "./notifications.service";
 import { NotificationsController } from "./notifications.controller";
+import { EmailService } from "./email.service";
 
 @Global()
 @Module({
   imports: [BullModule.registerQueue({ name: "notifications" })],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsProcessor],
-  exports: [NotificationsService],
+  providers: [NotificationsService, NotificationsProcessor, EmailService],
+  exports: [NotificationsService, EmailService],
 })
 export class NotificationsModule {}

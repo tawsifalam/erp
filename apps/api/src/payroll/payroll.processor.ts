@@ -5,7 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { PayrollJournalService } from "../accounting/payroll-journal.service";
 import { Role } from "@erp/types";
-import { toNumber } from "@erp/utils";
+import { buildMinimalPdf, toNumber } from "@erp/utils";
 import { NotificationsService } from "../notifications/notifications.service";
 import { NotificationType } from "../notifications/notifications.constants";
 
@@ -112,9 +112,27 @@ export class PayrollProcessor extends WorkerHost {
       }
     }
 
-    const pdfKey = `payroll/${payrollRunId}.txt`;
-    const content = Buffer.from(`Payroll run ${payrollRunId} completed`);
-    await this.storage.upload(pdfKey, content, "text/plain");
+    const lines = await this.prisma.payrollLine.findMany({
+      where: { payrollRunId },
+      include: { employee: { select: { name: true } } },
+    });
+    const fmt = (d: Date) =>
+      d instanceof Date && !Number.isNaN(d.getTime())
+        ? d.toISOString().slice(0, 10)
+        : String(d).slice(0, 10);
+    const periodLabel = `${fmt(periodStart)} – ${fmt(periodEnd)}`;
+    const payslipLines = [
+      `Period: ${periodLabel}`,
+      `Employees: ${lines.length}`,
+      "",
+      ...lines.map(
+        (l) =>
+          `${l.employee.name}: gross ${toNumber(l.grossPay)} · deductions ${toNumber(l.deductions)} · net ${toNumber(l.netPay)}`,
+      ),
+    ];
+    const pdfKey = `payroll/${payrollRunId}.pdf`;
+    const pdfBody = buildMinimalPdf(`Payroll summary — ${periodLabel}`, payslipLines);
+    await this.storage.upload(pdfKey, pdfBody, "application/pdf");
 
     await this.payrollJournal.postPayrollRunJournal(payrollRunId, organizationId);
 
@@ -123,14 +141,10 @@ export class PayrollProcessor extends WorkerHost {
       data: {
         status: PayrollRunStatus.COMPLETED,
         completedAt: new Date(),
+        payslipKey: pdfKey,
       },
     });
 
-    const fmt = (d: Date) =>
-      d instanceof Date && !Number.isNaN(d.getTime())
-        ? d.toISOString().slice(0, 10)
-        : String(d).slice(0, 10);
-    const periodLabel = `${fmt(periodStart)} – ${fmt(periodEnd)}`;
     await this.notifications.notifyOrganizationRoles(
       organizationId,
       [Role.ADMIN, Role.HR],

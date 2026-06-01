@@ -17,6 +17,9 @@ import {
   PO_STATUS_RECEIVED,
   PO_STATUS_SUBMITTED,
 } from "./procurement.constants";
+import { NotificationsService } from "../notifications/notifications.service";
+import { NotificationType } from "../notifications/notifications.constants";
+import { Role } from "@erp/types";
 
 @Injectable()
 export class ProcurementService {
@@ -25,6 +28,7 @@ export class ProcurementService {
     private readonly inventory: InventoryService,
     private readonly accounting: AccountingListenersService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   listVendors(organizationId: string) {
@@ -215,6 +219,21 @@ export class ProcurementService {
       entityType: AuditEntityType.PURCHASE_ORDER,
       entityId: purchaseOrderId,
     });
+    const vendor = await this.prisma.vendor.findUnique({
+      where: { id: po.vendorId },
+      select: { name: true },
+    });
+    await this.notifications.notifyOrganizationRoles(
+      organizationId,
+      [Role.ADMIN, Role.ACCOUNTANT],
+      {
+        type: NotificationType.PO_AWAITING_RECEIPT,
+        title: "Purchase order awaiting receipt",
+        body: `PO ${purchaseOrderId.slice(0, 8)}… from ${vendor?.name ?? "vendor"} is ready to receive.`,
+        link: "/procurement",
+        email: false,
+      },
+    );
     return updated;
   }
 

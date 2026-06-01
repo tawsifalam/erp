@@ -4,12 +4,17 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { AuditAction, AuditEntityType } from "../audit/audit.constants";
+import { AuditService } from "../audit/audit.service";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 @Injectable()
 export class RatePlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   list(organizationId: string) {
     return this.prisma.ratePlan.findMany({
@@ -32,6 +37,7 @@ export class RatePlansService {
       baseModifier?: number;
       isActive?: boolean;
     },
+    userId?: string,
   ) {
     await this.assertRoomType(organizationId, data.roomTypeId);
     const validFrom = new Date(data.validFrom);
@@ -45,7 +51,7 @@ export class RatePlansService {
       throw new BadRequestException("baseModifier must be positive");
     }
 
-    return this.prisma.ratePlan.create({
+    const plan = await this.prisma.ratePlan.create({
       data: {
         organizationId,
         roomTypeId: data.roomTypeId,
@@ -57,6 +63,15 @@ export class RatePlansService {
       },
       include: { roomType: true, rules: true },
     });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.RATE_PLAN,
+      entityId: plan.id,
+      metadata: { name: plan.name },
+    });
+    return plan;
   }
 
   async update(
@@ -69,6 +84,7 @@ export class RatePlansService {
       baseModifier?: number;
       isActive?: boolean;
     },
+    userId?: string,
   ) {
     const existing = await this.get(organizationId, id);
     const validFrom = data.validFrom ? new Date(data.validFrom) : existing.validFrom;
@@ -80,7 +96,7 @@ export class RatePlansService {
       throw new BadRequestException("baseModifier must be positive");
     }
 
-    return this.prisma.ratePlan.update({
+    const plan = await this.prisma.ratePlan.update({
       where: { id },
       data: {
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
@@ -91,11 +107,26 @@ export class RatePlansService {
       },
       include: { roomType: true, rules: true },
     });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.RATE_PLAN,
+      entityId: id,
+    });
+    return plan;
   }
 
-  async delete(organizationId: string, id: string) {
+  async delete(organizationId: string, id: string, userId?: string) {
     await this.get(organizationId, id);
     await this.prisma.ratePlan.delete({ where: { id } });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.RATE_PLAN,
+      entityId: id,
+    });
     return { deleted: true, id };
   }
 
@@ -107,6 +138,7 @@ export class RatePlansService {
       minStayNights?: number | null;
       pricePerNight?: number | null;
     },
+    userId?: string,
   ) {
     await this.get(organizationId, ratePlanId);
     if (data.dayOfWeek != null && (data.dayOfWeek < 0 || data.dayOfWeek > 6)) {
@@ -119,7 +151,7 @@ export class RatePlansService {
       throw new BadRequestException("pricePerNight cannot be negative");
     }
 
-    return this.prisma.rateRule.create({
+    const rule = await this.prisma.rateRule.create({
       data: {
         ratePlanId,
         dayOfWeek: data.dayOfWeek ?? null,
@@ -127,15 +159,37 @@ export class RatePlansService {
         pricePerNight: data.pricePerNight ?? null,
       },
     });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.RATE_RULE,
+      entityId: rule.id,
+      metadata: { ratePlanId },
+    });
+    return rule;
   }
 
-  async deleteRule(organizationId: string, ratePlanId: string, ruleId: string) {
+  async deleteRule(
+    organizationId: string,
+    ratePlanId: string,
+    ruleId: string,
+    userId?: string,
+  ) {
     await this.get(organizationId, ratePlanId);
     const rule = await this.prisma.rateRule.findFirst({
       where: { id: ruleId, ratePlanId },
     });
     if (!rule) throw new NotFoundException("Rate rule not found");
     await this.prisma.rateRule.delete({ where: { id: ruleId } });
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.RATE_RULE,
+      entityId: ruleId,
+      metadata: { ratePlanId },
+    });
     return { deleted: true, id: ruleId };
   }
 

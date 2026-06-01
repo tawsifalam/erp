@@ -11,6 +11,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { FormDrawer } from "@/components/form-drawer";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
 import { ContextBanner, ContentCard, EmptyState, FormField, TableSkeleton, TableScrollArea } from "@erp/ui";
@@ -59,8 +60,8 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState("");
   const [branchForm, setBranchForm] = useState({ name: "", timezone: "Asia/Dhaka" });
   const [newOrgForm, setNewOrgForm] = useState({ name: "", timezone: "Asia/Dhaka" });
-  const [showBranchForm, setShowBranchForm] = useState(false);
-  const [showNewOrgForm, setShowNewOrgForm] = useState(false);
+  const [branchDrawerOpen, setBranchDrawerOpen] = useState(false);
+  const [newOrgDrawerOpen, setNewOrgDrawerOpen] = useState(false);
 
   const isAdmin = canManageTenants(tenant.role);
   const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
@@ -115,7 +116,7 @@ export default function SettingsPage() {
         body: JSON.stringify(branchForm),
       });
       setBranchForm({ name: "", timezone: "Asia/Dhaka" });
-      setShowBranchForm(false);
+      setBranchDrawerOpen(false);
       appToast.success("Branch created");
       await tenant.refreshMemberships();
       load();
@@ -174,7 +175,7 @@ export default function SettingsPage() {
         method: "POST",
         body: JSON.stringify(newOrgForm),
       });
-      setShowNewOrgForm(false);
+      setNewOrgDrawerOpen(false);
       setNewOrgForm({ name: "", timezone: "Asia/Dhaka" });
       appToast.success(`Organization "${name}" created`);
       await tenant.refreshMemberships();
@@ -213,49 +214,19 @@ export default function SettingsPage() {
           </ScrollableTabsList>
 
           <Tabs.Content value="organization" pt={2}>
-            <Flex gap={2} mb={4}>
-              <Button size="sm" variant="outline" onClick={() => setShowNewOrgForm(!showNewOrgForm)}>
-                {showNewOrgForm ? "Cancel" : "+ New organization"}
+            <Flex gap={2} mb={4} wrap="wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                w={{ base: "full", sm: "auto" }}
+                onClick={() => setNewOrgDrawerOpen(true)}
+              >
+                + New organization
               </Button>
               <Button size="sm" onClick={load}>
                 Refresh
               </Button>
             </Flex>
-
-            {showNewOrgForm && (
-              <ContentCard mb={4}>
-                <Text fontWeight="semibold" mb={3}>
-                  Create organization
-                </Text>
-                <Text fontSize="sm" color="fg.muted" mb={3}>
-                  Creates a new organization, default &quot;Main Branch&quot;, guest/staff inventory
-                  pools, and assigns you as OWNER.
-                </Text>
-                <Flex gap={2} wrap="wrap" mb={3}>
-                  <FormField label="Organization name" required>
-                    <Input
-                      size="sm"
-                      w="220px"
-                      placeholder="Organization name"
-                      value={newOrgForm.name}
-                      onChange={(e) => setNewOrgForm({ ...newOrgForm, name: e.target.value })}
-                    />
-                  </FormField>
-                  <FormField label="Timezone" help="IANA timezone for the default branch.">
-                    <Input
-                      size="sm"
-                      w="180px"
-                      placeholder="Timezone (IANA)"
-                      value={newOrgForm.timezone}
-                      onChange={(e) => setNewOrgForm({ ...newOrgForm, timezone: e.target.value })}
-                    />
-                  </FormField>
-                </Flex>
-                <Button size="sm" colorPalette="blue" onClick={createOrganization}>
-                  Create organization
-                </Button>
-              </ContentCard>
-            )}
 
             {loading && !org && <TableSkeleton rows={3} columns={2} />}
             {org && (
@@ -284,40 +255,15 @@ export default function SettingsPage() {
 
             <Flex justify="space-between" align="center" mb={3}>
               <Text fontWeight="semibold">Branches</Text>
-              <Button size="sm" colorPalette="blue" onClick={() => setShowBranchForm(!showBranchForm)}>
-                {showBranchForm ? "Cancel" : "+ Add branch"}
+              <Button
+                size="sm"
+                colorPalette="blue"
+                w={{ base: "full", sm: "auto" }}
+                onClick={() => setBranchDrawerOpen(true)}
+              >
+                + Add branch
               </Button>
             </Flex>
-
-            {showBranchForm && (
-              <ContentCard mb={4}>
-                <Stack gap={3}>
-                  <Flex gap={2} wrap="wrap">
-                    <FormField label="Branch name" required>
-                      <Input
-                        size="sm"
-                        w="200px"
-                        placeholder="Branch name"
-                        value={branchForm.name}
-                        onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                      />
-                    </FormField>
-                    <FormField label="Timezone" help="IANA timezone for this branch.">
-                      <Input
-                        size="sm"
-                        w="180px"
-                        placeholder="Timezone"
-                        value={branchForm.timezone}
-                        onChange={(e) => setBranchForm({ ...branchForm, timezone: e.target.value })}
-                      />
-                    </FormField>
-                  </Flex>
-                  <Button size="sm" colorPalette="green" w="fit-content" onClick={addBranch}>
-                    Create branch
-                  </Button>
-                </Stack>
-              </ContentCard>
-            )}
 
             <ContentCard>
               {loading ? (
@@ -368,6 +314,75 @@ export default function SettingsPage() {
           </Tabs.Content>
         </Tabs.Root>
       )}
+
+      <FormDrawer
+        open={newOrgDrawerOpen}
+        onClose={() => {
+          setNewOrgDrawerOpen(false);
+          setNewOrgForm({ name: "", timezone: "Asia/Dhaka" });
+        }}
+        title="Create organization"
+        description='Creates a new organization, default "Main Branch", inventory pools, and assigns you as OWNER.'
+        size="sm"
+        primaryLabel="Create organization"
+        onPrimary={createOrganization}
+        primaryDisabled={!newOrgForm.name.trim()}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Organization name" required>
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Organization name"
+              value={newOrgForm.name}
+              onChange={(e) => setNewOrgForm({ ...newOrgForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Timezone" help="IANA timezone for the default branch.">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Timezone (IANA)"
+              value={newOrgForm.timezone}
+              onChange={(e) => setNewOrgForm({ ...newOrgForm, timezone: e.target.value })}
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
+
+      <FormDrawer
+        open={branchDrawerOpen}
+        onClose={() => {
+          setBranchDrawerOpen(false);
+          setBranchForm({ name: "", timezone: "Asia/Dhaka" });
+        }}
+        title="Add branch"
+        size="sm"
+        primaryLabel="Create branch"
+        onPrimary={addBranch}
+        primaryDisabled={!branchForm.name.trim()}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Branch name" required>
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Branch name"
+              value={branchForm.name}
+              onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Timezone" help="IANA timezone for this branch.">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Timezone"
+              value={branchForm.timezone}
+              onChange={(e) => setBranchForm({ ...branchForm, timezone: e.target.value })}
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
     </DashboardShell>
   );
 }

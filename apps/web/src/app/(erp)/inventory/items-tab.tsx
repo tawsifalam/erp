@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  Box,
-  Button,
-  Table,
-  Text,
-  Input,
-  Flex,
-  Stack,
-} from "@chakra-ui/react";
+import { Box, Button, Flex, Input, Stack, Table, Text } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, FormField, TableSkeleton } from "@erp/ui";
+import { FormDrawer } from "@/components/form-drawer";
+import {
+  ContentCard,
+  EmptyState,
+  FormField,
+  TableScrollArea,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
@@ -36,35 +35,38 @@ type Movement = {
   createdAt: string;
 };
 
+const emptyItemForm = (poolId = "") => ({
+  name: "",
+  sku: "",
+  unit: "",
+  lowStockThreshold: "",
+  poolId,
+});
+
+const emptyMovForm = () => ({
+  itemId: "",
+  movementType: "PURCHASE",
+  adjustmentDirection: "IN",
+  quantity: "",
+  notes: "",
+});
+
 export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
-  const [movements, setMovements] = useState<Movement[]>([]);
   const [pools, setPools] = useState<InventoryPool[]>([]);
   const [poolFilter, setPoolFilter] = useState("");
-  const [showAdd, setShowAdd] = useState(false);
-  const [showItemForm, setShowItemForm] = useState(false);
-  const [editingItem, setEditingItem] = useState<Item | null>(null);
-  const [itemForm, setItemForm] = useState({
-    name: "",
-    sku: "",
-    unit: "",
-    lowStockThreshold: "",
-    poolId: "",
-  });
-  const [editForm, setEditForm] = useState({
-    name: "",
-    unit: "",
-    lowStockThreshold: "",
-  });
-  const [movForm, setMovForm] = useState({
-    itemId: "",
-    movementType: "PURCHASE",
-    adjustmentDirection: "IN",
-    quantity: "",
-    notes: "",
-  });
+
+  const [createDrawer, setCreateDrawer] = useState(false);
+  const [itemForm, setItemForm] = useState(emptyItemForm());
+
+  const [detailItemId, setDetailItemId] = useState<string | null>(null);
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [editForm, setEditForm] = useState({ name: "", unit: "", lowStockThreshold: "" });
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [movementDrawer, setMovementDrawer] = useState(false);
+  const [movForm, setMovForm] = useState(emptyMovForm());
 
   const load = useCallback(async () => {
     if (!tenant.branchId) {
@@ -80,9 +82,9 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
       ]);
       setItems(itemData);
       setPools(poolData);
-      setItemForm((f) =>
-        f.poolId ? f : { ...f, poolId: poolData.find((p) => p.code === "guest")?.id ?? poolData[0]?.id ?? "" },
-      );
+      const defaultPool =
+        poolData.find((p) => p.code === "guest")?.id ?? poolData[0]?.id ?? "";
+      setItemForm((f) => (f.poolId ? f : { ...f, poolId: defaultPool }));
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to load items");
     } finally {
@@ -94,22 +96,16 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
     void load();
   }, [load]);
 
-  const loadMovements = async (itemId: string) => {
-    setSelectedItem(itemId);
-    const item = items.find((i) => i.id === itemId);
-    if (item) {
-      setEditingItem(item);
-      setEditForm({
-        name: item.name,
-        unit: item.unit,
-        lowStockThreshold: item.lowStockThreshold ?? "",
-      });
-    }
-    const data = await apiFetch<Movement[]>(
-      `/inventory/items/${itemId}/movements?branchId=${tenant.branchId}`,
-      { tenant },
-    );
-    setMovements(data);
+  const openCreate = () => {
+    const defaultPool =
+      pools.find((p) => p.code === "guest")?.id ?? pools[0]?.id ?? "";
+    setItemForm(emptyItemForm(defaultPool));
+    setCreateDrawer(true);
+  };
+
+  const closeCreate = () => {
+    setCreateDrawer(false);
+    setItemForm(emptyItemForm(pools.find((p) => p.code === "guest")?.id ?? pools[0]?.id ?? ""));
   };
 
   const handleCreateItem = async () => {
@@ -128,42 +124,65 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
             : undefined,
         }),
       });
-      setItemForm({
-        name: "",
-        sku: "",
-        unit: "",
-        lowStockThreshold: "",
-        poolId: pools.find((p) => p.code === "guest")?.id ?? pools[0]?.id ?? "",
-      });
-      setShowItemForm(false);
+      closeCreate();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to create item");
     }
   };
 
-  const handleUpdateItem = async () => {
-    if (!editingItem) return;
+  const openDetail = async (item: Item) => {
+    setDetailItemId(item.id);
+    setEditForm({
+      name: item.name,
+      unit: item.unit,
+      lowStockThreshold: item.lowStockThreshold ?? "",
+    });
+    setDetailLoading(true);
     try {
-      await apiFetch(
-        `/inventory/items/${editingItem.id}?branchId=${tenant.branchId}`,
-        {
-          method: "PATCH",
-          tenant,
-          body: JSON.stringify({
-            name: editForm.name,
-            unit: editForm.unit,
-            lowStockThreshold: editForm.lowStockThreshold
-              ? Number(editForm.lowStockThreshold)
-              : null,
-          }),
-        },
+      const data = await apiFetch<Movement[]>(
+        `/inventory/items/${item.id}/movements?branchId=${tenant.branchId}`,
+        { tenant },
       );
+      setMovements(data);
+    } catch (e) {
+      appToast.error(e instanceof Error ? e.message : "Failed to load movements");
+      setMovements([]);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailItemId(null);
+    setMovements([]);
+  };
+
+  const handleUpdateItem = async () => {
+    if (!detailItemId) return;
+    try {
+      await apiFetch(`/inventory/items/${detailItemId}?branchId=${tenant.branchId}`, {
+        method: "PATCH",
+        tenant,
+        body: JSON.stringify({
+          name: editForm.name,
+          unit: editForm.unit,
+          lowStockThreshold: editForm.lowStockThreshold
+            ? Number(editForm.lowStockThreshold)
+            : null,
+        }),
+      });
       load();
-      if (selectedItem) loadMovements(selectedItem);
+      const item = items.find((i) => i.id === detailItemId);
+      if (item) await openDetail({ ...item, ...editForm });
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to update item");
     }
+  };
+
+  const openMovement = () => {
+    setMovForm(emptyMovForm());
+    setMovementDrawer(true);
   };
 
   const handleAddMovement = async () => {
@@ -183,30 +202,26 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         tenant,
         body: JSON.stringify(body),
       });
-      setMovForm({
-        itemId: "",
-        movementType: "PURCHASE",
-        adjustmentDirection: "IN",
-        quantity: "",
-        notes: "",
-      });
-      setShowAdd(false);
+      setMovementDrawer(false);
+      setMovForm(emptyMovForm());
       load();
-      if (selectedItem) loadMovements(selectedItem);
+      if (detailItemId) {
+        const item = items.find((i) => i.id === detailItemId);
+        if (item) await openDetail(item);
+      }
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to record movement");
     }
   };
 
-  const selectedItemData = items.find((i) => i.id === selectedItem);
+  const detailItem = items.find((i) => i.id === detailItemId);
 
   if (!tenant.branchId) {
     return <BranchRequiredNotice />;
   }
 
   return (
-    <Box>
-
+    <>
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>
           Refresh
@@ -221,242 +236,284 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
           onValueChange={setPoolFilter}
           placeholder="All pools"
         />
-        <Button size="sm" variant="outline" onClick={() => setShowItemForm(!showItemForm)}>
-          {showItemForm ? "Cancel" : "+ New Item"}
+        <Button
+          size="sm"
+          colorPalette="blue"
+          w={{ base: "full", sm: "auto" }}
+          onClick={openCreate}
+        >
+          + New item
         </Button>
-        <Button size="sm" colorPalette="blue" onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? "Cancel" : "+ Record Movement"}
+        <Button
+          size="sm"
+          variant="outline"
+          w={{ base: "full", sm: "auto" }}
+          onClick={openMovement}
+        >
+          + Record movement
         </Button>
       </Flex>
 
-      {showItemForm && (
-        <Box bg="white" borderRadius="md" p={4} mb={4}>
-          <Stack gap={3}>
-            <Flex gap={3} wrap="wrap">
-              <FormField label="Name" required>
-                <Input
-                  size="sm"
-                  w="180px"
-                  placeholder="Name"
-                  value={itemForm.name}
-                  onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                />
-              </FormField>
-              <FormField label="SKU">
-                <Input
-                  size="sm"
-                  w="120px"
-                  placeholder="SKU"
-                  value={itemForm.sku}
-                  onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Unit">
-                <Input
-                  size="sm"
-                  w="100px"
-                  placeholder="Unit"
-                  value={itemForm.unit}
-                  onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Low stock at" help="Alert when on-hand falls below this level.">
-                <Input
-                  size="sm"
-                  w="120px"
-                  type="number"
-                  placeholder="Low stock at"
-                  value={itemForm.lowStockThreshold}
-                  onChange={(e) =>
-                    setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
-                  }
-                />
-              </FormField>
-              <FormField label="Pool">
-                <AppSelect
-                  width="180px"
-                  items={pools.map((p) => ({ value: p.id, label: p.name }))}
-                  value={itemForm.poolId}
-                  onValueChange={(v) => setItemForm({ ...itemForm, poolId: v })}
-                  placeholder="Pool"
-                />
-              </FormField>
-            </Flex>
-            <Button size="sm" colorPalette="green" w="fit-content" onClick={handleCreateItem}>
-              Create Item
-            </Button>
-          </Stack>
-        </Box>
-      )}
-
-      {showAdd && (
-        <Box bg="white" borderRadius="md" p={4} mb={4}>
-          <Stack gap={3}>
-            <Flex gap={3} wrap="wrap">
-              <FormField label="Item" required>
-                <AppSelect
-                  width="200px"
-                  items={[
-                    { value: "", label: "Select Item" },
-                    ...items.map((i) => ({ value: i.id, label: `${i.name} (${i.sku})` })),
-                  ]}
-                  value={movForm.itemId}
-                  onValueChange={(v) => setMovForm({ ...movForm, itemId: v })}
-                  placeholder="Select Item"
-                />
-              </FormField>
-              <FormField label="Movement type">
-                <AppSelect
-                  width="160px"
-                  items={[
-                    { value: "PURCHASE", label: "Purchase (IN)" },
-                    { value: "SALE", label: "Sale (OUT)" },
-                    { value: "WASTE", label: "Waste (OUT)" },
-                    { value: "STAFF_MEAL", label: "Staff Meal (OUT)" },
-                    { value: "ADJUSTMENT", label: "Adjustment" },
-                  ]}
-                  value={movForm.movementType}
-                  onValueChange={(v) => setMovForm({ ...movForm, movementType: v })}
-                />
-              </FormField>
-              {movForm.movementType === "ADJUSTMENT" && (
-                <FormField label="Direction">
-                  <AppSelect
-                    width="120px"
-                    items={[
-                      { value: "IN", label: "Adjust IN" },
-                      { value: "OUT", label: "Adjust OUT" },
-                    ]}
-                    value={movForm.adjustmentDirection}
-                    onValueChange={(v) => setMovForm({ ...movForm, adjustmentDirection: v })}
-                  />
-                </FormField>
-              )}
-              <FormField label="Quantity" required>
-                <Input
-                  size="sm"
-                  w="100px"
-                  type="number"
-                  placeholder="Qty"
-                  value={movForm.quantity}
-                  onChange={(e) => setMovForm({ ...movForm, quantity: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Notes">
-                <Input
-                  size="sm"
-                  w="200px"
-                  placeholder="Notes (optional)"
-                  value={movForm.notes}
-                  onChange={(e) => setMovForm({ ...movForm, notes: e.target.value })}
-                />
-              </FormField>
-            </Flex>
-            <Button size="sm" colorPalette="green" w="fit-content" onClick={handleAddMovement}>
-              Record Movement
-            </Button>
-          </Stack>
-        </Box>
-      )}
-
-      <Flex gap={4} wrap="wrap">
-        <Box flex="1" minW="400px" bg="white" borderRadius="md" p={4}>
-          {loading ? (
+      <ContentCard p={0} overflow="hidden">
+        {loading ? (
+          <Box p={4}>
             <TableSkeleton rows={6} columns={6} />
-          ) : (
-            <>
+          </Box>
+        ) : (
+          <>
+            <TableScrollArea>
               <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader>SKU</Table.ColumnHeader>
-                <Table.ColumnHeader>Name</Table.ColumnHeader>
-                <Table.ColumnHeader>Pool</Table.ColumnHeader>
-                <Table.ColumnHeader>On Hand</Table.ColumnHeader>
-                <Table.ColumnHeader>Unit</Table.ColumnHeader>
-                <Table.ColumnHeader>Status</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {items.map((i) => {
-                const isLow =
-                  i.lowStockThreshold != null &&
-                  i.currentStock <= Number(i.lowStockThreshold);
-                return (
-                  <Table.Row
-                    key={i.id}
-                    cursor="pointer"
-                    bg={selectedItem === i.id ? "blue.50" : undefined}
-                    onClick={() => loadMovements(i.id)}
-                    _hover={{ bg: "gray.50" }}
-                  >
-                    <Table.Cell fontFamily="mono" fontSize="xs">
-                      {i.sku}
-                    </Table.Cell>
-                    <Table.Cell>{i.name}</Table.Cell>
-                    <Table.Cell fontSize="xs" color="fg.muted">
-                      {i.pool?.name ?? "—"}
-                    </Table.Cell>
-                    <Table.Cell fontWeight="bold" color={isLow ? "red.500" : undefined}>
-                      {i.currentStock.toFixed(2)}
-                    </Table.Cell>
-                    <Table.Cell>{i.unit}</Table.Cell>
-                    <Table.Cell>
-                      {isLow ? (
-                        <Text color="red.500" fontSize="xs" fontWeight="bold">
-                          LOW
-                        </Text>
-                      ) : (
-                        <Text color="green.500" fontSize="xs">
-                          OK
-                        </Text>
-                      )}
-                    </Table.Cell>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                      SKU
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Name</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>
+                      Pool
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>On hand</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                      Unit
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader />
                   </Table.Row>
-                );
-              })}
-            </Table.Body>
+                </Table.Header>
+                <Table.Body>
+                  {items.map((i) => {
+                    const isLow =
+                      i.lowStockThreshold != null &&
+                      i.currentStock <= Number(i.lowStockThreshold);
+                    return (
+                      <Table.Row key={i.id}>
+                        <Table.Cell
+                          fontFamily="mono"
+                          fontSize="xs"
+                          display={{ base: "none", sm: "table-cell" }}
+                        >
+                          {i.sku}
+                        </Table.Cell>
+                        <Table.Cell>{i.name}</Table.Cell>
+                        <Table.Cell
+                          fontSize="xs"
+                          color="fg.muted"
+                          display={{ base: "none", md: "table-cell" }}
+                        >
+                          {i.pool?.name ?? "—"}
+                        </Table.Cell>
+                        <Table.Cell fontWeight="bold" color={isLow ? "red.500" : undefined}>
+                          {i.currentStock.toFixed(2)}
+                        </Table.Cell>
+                        <Table.Cell display={{ base: "none", sm: "table-cell" }}>
+                          {i.unit}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {isLow ? (
+                            <Text color="red.500" fontSize="xs" fontWeight="bold">
+                              LOW
+                            </Text>
+                          ) : (
+                            <Text color="green.500" fontSize="xs">
+                              OK
+                            </Text>
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Button size="xs" variant="outline" onClick={() => openDetail(i)}>
+                            View
+                          </Button>
+                        </Table.Cell>
+                      </Table.Row>
+                    );
+                  })}
+                </Table.Body>
               </Table.Root>
-              {items.length === 0 && <EmptyState message="No inventory items yet." />}
-            </>
+            </TableScrollArea>
+            {items.length === 0 && (
+              <Box p={4}>
+                <EmptyState message="No inventory items yet." />
+              </Box>
+            )}
+          </>
+        )}
+      </ContentCard>
+
+      <FormDrawer
+        open={createDrawer}
+        onClose={closeCreate}
+        title="New inventory item"
+        size="sm"
+        primaryLabel="Create"
+        onPrimary={handleCreateItem}
+        primaryDisabled={!itemForm.name.trim()}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Name" required>
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Name"
+              value={itemForm.name}
+              onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField label="SKU">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="SKU"
+              value={itemForm.sku}
+              onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Unit">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Unit"
+              value={itemForm.unit}
+              onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Low stock at" help="Alert when on-hand falls below this level.">
+            <Input
+              size="sm"
+              width="100%"
+              type="number"
+              value={itemForm.lowStockThreshold}
+              onChange={(e) =>
+                setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
+              }
+            />
+          </FormField>
+          <FormField label="Pool">
+            <AppSelect
+              width="100%"
+              items={pools.map((p) => ({ value: p.id, label: p.name }))}
+              value={itemForm.poolId}
+              onValueChange={(v) => setItemForm({ ...itemForm, poolId: v })}
+              placeholder="Pool"
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
+
+      <FormDrawer
+        open={movementDrawer}
+        onClose={() => setMovementDrawer(false)}
+        title="Record movement"
+        size="md"
+        primaryLabel="Record"
+        onPrimary={handleAddMovement}
+        primaryDisabled={!movForm.itemId || !movForm.quantity}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Item" required>
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "", label: "Select item" },
+                ...items.map((i) => ({ value: i.id, label: `${i.name} (${i.sku})` })),
+              ]}
+              value={movForm.itemId}
+              onValueChange={(v) => setMovForm({ ...movForm, itemId: v })}
+              placeholder="Select item"
+            />
+          </FormField>
+          <FormField label="Movement type">
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "PURCHASE", label: "Purchase (IN)" },
+                { value: "SALE", label: "Sale (OUT)" },
+                { value: "WASTE", label: "Waste (OUT)" },
+                { value: "STAFF_MEAL", label: "Staff Meal (OUT)" },
+                { value: "ADJUSTMENT", label: "Adjustment" },
+              ]}
+              value={movForm.movementType}
+              onValueChange={(v) => setMovForm({ ...movForm, movementType: v })}
+            />
+          </FormField>
+          {movForm.movementType === "ADJUSTMENT" && (
+            <FormField label="Direction">
+              <AppSelect
+                width="100%"
+                items={[
+                  { value: "IN", label: "Adjust IN" },
+                  { value: "OUT", label: "Adjust OUT" },
+                ]}
+                value={movForm.adjustmentDirection}
+                onValueChange={(v) => setMovForm({ ...movForm, adjustmentDirection: v })}
+              />
+            </FormField>
           )}
-        </Box>
+          <FormField label="Quantity" required>
+            <Input
+              size="sm"
+              width="100%"
+              type="number"
+              value={movForm.quantity}
+              onChange={(e) => setMovForm({ ...movForm, quantity: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Notes">
+            <Input
+              size="sm"
+              width="100%"
+              value={movForm.notes}
+              onChange={(e) => setMovForm({ ...movForm, notes: e.target.value })}
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
 
-        {selectedItem && editingItem && (
-          <Box w="350px" bg="white" borderRadius="md" p={4}>
+      <FormDrawer
+        open={!!detailItemId}
+        onClose={closeDetail}
+        title={detailItem ? `${detailItem.name} (${detailItem.sku})` : "Item detail"}
+        size="md"
+        primaryLabel="Save changes"
+        onPrimary={handleUpdateItem}
+        primaryDisabled={!editForm.name.trim()}
+      >
+        <Stack gap={4}>
+          <FormField label="Name" required>
+            <Input
+              size="sm"
+              width="100%"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Unit">
+            <Input
+              size="sm"
+              width="100%"
+              value={editForm.unit}
+              onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Low stock threshold">
+            <Input
+              size="sm"
+              width="100%"
+              type="number"
+              value={editForm.lowStockThreshold}
+              onChange={(e) =>
+                setEditForm({ ...editForm, lowStockThreshold: e.target.value })
+              }
+            />
+          </FormField>
+          <Box>
             <Text fontWeight="semibold" mb={2}>
-              Edit: {selectedItemData?.sku}
+              Recent movements
             </Text>
-            <Stack gap={2} mb={4}>
-              <Input
-                size="sm"
-                placeholder="Name"
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-              />
-              <Input
-                size="sm"
-                placeholder="Unit"
-                value={editForm.unit}
-                onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })}
-              />
-              <Input
-                size="sm"
-                type="number"
-                placeholder="Low stock threshold"
-                value={editForm.lowStockThreshold}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, lowStockThreshold: e.target.value })
-                }
-              />
-              <Button size="sm" colorPalette="blue" onClick={handleUpdateItem}>
-                Save changes
-              </Button>
-            </Stack>
-
-            <Text fontWeight="semibold" mb={2}>
-              Movements: {selectedItemData?.name}
-            </Text>
-            {movements.length === 0 ? (
+            {detailLoading ? (
+              <Text fontSize="sm" color="fg.muted">
+                Loading…
+              </Text>
+            ) : movements.length === 0 ? (
               <Text fontSize="sm" color="fg.muted">
                 No movements recorded.
               </Text>
@@ -487,8 +544,8 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
               </Stack>
             )}
           </Box>
-        )}
-      </Flex>
-    </Box>
+        </Stack>
+      </FormDrawer>
+    </>
   );
 }

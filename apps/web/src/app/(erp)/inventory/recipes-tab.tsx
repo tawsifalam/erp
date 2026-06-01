@@ -12,7 +12,14 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, CardSkeleton } from "@erp/ui";
+import { FormDrawer } from "@/components/form-drawer";
+import { FormSection } from "@/components/form-section";
+import {
+  ContentCard,
+  EmptyState,
+  TableScrollArea,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { MenuCategory } from "@/lib/pos-types";
@@ -30,17 +37,23 @@ type Recipe = {
   lines: { inventoryItemId: string; quantity: string; inventoryItem: InvItem }[];
 } | null;
 
+type MenuItemRow = {
+  id: string;
+  name: string;
+  categoryName: string;
+  lineCount?: number;
+};
+
 export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
   const branchId = tenant.branchId;
-  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuRows, setMenuRows] = useState<MenuItemRow[]>([]);
   const [invItems, setInvItems] = useState<InvItem[]>([]);
-  const [menuItemId, setMenuItemId] = useState("");
-  const [lines, setLines] = useState<RecipeLine[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const menuItems = categories.flatMap((c) =>
-    c.items.map((i) => ({ ...i, categoryName: c.name })),
-  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [menuItemId, setMenuItemId] = useState("");
+  const [menuItemLabel, setMenuItemLabel] = useState("");
+  const [lines, setLines] = useState<RecipeLine[]>([]);
 
   const loadMeta = useCallback(async () => {
     if (!branchId) return;
@@ -50,21 +63,30 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
         apiFetch<MenuCategory[]>(`/pos/menu/categories?branchId=${branchId}`, { tenant }),
         apiFetch<InvItem[]>(`/inventory/items?branchId=${branchId}&pool=guest`, { tenant }),
       ]);
-      setCategories(menu);
+      const rows: MenuItemRow[] = menu.flatMap((c) =>
+        c.items.map((i) => ({
+          id: i.id,
+          name: i.name,
+          categoryName: c.name,
+        })),
+      );
+      setMenuRows(rows);
       setInvItems(items);
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
-  }, [branchId, tenant.organizationId]);
+  }, [branchId, tenant]);
 
   useEffect(() => {
     loadMeta();
   }, [loadMeta]);
 
-  const loadRecipe = async (itemId: string) => {
+  const loadRecipe = async (itemId: string, label: string) => {
     setMenuItemId(itemId);
+    setMenuItemLabel(label);
+    setDrawerOpen(true);
     if (!itemId) {
       setLines([]);
       return;
@@ -84,6 +106,13 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
     } catch {
       setLines([{ inventoryItemId: "", quantity: 0 }]);
     }
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setMenuItemId("");
+    setMenuItemLabel("");
+    setLines([]);
   };
 
   const addLine = () => {
@@ -108,6 +137,7 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
         body: JSON.stringify({ menuItemId, lines: valid }),
       });
       appToast.success("Recipe saved. POS order completion will deduct these ingredients.");
+      closeDrawer();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to save recipe");
     }
@@ -118,82 +148,110 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
   }
 
   return (
-    <Box>
-      {loading ? (
-        <CardSkeleton lines={5} />
-      ) : (
-        <Box bg="white" borderRadius="md" p={4}>
-          <Text fontWeight="semibold" mb={3}>
-            Bill of materials (recipe)
-          </Text>
-          <Text fontSize="sm" color="fg.muted" mb={4}>
-            Link a menu item to inventory ingredients. Quantities are per single menu item
-            sold; multiplied by order line qty on complete.
-          </Text>
+    <>
+      <Text fontSize="sm" color="fg.muted" mb={4}>
+        Link menu items to inventory ingredients. Quantities are per single menu item sold;
+        multiplied by order line qty on complete.
+      </Text>
 
-          <AppSelect
-            maxWidth="400px"
-            items={[
-              { value: "", label: "Select menu item" },
-              ...menuItems.map((i) => ({
-                value: i.id,
-                label: `${i.categoryName} — ${i.name}`,
-              })),
-            ]}
-            value={menuItemId}
-            onValueChange={loadRecipe}
-            placeholder="Select menu item"
-          />
+      <ContentCard p={0} overflow="hidden">
+        {loading ? (
+          <Box p={4}>
+            <TableSkeleton rows={5} columns={3} />
+          </Box>
+        ) : menuRows.length === 0 ? (
+          <Box p={4}>
+            <EmptyState message="Add menu items under POS → Menu first." />
+          </Box>
+        ) : (
+          <TableScrollArea>
+            <Table.Root size="sm">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeader>Category</Table.ColumnHeader>
+                  <Table.ColumnHeader>Menu item</Table.ColumnHeader>
+                  <Table.ColumnHeader />
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {menuRows.map((row) => (
+                  <Table.Row key={row.id}>
+                    <Table.Cell>{row.categoryName}</Table.Cell>
+                    <Table.Cell>{row.name}</Table.Cell>
+                    <Table.Cell>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() =>
+                          loadRecipe(row.id, `${row.categoryName} — ${row.name}`)
+                        }
+                      >
+                        Edit recipe
+                      </Button>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </TableScrollArea>
+        )}
+      </ContentCard>
 
-          {menuItemId && (
-            <Stack gap={3} mt={4}>
-              {lines.map((line, idx) => (
-                <Flex key={idx} gap={2} wrap="wrap" align="center">
-                  <AppSelect
-                    width="240px"
-                    items={[
-                      { value: "", label: "Inventory item" },
-                      ...invItems.map((i) => ({
-                        value: i.id,
-                        label: `${i.name} (${i.unit})`,
-                      })),
-                    ]}
-                    value={line.inventoryItemId}
-                    onValueChange={(v) => updateLine(idx, { inventoryItemId: v })}
-                    placeholder="Inventory item"
-                  />
-                  <Input
-                    size="sm"
-                    w="100px"
-                    type="number"
-                    step="0.001"
-                    placeholder="Qty"
-                    value={line.quantity || ""}
-                    onChange={(e) =>
-                      updateLine(idx, { quantity: Number(e.target.value) || 0 })
-                    }
-                  />
-                  <Button size="xs" variant="ghost" colorPalette="red" onClick={() => removeLine(idx)}>
-                    Remove
-                  </Button>
-                </Flex>
-              ))}
-              <Flex gap={2}>
-                <Button size="sm" variant="outline" onClick={addLine}>
-                  + Ingredient line
-                </Button>
-                <Button size="sm" colorPalette="green" onClick={save}>
-                  Save recipe
+      <FormDrawer
+        open={drawerOpen}
+        onClose={closeDrawer}
+        title="Bill of materials"
+        description={menuItemLabel}
+        size="md"
+        primaryLabel="Save recipe"
+        onPrimary={save}
+        primaryDisabled={!menuItemId}
+      >
+        <FormSection title="Ingredients">
+          <Stack gap={3} width="100%">
+            {lines.map((line, idx) => (
+              <Flex key={idx} gap={2} direction={{ base: "column", sm: "row" }} width="100%">
+                <AppSelect
+                  width="100%"
+                  items={[
+                    { value: "", label: "Inventory item" },
+                    ...invItems.map((i) => ({
+                      value: i.id,
+                      label: `${i.name} (${i.unit})`,
+                    })),
+                  ]}
+                  value={line.inventoryItemId}
+                  onValueChange={(v) => updateLine(idx, { inventoryItemId: v })}
+                  placeholder="Inventory item"
+                />
+                <Input
+                  size="sm"
+                  width="100%"
+                  type="number"
+                  step="0.001"
+                  placeholder="Qty"
+                  value={line.quantity || ""}
+                  onChange={(e) =>
+                    updateLine(idx, { quantity: Number(e.target.value) || 0 })
+                  }
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  colorPalette="red"
+                  alignSelf={{ sm: "center" }}
+                  onClick={() => removeLine(idx)}
+                >
+                  Remove
                 </Button>
               </Flex>
-            </Stack>
-          )}
-
-          {menuItems.length === 0 && (
-            <EmptyState message="Add menu items under POS → Menu first." />
-          )}
-        </Box>
-      )}
-    </Box>
+            ))}
+            <Button size="sm" variant="outline" alignSelf="flex-start" onClick={addLine}>
+              + Ingredient line
+            </Button>
+          </Stack>
+        </FormSection>
+      </FormDrawer>
+    </>
   );
 }

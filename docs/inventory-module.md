@@ -36,6 +36,8 @@ Pools separate stock for different purposes without duplicating the movement eng
 
 Select **organization** and **branch** in the header first.
 
+Forms use [UI patterns](./ui-patterns.md): **FormDrawer** for new items, item detail/edit, movements, and recipe BOMs; lists use **ContentCard** + **TableScrollArea**.
+
 | Tab | Features |
 |-----|----------|
 | **Items & movements** | Filter by pool; list on-hand stock; **create** item (choose pool); edit item; record movements |

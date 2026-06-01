@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mockAuth, mockApiRoutes } from "./helpers/auth";
 import { acceptConfirmDialog } from "./helpers/confirm-dialog";
+import { clickRowAction } from "./helpers/row-actions";
 
 test.describe("POS – Orders", () => {
   test.beforeEach(async ({ page }) => {
@@ -45,7 +46,7 @@ test.describe("POS – lifecycle", () => {
     const draftRow = page.getByRole("row").filter({ hasText: "T-1" });
     await expect(draftRow.getByText("DRAFT")).toBeVisible();
 
-    await draftRow.getByRole("button", { name: "Send to Kitchen" }).click();
+    await draftRow.getByRole("button", { name: "Send to kitchen" }).click();
     await expect(draftRow.getByText("SUBMITTED")).toBeVisible({ timeout: 5000 });
 
     await draftRow.getByRole("button", { name: "Complete & Pay" }).click();
@@ -57,7 +58,7 @@ test.describe("POS – lifecycle", () => {
   test("cancel submitted order", async ({ page }) => {
     await page.goto("/pos");
     const row = page.getByRole("row").filter({ hasText: "T-3" });
-    await row.getByRole("button", { name: "Cancel" }).click();
+    await clickRowAction(row, "Cancel");
     await acceptConfirmDialog(page);
     await expect(row.getByText("CANCELLED")).toBeVisible({ timeout: 5000 });
   });
@@ -75,8 +76,10 @@ test.describe("POS – lifecycle", () => {
   test("menu tab add category", async ({ page }) => {
     await page.goto("/pos");
     await page.getByRole("tab", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "+ Add category" }).click();
+    await expect(page.getByText("New category")).toBeVisible();
     await page.getByPlaceholder("Category name").fill("Desserts");
-    await page.getByRole("button", { name: "Add category" }).click();
+    await page.getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("Desserts")).toBeVisible({ timeout: 5000 });
   });
 
@@ -85,7 +88,7 @@ test.describe("POS – lifecycle", () => {
     await page.getByRole("combobox").selectOption("CANCELLED");
     const row = page.getByRole("row").filter({ hasText: "T-9" });
     await expect(row).toBeVisible();
-    await row.getByRole("button", { name: "Delete" }).click();
+    await clickRowAction(row, "Delete");
     await acceptConfirmDialog(page);
     await expect(page.getByRole("row").filter({ hasText: "T-9" })).toHaveCount(0);
   });

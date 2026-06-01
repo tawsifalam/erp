@@ -11,6 +11,8 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { FormDrawer } from "@/components/form-drawer";
+import { FormSection } from "@/components/form-section";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
 import {
@@ -48,6 +50,8 @@ export default function AccountingPage() {
     lines: [{ accountId: "", debit: "", credit: "" }] as JournalLineForm[],
   });
   const [accountForm, setAccountForm] = useState({ code: "", name: "", type: "ASSET" });
+  const [journalDrawerOpen, setJournalDrawerOpen] = useState(false);
+  const [accountDrawerOpen, setAccountDrawerOpen] = useState(false);
 
   const accountsQuery = useAsync(
     () => apiFetch<Account[]>("/accounting/accounts", { tenant }),
@@ -107,6 +111,7 @@ export default function AccountingPage() {
         }),
       });
       setJournalForm({ description: "", lines: [{ accountId: "", debit: "", credit: "" }] });
+      setJournalDrawerOpen(false);
       journalsQuery.reload();
       setTab("journals");
     } catch (e) {
@@ -122,6 +127,7 @@ export default function AccountingPage() {
         body: JSON.stringify(accountForm),
       });
       setAccountForm({ code: "", name: "", type: "ASSET" });
+      setAccountDrawerOpen(false);
       accountsQuery.reload();
       appToast.success("Account created");
     } catch (e) {
@@ -151,11 +157,23 @@ export default function AccountingPage() {
           <Tabs.List>
             <Tabs.Trigger value="journals">Journal entries</Tabs.Trigger>
             <Tabs.Trigger value="accounts">Chart of accounts</Tabs.Trigger>
-            <Tabs.Trigger value="new-journal">New journal</Tabs.Trigger>
           </Tabs.List>
         </ScrollableTabsList>
 
         <Tabs.Content value="journals" pt={4}>
+          <Flex gap={2} mb={4} wrap="wrap">
+            <Button size="sm" onClick={() => journalsQuery.reload()}>
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              colorPalette="blue"
+              w={{ base: "full", sm: "auto" }}
+              onClick={() => setJournalDrawerOpen(true)}
+            >
+              + Post journal
+            </Button>
+          </Flex>
           {journalsQuery.loading ? (
             <Stack gap={4}>
               <CardSkeleton lines={4} />
@@ -168,7 +186,7 @@ export default function AccountingPage() {
                   title="No journal entries yet"
                   description="Post a balanced double-entry journal to record revenue, expenses, and transfers."
                   action={
-                    <Button size="sm" colorPalette="blue" onClick={() => setTab("new-journal")}>
+                    <Button size="sm" colorPalette="blue" onClick={() => setJournalDrawerOpen(true)}>
                       Post your first entry
                     </Button>
                   }
@@ -210,50 +228,20 @@ export default function AccountingPage() {
         </Tabs.Content>
 
         <Tabs.Content value="accounts" pt={4}>
-          <ContentCard mb={4}>
-            <Text fontWeight="semibold" mb={3}>
-              Add account
-            </Text>
-            <Flex gap={2} wrap="wrap" align="flex-end">
-              <FormField label="Code" help="Unique account code (e.g. 1000).">
-                <Input
-                  size="sm"
-                  w="100px"
-                  value={accountForm.code}
-                  onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Name" help="Human-readable name shown on journal lines.">
-                <Input
-                  size="sm"
-                  w="200px"
-                  value={accountForm.name}
-                  onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
-                />
-              </FormField>
-              <FormField
-                label="Type"
-                help="Asset, Liability, Equity, Revenue, or Expense — determines balance sheet vs P&L."
-              >
-                <AppSelect
-                  width="140px"
-                  items={[
-                    { value: "ASSET", label: "Asset" },
-                    { value: "LIABILITY", label: "Liability" },
-                    { value: "EQUITY", label: "Equity" },
-                    { value: "REVENUE", label: "Revenue" },
-                    { value: "EXPENSE", label: "Expense" },
-                  ]}
-                  value={accountForm.type}
-                  onValueChange={(v) => setAccountForm({ ...accountForm, type: v })}
-                />
-              </FormField>
-              <Button size="sm" colorPalette="blue" onClick={handleCreateAccount}>
-                Add
-              </Button>
-            </Flex>
-          </ContentCard>
-          <ContentCard>
+          <Flex gap={2} mb={4} wrap="wrap">
+            <Button size="sm" onClick={() => accountsQuery.reload()}>
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              colorPalette="blue"
+              w={{ base: "full", sm: "auto" }}
+              onClick={() => setAccountDrawerOpen(true)}
+            >
+              + Add account
+            </Button>
+          </Flex>
+          <ContentCard p={0} overflow="hidden">
             {accountsQuery.loading ? (
               <TableSkeleton rows={5} columns={3} />
             ) : accounts.length === 0 ? (
@@ -285,96 +273,136 @@ export default function AccountingPage() {
             )}
           </ContentCard>
         </Tabs.Content>
-
-        <Tabs.Content value="new-journal" pt={4}>
-          <ContentCard>
-            <Stack gap={3}>
-              <FormField label="Description" help="Optional memo for this journal entry.">
-                <Input
-                  value={journalForm.description}
-                  onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })}
-                />
-              </FormField>
-              {journalForm.lines.map((line, i) => (
-                <Flex key={i} gap={2} wrap="wrap" align="flex-end">
-                  <FormField
-                    label={i === 0 ? "Account" : "Account"}
-                    help={
-                      i === 0
-                        ? "Pick the ledger account for this side of the entry."
-                        : undefined
-                    }
-                  >
-                    <AppSelect
-                      flex={1}
-                      minWidth="200px"
-                      items={[
-                        { value: "", label: "Select account" },
-                        ...accounts.map((a) => ({
-                          value: a.id,
-                          label: `${a.code} — ${a.name}`,
-                        })),
-                      ]}
-                      value={line.accountId}
-                      onValueChange={(v) => updateLine(i, { accountId: v })}
-                      placeholder="Select account"
-                    />
-                  </FormField>
-                  <FormField
-                    label={i === 0 ? "Debit" : "Debit"}
-                    help={
-                      i === 0
-                        ? "Enter amount on one side only — debit or credit, not both."
-                        : undefined
-                    }
-                  >
-                    <Input
-                      size="sm"
-                      w="100px"
-                      type="number"
-                      value={line.debit}
-                      onChange={(e) => updateLine(i, { debit: e.target.value })}
-                    />
-                  </FormField>
-                  <FormField label={i === 0 ? "Credit" : "Credit"}>
-                    <Input
-                      size="sm"
-                      w="100px"
-                      type="number"
-                      value={line.credit}
-                      onChange={(e) => updateLine(i, { credit: e.target.value })}
-                    />
-                  </FormField>
-                </Flex>
-              ))}
-              <FormField
-                label="Balance check"
-                help="Total debits must equal total credits. Each line uses either a debit or credit, not both."
-              >
-                <Flex gap={4} align="center" wrap="wrap" fontSize="sm">
-                  <Text>
-                    Debits: <strong>{journalTotals.debit.toFixed(2)}</strong>
-                  </Text>
-                  <Text>
-                    Credits: <strong>{journalTotals.credit.toFixed(2)}</strong>
-                  </Text>
-                  <Text color={journalBalanced ? "green.600" : "orange.600"}>
-                    {journalBalanced ? "Balanced ✓" : "Not balanced"}
-                  </Text>
-                </Flex>
-              </FormField>
-              <Flex gap={2}>
-                <Button size="sm" variant="outline" onClick={addJournalLine}>
-                  + Line
-                </Button>
-                <Button size="sm" colorPalette="green" onClick={handleCreateJournal}>
-                  Post journal entry
-                </Button>
-              </Flex>
-            </Stack>
-          </ContentCard>
-        </Tabs.Content>
       </Tabs.Root>
+
+      <FormDrawer
+        open={journalDrawerOpen}
+        onClose={() => {
+          setJournalDrawerOpen(false);
+          setJournalForm({ description: "", lines: [{ accountId: "", debit: "", credit: "" }] });
+        }}
+        title="Post journal entry"
+        description="Double-entry must balance: total debits equal total credits."
+        size="lg"
+        primaryLabel="Post journal"
+        onPrimary={handleCreateJournal}
+        primaryDisabled={!journalBalanced}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Description" help="Optional memo for this journal entry.">
+            <Input
+              width="100%"
+              placeholder="Description"
+              value={journalForm.description}
+              onChange={(e) => setJournalForm({ ...journalForm, description: e.target.value })}
+            />
+          </FormField>
+          <FormSection title="Lines">
+            {journalForm.lines.map((line, i) => (
+              <Flex key={i} gap={2} direction={{ base: "column", sm: "row" }} width="100%" mb={3}>
+                <FormField label="Account" help={i === 0 ? "Ledger account for this line." : undefined}>
+                  <AppSelect
+                    width="100%"
+                    items={[
+                      { value: "", label: "Select account" },
+                      ...accounts.map((a) => ({
+                        value: a.id,
+                        label: `${a.code} — ${a.name}`,
+                      })),
+                    ]}
+                    value={line.accountId}
+                    onValueChange={(v) => updateLine(i, { accountId: v })}
+                    placeholder="Select account"
+                  />
+                </FormField>
+                <FormField label="Debit">
+                  <Input
+                    size="sm"
+                    width="100%"
+                    type="number"
+                    value={line.debit}
+                    onChange={(e) => updateLine(i, { debit: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Credit">
+                  <Input
+                    size="sm"
+                    width="100%"
+                    type="number"
+                    value={line.credit}
+                    onChange={(e) => updateLine(i, { credit: e.target.value })}
+                  />
+                </FormField>
+              </Flex>
+            ))}
+            <Button size="sm" variant="outline" onClick={addJournalLine}>
+              + Line
+            </Button>
+          </FormSection>
+          <Flex gap={4} align="center" wrap="wrap" fontSize="sm">
+            <Text>
+              Debits: <strong>{journalTotals.debit.toFixed(2)}</strong>
+            </Text>
+            <Text>
+              Credits: <strong>{journalTotals.credit.toFixed(2)}</strong>
+            </Text>
+            <Text color={journalBalanced ? "green.600" : "orange.600"}>
+              {journalBalanced ? "Balanced ✓" : "Not balanced"}
+            </Text>
+          </Flex>
+        </Stack>
+      </FormDrawer>
+
+      <FormDrawer
+        open={accountDrawerOpen}
+        onClose={() => {
+          setAccountDrawerOpen(false);
+          setAccountForm({ code: "", name: "", type: "ASSET" });
+        }}
+        title="Add account"
+        size="sm"
+        primaryLabel="Create"
+        onPrimary={handleCreateAccount}
+        primaryDisabled={!accountForm.code.trim() || !accountForm.name.trim()}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Code" help="Unique account code (e.g. 1000)." required>
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Code"
+              value={accountForm.code}
+              onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Name" help="Shown on journal lines." required>
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Name"
+              value={accountForm.name}
+              onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField
+            label="Type"
+            help="Asset, Liability, Equity, Revenue, or Expense."
+          >
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "ASSET", label: "Asset" },
+                { value: "LIABILITY", label: "Liability" },
+                { value: "EQUITY", label: "Equity" },
+                { value: "REVENUE", label: "Revenue" },
+                { value: "EXPENSE", label: "Expense" },
+              ]}
+              value={accountForm.type}
+              onValueChange={(v) => setAccountForm({ ...accountForm, type: v })}
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
     </DashboardShell>
   );
 }

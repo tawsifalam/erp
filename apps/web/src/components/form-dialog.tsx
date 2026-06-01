@@ -39,7 +39,7 @@ export function FormDialog({
     >
       <Portal>
         <Dialog.Backdrop bg="blackAlpha.500" />
-        <Dialog.Positioner zIndex={1400}>
+        <Dialog.Positioner zIndex={1500}>
           <Dialog.Content
             bg="white"
             color="gray.900"

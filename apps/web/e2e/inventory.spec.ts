@@ -15,11 +15,10 @@ test.describe("Inventory – Stock", () => {
   test("shows table with correct column headers", async ({ page }) => {
     await page.goto("/inventory");
 
-    const headers = page.locator("table thead th");
-    await expect(headers.nth(0)).toHaveText("SKU");
-    await expect(headers.nth(1)).toHaveText("Name");
-    await expect(headers.nth(2)).toHaveText("On Hand");
-    await expect(headers.nth(3)).toHaveText("Unit");
+    await expect(page.getByRole("columnheader", { name: "SKU" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Name" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "On hand" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Unit" })).toBeVisible();
   });
 
   test("displays inventory seed data", async ({ page }) => {
@@ -38,52 +37,47 @@ test.describe("Inventory – Stock", () => {
 
   test("create item adds row to table", async ({ page }) => {
     await page.goto("/inventory");
-    await page.getByRole("button", { name: "+ New Item" }).click();
+    await page.getByRole("button", { name: "+ New item" }).click();
+    await expect(page.getByText("New inventory item")).toBeVisible();
     await page.getByPlaceholder("Name").fill("Tomatoes");
     await page.getByPlaceholder("SKU").fill("VEG-TOM-01");
     await page.getByPlaceholder("Unit").fill("kg");
-    await page.getByRole("button", { name: "Create Item" }).click();
+    await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(page.getByRole("cell", { name: "Tomatoes" })).toBeVisible({ timeout: 5000 });
   });
 
   test("record purchase movement updates on-hand stock", async ({ page }) => {
     await page.goto("/inventory");
-    await page.getByRole("button", { name: "+ Record Movement" }).click();
-    await page
-      .locator('select:has(option:text("Select Item"))')
-      .selectOption({ label: /Basmati Rice/ });
-    await page
-      .locator('select:has(option:text("Purchase"))')
-      .selectOption("PURCHASE");
+    await page.getByRole("button", { name: "+ Record movement" }).click();
+    await expect(page.getByText("Record movement")).toBeVisible();
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: /Basmati Rice/ }).click();
     await page.getByPlaceholder("Qty").fill("10");
-    await page.getByRole("button", { name: "Record Movement" }).click();
+    await page.getByRole("button", { name: "Record", exact: true }).click();
     await expect(page.getByRole("cell", { name: "130.00" })).toBeVisible({ timeout: 5000 });
   });
 
   test("edit item shows low stock when threshold raised", async ({ page }) => {
     await page.goto("/inventory");
-    await page.getByRole("cell", { name: "Olive Oil" }).click();
-    await page.getByPlaceholder("Low stock threshold").fill("100");
+    const row = page.getByRole("row").filter({ hasText: "Olive Oil" });
+    await row.getByRole("button", { name: "View" }).click();
+    await page.locator('input[type="number"]').fill("100");
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("LOW").first()).toBeVisible({ timeout: 5000 });
   });
 
-  test("recipes tab loads menu item picker", async ({ page }) => {
+  test("recipes tab lists menu items", async ({ page }) => {
     await page.goto("/inventory");
     await page.getByRole("tab", { name: /Recipes/i }).click();
-    await expect(page.getByText(/Bill of materials/i)).toBeVisible();
-    await expect(page.getByText("Select menu item")).toBeVisible();
+    await expect(page.getByText(/Link menu items to inventory/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Edit recipe" }).first()).toBeVisible();
   });
 
-  test("recipes tab save recipe", async ({ page }) => {
+  test("recipes tab save recipe via drawer", async ({ page }) => {
     await page.goto("/inventory");
     await page.getByRole("tab", { name: /Recipes/i }).click();
-    await page
-      .locator('select:has(option:text("Select menu item"))')
-      .selectOption({ index: 1 });
-    await page
-      .locator('select:has(option:text("Inventory item"))')
-      .selectOption({ index: 1 });
+    await page.getByRole("button", { name: "Edit recipe" }).first().click();
+    await expect(page.getByText("Bill of materials")).toBeVisible();
     await page.getByPlaceholder("Qty").fill("0.5");
     await page.getByRole("button", { name: "Save recipe" }).click();
     await expect(page.getByText(/Recipe saved/i)).toBeVisible({ timeout: 5000 });

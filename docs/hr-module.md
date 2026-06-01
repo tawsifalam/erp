@@ -20,11 +20,13 @@ IDs use prefixes from seed/runtime: `emp_`, `att_`, `smr_`, `sml_`, `sm_`, `pr_`
 
 Select **organization** and **branch** in the header (branch required for attendance and staff meals).
 
+Forms follow [UI patterns](./ui-patterns.md): **FormDrawer** for employees, meal recipes, and meal consumption; **FormDialog** for clock in/out.
+
 | Tab | Features |
 |-----|----------|
-| **Employees** | List staff; **add**, **edit** (inline), **terminate**, and **reactivate** employees |
-| **Attendance** | Clock in/out for selected employee; **recent attendance** list for current branch |
-| **Staff meals** | Define **meal recipes** (ingredients per meal); **record consumption** (employee + recipe + meal count); recent consumption list; optional payroll deduction |
+| **Employees** | Table list; **+ Add employee** / row **Edit** → drawer; **terminate** / **reactivate** on row |
+| **Attendance** | **+ Record attendance** → dialog; recent attendance list |
+| **Staff meals** | Recipe table; **+ New recipe** (drawer) and **+ Record meal** (drawer); recent consumption list |
 | **Payroll** | **Run payroll** for current month; list runs with gross / deductions / net per employee |
 
 ## Staff meal flow

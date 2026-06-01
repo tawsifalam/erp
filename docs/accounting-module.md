@@ -21,7 +21,7 @@ Select **organization** in the header (branch optional).
 |-----|----------|
 | **Journal entries** | List recent entries with debit/credit lines per account |
 | **Chart of accounts** | List accounts; **add** account (code, name, type) |
-| **New journal** | Multi-line entry form with **running debit/credit totals** and balance indicator; posts when debits = credits |
+| **Post journal** | Opens **FormDrawer** with multi-line entry, running debit/credit totals, and balance indicator; posts when debits = credits |
 
 Links from **POS → Orders** (“View journals →”) open this page.
 

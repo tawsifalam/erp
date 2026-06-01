@@ -9,6 +9,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { FormDrawer } from "@/components/form-drawer";
 import { ContentCard, EmptyState, FormField, TableSkeleton, TableScrollArea } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -28,7 +29,7 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
   const { ask, dialog } = useConfirmDialog();
   const [pools, setPools] = useState<InventoryPool[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState({ code: "", name: "" });
 
   const load = useCallback(async () => {
@@ -60,7 +61,7 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
         body: JSON.stringify(form),
       });
       setForm({ code: "", name: "" });
-      setShowForm(false);
+      setDrawerOpen(false);
       appToast.success("Inventory pool created");
       load();
     } catch (e) {
@@ -103,8 +104,8 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
       {dialog}
       <Flex justify="space-between" align="center" mb={3}>
         <Text fontWeight="semibold">Inventory pools</Text>
-        <Button size="sm" colorPalette="blue" onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ Add pool"}
+        <Button size="sm" colorPalette="blue" onClick={() => setDrawerOpen(true)}>
+          + Add pool
         </Button>
       </Flex>
       <Text fontSize="sm" color="fg.muted" mb={3}>
@@ -113,33 +114,7 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
         missing.
       </Text>
 
-      {showForm && (
-        <ContentCard mb={4}>
-          <Stack gap={3} maxW={{ base: "full", md: "480px" }}>
-            <FormField label="Code" help="Text slug (e.g. minibar). Cannot be changed later.">
-              <Input
-                size="sm"
-                placeholder="Code (e.g. minibar)"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-              />
-            </FormField>
-            <FormField label="Display name">
-              <Input
-                size="sm"
-                placeholder="Display name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </FormField>
-            <Button size="sm" colorPalette="green" w="fit-content" onClick={createPool}>
-              Create pool
-            </Button>
-          </Stack>
-        </ContentCard>
-      )}
-
-      <ContentCard>
+      <ContentCard p={0} overflow="hidden">
         {loading ? (
           <TableSkeleton rows={4} columns={4} />
         ) : (
@@ -175,6 +150,40 @@ export function InventoryPoolsSection({ tenant }: { tenant: TenantHeaders | unde
           </>
         )}
       </ContentCard>
+
+      <FormDrawer
+        open={drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false);
+          setForm({ code: "", name: "" });
+        }}
+        title="Add inventory pool"
+        size="sm"
+        primaryLabel="Create pool"
+        onPrimary={createPool}
+        primaryDisabled={!form.code.trim() || !form.name.trim()}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Code" help="Text slug (e.g. minibar). Cannot be changed later.">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Code (e.g. minibar)"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Display name">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Display name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
     </>
   );
 }

@@ -12,9 +12,20 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { FormDialog } from "@/components/form-dialog";
+import { FormDrawer } from "@/components/form-drawer";
+import { RowActionsMenu } from "@/components/row-actions-menu";
 import NextLink from "next/link";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
-import { EmptyState, FormField, MoneyText, StatusBadge, TableSkeleton } from "@erp/ui";
+import {
+  ContentCard,
+  EmptyState,
+  FormField,
+  MoneyText,
+  StatusBadge,
+  TableScrollArea,
+  TableSkeleton,
+} from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import type { CartItem, MenuCategory, Order } from "@/lib/pos-types";
@@ -33,7 +44,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   const [notes, setNotes] = useState("");
   const [reservationId, setReservationId] = useState("");
   const [checkedInReservations, setCheckedInReservations] = useState<Reservation[]>([]);
-  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
@@ -68,6 +79,18 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const resetNewOrder = () => {
+    setCart([]);
+    setTableNumber("");
+    setNotes("");
+    setReservationId("");
+  };
+
+  const closeNewOrder = () => {
+    setNewOrderOpen(false);
+    resetNewOrder();
+  };
 
   const addToCart = (item: { id: string; name: string; price: string }) => {
     setCart((prev) => {
@@ -114,11 +137,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
           })),
         }),
       });
-      setCart([]);
-      setTableNumber("");
-      setNotes("");
-      setReservationId("");
-      setShowNewOrder(false);
+      closeNewOrder();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to create order");
@@ -142,6 +161,11 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
     setPaymentAmount(String(order.totalAmount));
   };
 
+  const closePayment = () => {
+    setPaymentId(null);
+    setPaymentAmount("");
+  };
+
   const savePayment = async () => {
     if (!branchId || !paymentId) return;
     try {
@@ -150,7 +174,7 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
         tenant,
         body: JSON.stringify({ paidAmount: Number(paymentAmount) }),
       });
-      setPaymentId(null);
+      closePayment();
       load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to complete order");
@@ -199,6 +223,29 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
     });
   };
 
+  const orderRowActions = (o: Order) => {
+    const items: { label: string; onClick: () => void; colorPalette?: string }[] = [];
+    if (o.status === "DRAFT") {
+      items.push({ label: "Cancel", onClick: () => confirmCancel(o.id) });
+      items.push({
+        label: "Delete",
+        onClick: () => confirmDelete(o.id),
+        colorPalette: "red",
+      });
+    }
+    if (o.status === "SUBMITTED") {
+      items.push({ label: "Cancel", onClick: () => confirmCancel(o.id) });
+    }
+    if (o.status === "CANCELLED") {
+      items.push({
+        label: "Delete",
+        onClick: () => confirmDelete(o.id),
+        colorPalette: "red",
+      });
+    }
+    return items;
+  };
+
   if (!branchId) {
     return <BranchRequiredNotice />;
   }
@@ -206,14 +253,17 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
   return (
     <>
       {dialog}
-      <Box>
-
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>
           Refresh
         </Button>
-        <Button size="sm" colorPalette="blue" onClick={() => setShowNewOrder(!showNewOrder)}>
-          {showNewOrder ? "Cancel" : "+ New Order"}
+        <Button
+          size="sm"
+          colorPalette="blue"
+          w={{ base: "full", sm: "auto" }}
+          onClick={() => setNewOrderOpen(true)}
+        >
+          + New order
         </Button>
         <AppSelect
           width="160px"
@@ -235,25 +285,109 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
         </Link>
       </Flex>
 
-      {showNewOrder && (
-        <Box bg="white" borderRadius="md" p={4} mb={4}>
-          <Flex gap={6} wrap="wrap">
-            <Box flex="1" minW="300px">
-              <Text fontWeight="semibold" mb={2}>
-                Menu
+      <ContentCard p={0} overflow="hidden">
+        {loading ? (
+          <Box p={4}>
+            <TableSkeleton rows={5} columns={6} />
+          </Box>
+        ) : (
+          <>
+            <TableScrollArea>
+              <Table.Root size="sm">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Table</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                      Items
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Total</Table.ColumnHeader>
+                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader display={{ base: "none", md: "table-cell" }}>
+                      Payment
+                    </Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {filteredOrders.map((o) => (
+                    <Table.Row key={o.id}>
+                      <Table.Cell>{o.tableNumber ?? "—"}</Table.Cell>
+                      <Table.Cell fontSize="xs" display={{ base: "none", sm: "table-cell" }}>
+                        {o.lines.map((l) => `${l.menuItem.name}×${l.quantity}`).join(", ")}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <MoneyText amount={Number(o.totalAmount)} />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <StatusBadge status={o.status} />
+                      </Table.Cell>
+                      <Table.Cell display={{ base: "none", md: "table-cell" }}>
+                        <StatusBadge status={o.paymentStatus} />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <Flex gap={1} wrap="wrap" align="center">
+                          {o.status === "DRAFT" && (
+                            <Button
+                              size="xs"
+                              colorPalette="blue"
+                              onClick={() => handleSubmit(o.id)}
+                            >
+                              Send to kitchen
+                            </Button>
+                          )}
+                          {(o.status === "SUBMITTED" ||
+                            o.status === "PREPARING" ||
+                            o.status === "READY") && (
+                            <Button size="xs" colorPalette="green" onClick={() => openPayment(o)}>
+                              Complete & pay
+                            </Button>
+                          )}
+                          <RowActionsMenu items={orderRowActions(o)} />
+                        </Flex>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
+            {filteredOrders.length === 0 && (
+              <Box p={4}>
+                <EmptyState message="No orders match this filter." />
+              </Box>
+            )}
+          </>
+        )}
+      </ContentCard>
+
+      <FormDrawer
+        open={newOrderOpen}
+        onClose={closeNewOrder}
+        title="New order"
+        description="Add menu items to the cart, then create the order."
+        size="lg"
+        primaryLabel="Create order"
+        onPrimary={handleCreateOrder}
+        primaryDisabled={cart.length === 0}
+      >
+        <Stack gap={6}>
+          <Box>
+            <Text fontWeight="semibold" mb={2}>
+              Menu
+            </Text>
+            {categories.length === 0 ? (
+              <Text fontSize="sm" color="fg.muted">
+                Add menu items on the Menu tab first.
               </Text>
-              {categories.length === 0 ? (
-                <Text fontSize="sm" color="fg.muted">
-                  Add menu items on the Menu tab first.
-                </Text>
-              ) : (
-                categories.map((cat) => (
-                  <Box key={cat.id} mb={3}>
-                    <Text fontSize="sm" fontWeight="medium" color="fg.muted" mb={1}>
-                      {cat.name}
-                    </Text>
-                    <Flex gap={2} wrap="wrap">
-                      {cat.items.filter((item) => item.isActive !== false).map((item) => (
+            ) : (
+              categories.map((cat) => (
+                <Box key={cat.id} mb={3}>
+                  <Text fontSize="sm" fontWeight="medium" color="fg.muted" mb={1}>
+                    {cat.name}
+                  </Text>
+                  <Flex gap={2} wrap="wrap">
+                    {cat.items
+                      .filter((item) => item.isActive !== false)
+                      .map((item) => (
                         <Button
                           key={item.id}
                           size="xs"
@@ -263,20 +397,21 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
                           {item.name} (৳{Number(item.price)})
                         </Button>
                       ))}
-                    </Flex>
-                  </Box>
-                ))
-              )}
-            </Box>
-            <Box w="300px">
-              <Text fontWeight="semibold" mb={2}>
-                Cart
-              </Text>
+                  </Flex>
+                </Box>
+              ))
+            )}
+          </Box>
+          <Box>
+            <Text fontWeight="semibold" mb={2}>
+              Cart
+            </Text>
+            <Stack gap={3}>
               <FormField label="Table number" help="Optional — for dine-in orders.">
                 <Input
                   size="sm"
+                  width="100%"
                   placeholder="Table #"
-                  mb={2}
                   value={tableNumber}
                   onChange={(e) => setTableNumber(e.target.value)}
                 />
@@ -284,13 +419,16 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
               <FormField label="Notes" help="Allergies, special requests, etc.">
                 <Input
                   size="sm"
-                  placeholder="Notes (allergies, etc.)"
-                  mb={2}
+                  width="100%"
+                  placeholder="Notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </FormField>
-              <FormField label="Charge to room" help="Optional — posts comp meals to guest allowance on complete.">
+              <FormField
+                label="Charge to room"
+                help="Optional — posts comp meals to guest allowance on complete."
+              >
                 <AppSelect
                   width="100%"
                   items={[
@@ -334,153 +472,43 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
                       </Flex>
                     </Flex>
                   ))}
-                  <Flex justify="space-between" fontWeight="bold" borderTopWidth="1px" pt={2} mt={1}>
+                  <Flex
+                    justify="space-between"
+                    fontWeight="bold"
+                    borderTopWidth="1px"
+                    pt={2}
+                    mt={1}
+                  >
                     <Text>Total</Text>
                     <Text>৳{cartTotal}</Text>
                   </Flex>
-                  <Button
-                    size="sm"
-                    colorPalette="green"
-                    mt={2}
-                    onClick={handleCreateOrder}
-                    disabled={cart.length === 0}
-                  >
-                    Create Order
-                  </Button>
                 </Stack>
               )}
-            </Box>
-          </Flex>
-        </Box>
-      )}
-
-      <Box bg="white" borderRadius="md" p={4}>
-        {loading ? (
-          <TableSkeleton rows={5} columns={6} />
-        ) : (
-          <>
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader>Table</Table.ColumnHeader>
-                <Table.ColumnHeader>Items</Table.ColumnHeader>
-                <Table.ColumnHeader>Total</Table.ColumnHeader>
-                <Table.ColumnHeader>Status</Table.ColumnHeader>
-                <Table.ColumnHeader>Payment</Table.ColumnHeader>
-                <Table.ColumnHeader>Actions</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {filteredOrders.map((o) => (
-                <Table.Row key={o.id}>
-                  <Table.Cell>{o.tableNumber ?? "—"}</Table.Cell>
-                  <Table.Cell fontSize="xs">
-                    {o.lines.map((l) => `${l.menuItem.name}×${l.quantity}`).join(", ")}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <MoneyText amount={Number(o.totalAmount)} />
-                  </Table.Cell>
-                  <Table.Cell>
-                    <StatusBadge status={o.status} />
-                  </Table.Cell>
-                  <Table.Cell>
-                    <StatusBadge status={o.paymentStatus} />
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Flex gap={1} wrap="wrap">
-                      {o.status === "DRAFT" && (
-                        <>
-                          <Button size="xs" colorPalette="blue" onClick={() => handleSubmit(o.id)}>
-                            Send to Kitchen
-                          </Button>
-                          <Button
-                            size="xs"
-                            colorPalette="red"
-                            variant="outline"
-                            onClick={() => confirmCancel(o.id)}
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                      {(o.status === "SUBMITTED" ||
-                        o.status === "PREPARING" ||
-                        o.status === "READY") && (
-                        <>
-                          <Button size="xs" colorPalette="green" onClick={() => openPayment(o)}>
-                            Complete & Pay
-                          </Button>
-                          {o.status === "SUBMITTED" && (
-                            <Button
-                              size="xs"
-                              colorPalette="red"
-                              variant="outline"
-                              onClick={() => confirmCancel(o.id)}
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                        </>
-                      )}
-                      {(o.status === "DRAFT" || o.status === "CANCELLED") && (
-                        <Button
-                          size="xs"
-                          colorPalette="red"
-                          variant="outline"
-                          onClick={() => confirmDelete(o.id)}
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </Flex>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-          {filteredOrders.length === 0 && (
-            <EmptyState message="No orders match this filter." />
-          )}
-          </>
-        )}
-      </Box>
-
-      {paymentId && (
-        <Box
-          position="fixed"
-          inset={0}
-          bg="blackAlpha.400"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          zIndex={10}
-        >
-          <Box bg="white" p={6} borderRadius="md" minW="300px">
-            <Text fontWeight="semibold" mb={3}>
-              Complete & pay
-            </Text>
-            <Text fontSize="sm" color="fg.muted" mb={2}>
-              Enter amount received (defaults to full total).
-            </Text>
-            <Input
-              size="sm"
-              type="number"
-              mb={3}
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
-            />
-            <Flex gap={2}>
-              <Button size="sm" colorPalette="green" onClick={savePayment}>
-                Complete
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setPaymentId(null)}>
-                Cancel
-              </Button>
-            </Flex>
+            </Stack>
           </Box>
-        </Box>
-      )}
-    </Box>
+        </Stack>
+      </FormDrawer>
+
+      <FormDialog
+        open={!!paymentId}
+        onClose={closePayment}
+        title="Complete & pay"
+        primaryLabel="Complete"
+        onPrimary={savePayment}
+      >
+        <Text fontSize="sm" color="fg.muted" mb={3}>
+          Enter amount received (defaults to full total).
+        </Text>
+        <FormField label="Paid amount">
+          <Input
+            size="sm"
+            width="100%"
+            type="number"
+            value={paymentAmount}
+            onChange={(e) => setPaymentAmount(e.target.value)}
+          />
+        </FormField>
+      </FormDialog>
     </>
   );
 }

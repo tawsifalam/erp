@@ -21,7 +21,6 @@ export const MODULE_SECTIONS: Record<string, Record<string, SectionMeta>> = {
   "/accounting": {
     journals: { label: "Journal entries" },
     accounts: { label: "Chart of accounts" },
-    "new-journal": { label: "New journal" },
   },
   "/pms": {
     reservations: { label: "Reservations" },

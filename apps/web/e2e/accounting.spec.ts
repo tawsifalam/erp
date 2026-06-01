@@ -24,46 +24,53 @@ test.describe("Accounting", () => {
   test("add account appears in chart", async ({ page }) => {
     await page.goto("/accounting");
     await page.getByRole("tab", { name: /Chart of accounts/i }).click();
+    await page.getByRole("button", { name: "+ Add account" }).click();
+    await expect(page.getByText("Add account")).toBeVisible();
     await page.getByPlaceholder("Code").fill("5400");
     await page.getByPlaceholder("Name").fill("Marketing Expense");
-    await page.getByRole("button", { name: "Add" }).click();
+    await page.getByRole("button", { name: "Create", exact: true }).click();
     await expect(page.getByRole("cell", { name: "5400" })).toBeVisible({ timeout: 5000 });
   });
 
   test("post balanced journal entry", async ({ page }) => {
     await page.goto("/accounting");
-    await page.getByRole("tab", { name: /New journal/i }).click();
+    await page.getByRole("button", { name: "+ Post journal" }).click();
+    await expect(page.getByText("Post journal entry")).toBeVisible();
     await page.getByPlaceholder("Description").fill("Utility bill");
     await page.getByRole("button", { name: "+ Line" }).click();
 
-    const accountSelects = page.locator('select:has(option:text("Account"))');
-    await accountSelects.nth(0).selectOption({ label: /5200.*Utilities/ });
-    await accountSelects.nth(1).selectOption({ label: /1100.*Bank/ });
+    const comboboxes = page.getByRole("combobox");
+    await comboboxes.nth(0).click();
+    await page.getByRole("option", { name: /5200.*Utilities/ }).click();
+    await comboboxes.nth(1).click();
+    await page.getByRole("option", { name: /1100.*Bank/ }).click();
 
-    const debitInputs = page.getByPlaceholder("Debit");
-    const creditInputs = page.getByPlaceholder("Credit");
-    await debitInputs.nth(0).fill("5000");
-    await creditInputs.nth(1).fill("5000");
+    const numberInputs = page.locator('input[type="number"]');
+    await numberInputs.nth(0).fill("5000");
+    await numberInputs.nth(3).fill("5000");
 
     await expect(page.getByText("Balanced ✓")).toBeVisible();
-    await page.getByRole("button", { name: "Post journal entry" }).click();
+    await page.getByRole("button", { name: "Post journal", exact: true }).click();
     await expect(page.getByText("Utility bill")).toBeVisible({ timeout: 5000 });
   });
 
   test("shows error for unbalanced journal before post", async ({ page }) => {
     await page.goto("/accounting");
-    await page.getByRole("tab", { name: /New journal/i }).click();
+    await page.getByRole("button", { name: "+ Post journal" }).click();
 
-    const accountSelects = page.locator('select:has(option:text("Account"))');
-    await accountSelects.nth(0).selectOption({ label: /1000.*Cash/ });
+    const comboboxes = page.getByRole("combobox");
+    await comboboxes.nth(0).click();
+    await page.getByRole("option", { name: /1000.*Cash/ }).click();
     await page.getByRole("button", { name: "+ Line" }).click();
-    await accountSelects.nth(1).selectOption({ label: /4000.*Room Revenue/ });
+    await comboboxes.nth(1).click();
+    await page.getByRole("option", { name: /4000.*Room Revenue/ }).click();
 
-    await page.getByPlaceholder("Debit").first().fill("100");
-    await page.getByPlaceholder("Credit").nth(1).fill("50");
+    const numberInputs = page.locator('input[type="number"]');
+    await numberInputs.nth(0).fill("100");
+    await numberInputs.nth(3).fill("50");
 
     await expect(page.getByText("Not balanced")).toBeVisible();
-    await page.getByRole("button", { name: "Post journal entry" }).click();
+    await page.getByRole("button", { name: "Post journal", exact: true }).click();
     await expect(page.getByText(/not balanced/i)).toBeVisible();
   });
 });

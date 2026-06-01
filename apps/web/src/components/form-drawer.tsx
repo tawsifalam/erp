@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Box,
   Button,
   Drawer,
   Portal,
@@ -77,16 +78,17 @@ export function FormDrawer({
               bg="white"
               borderBottomWidth="1px"
               borderColor="gray.200"
-              flexShrink={0}
             >
-              <Drawer.Title>{title}</Drawer.Title>
-              {description && (
-                <Drawer.Description>
-                  <Text fontSize="sm" color="fg.muted">
-                    {description}
-                  </Text>
-                </Drawer.Description>
-              )}
+              <Box>
+                <Drawer.Title>{title}</Drawer.Title>
+                {description && (
+                  <Drawer.Description>
+                    <Text fontSize="sm" color="fg.muted">
+                      {description}
+                    </Text>
+                  </Drawer.Description>
+                )}
+              </Box>
               <Drawer.CloseTrigger disabled={primaryLoading} />
             </Drawer.Header>
 

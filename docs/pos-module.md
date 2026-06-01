@@ -17,6 +17,8 @@ IDs use prefixes from seed/runtime: `mc_`, `mi_`, `ord_`, `ol_`, `kt_`.
 
 ## Web UI
 
+Drawer-based forms follow [UI patterns](./ui-patterns.md): **Orders** use `FormDrawer` (new order) and `FormDialog` (payment); **Menu** uses `FormDrawer` for categories and items; lists use `ContentCard` + `TableScrollArea`. Secondary order actions are in the **⋯ Actions** menu.
+
 ### `/pos` (Cashier)
 
 Select **organization** and **branch** in the header first.

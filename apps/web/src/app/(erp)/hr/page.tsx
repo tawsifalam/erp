@@ -13,6 +13,9 @@ import {
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
+import { FormDialog } from "@/components/form-dialog";
+import { FormDrawer } from "@/components/form-drawer";
+import { FormSection } from "@/components/form-section";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ModulePageHeader } from "@/components/module-page-header";
 import {
@@ -79,23 +82,38 @@ type StaffMealRecord = {
   recipe: { name: string };
 };
 
+const emptyEmpForm = () => ({ name: "", designation: "", salary: "" });
+
+const emptyRecipeForm = () => ({
+  name: "",
+  lines: [{ inventoryItemId: "", quantity: "" }],
+});
+
+const emptyMealForm = () => ({
+  employeeId: "",
+  staffMealRecipeId: "",
+  mealCount: "1",
+  deductFromPayroll: false,
+});
+
 export default function HrPage() {
   const tenant = useTenantHeaders();
   const [tab, setTab] = useModuleTab("employees");
   const { ask, dialog } = useConfirmDialog();
-  const [empForm, setEmpForm] = useState({ name: "", designation: "", salary: "" });
+
+  const [empDrawer, setEmpDrawer] = useState<"create" | "edit" | null>(null);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [empForm, setEmpForm] = useState(emptyEmpForm());
+
+  const [clockOpen, setClockOpen] = useState(false);
   const [clockEmployeeId, setClockEmployeeId] = useState("");
   const [clockType, setClockType] = useState<"CLOCK_IN" | "CLOCK_OUT">("CLOCK_IN");
-  const [mealForm, setMealForm] = useState({
-    employeeId: "",
-    staffMealRecipeId: "",
-    mealCount: "1",
-    deductFromPayroll: false,
-  });
-  const [recipeForm, setRecipeForm] = useState({
-    name: "",
-    lines: [{ inventoryItemId: "", quantity: "" }],
-  });
+
+  const [recipeDrawerOpen, setRecipeDrawerOpen] = useState(false);
+  const [recipeForm, setRecipeForm] = useState(emptyRecipeForm);
+
+  const [mealDrawerOpen, setMealDrawerOpen] = useState(false);
+  const [mealForm, setMealForm] = useState(emptyMealForm());
 
   const employeesQuery = useAsync(
     () => apiFetch<Employee[]>("/hr/employees", { tenant }),
@@ -115,7 +133,7 @@ export default function HrPage() {
             { tenant },
           )
         : Promise.resolve([]),
-    [tenant.organizationId, tenant.branchId],
+    [tenant.branchId, tenant.organizationId],
   );
 
   const mealRecipesQuery = useAsync(
@@ -158,34 +176,65 @@ export default function HrPage() {
   const staffMeals = staffMealsQuery.data ?? [];
   const inventoryItems = inventoryQuery.data ?? [];
 
-  const handleAddEmployee = async () => {
+  const openCreateEmployee = () => {
+    setEditingEmployeeId(null);
+    setEmpForm(emptyEmpForm());
+    setEmpDrawer("create");
+  };
+
+  const openEditEmployee = (e: Employee) => {
+    setEditingEmployeeId(e.id);
+    setEmpForm({
+      name: e.name,
+      designation: e.designation,
+      salary: String(e.salary),
+    });
+    setEmpDrawer("edit");
+  };
+
+  const closeEmpDrawer = () => {
+    setEmpDrawer(null);
+    setEditingEmployeeId(null);
+    setEmpForm(emptyEmpForm());
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!empForm.name.trim()) return;
     try {
-      await apiFetch("/hr/employees", {
-        method: "POST",
-        tenant,
-        body: JSON.stringify({
-          name: empForm.name,
-          designation: empForm.designation,
-          salary: Number(empForm.salary),
-          branchId: tenant.branchId,
-        }),
-      });
-      setEmpForm({ name: "", designation: "", salary: "" });
+      if (empDrawer === "create") {
+        await apiFetch("/hr/employees", {
+          method: "POST",
+          tenant,
+          body: JSON.stringify({
+            name: empForm.name,
+            designation: empForm.designation,
+            salary: Number(empForm.salary),
+            branchId: tenant.branchId,
+          }),
+        });
+        appToast.success("Employee added");
+      } else if (editingEmployeeId) {
+        await apiFetch(`/hr/employees/${editingEmployeeId}`, {
+          method: "PATCH",
+          tenant,
+          body: JSON.stringify({
+            name: empForm.name,
+            designation: empForm.designation,
+            salary: Number(empForm.salary),
+          }),
+        });
+        appToast.success("Employee updated");
+      }
+      closeEmpDrawer();
       employeesQuery.reload();
-      appToast.success("Employee added");
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to add employee");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Failed to save employee");
     }
   };
 
   const updateEmployee = async (
     id: string,
-    data: {
-      name?: string;
-      designation?: string;
-      salary?: number;
-      status?: string;
-    },
+    data: { status?: string },
   ) => {
     try {
       await apiFetch(`/hr/employees/${id}`, {
@@ -195,14 +244,10 @@ export default function HrPage() {
       });
       employeesQuery.reload();
       appToast.success(
-        data.status === "TERMINATED"
-          ? "Employee terminated"
-          : data.status === "ACTIVE"
-            ? "Employee reactivated"
-            : "Employee updated",
+        data.status === "TERMINATED" ? "Employee terminated" : "Employee reactivated",
       );
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to update employee");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Failed to update employee");
     }
   };
 
@@ -216,6 +261,12 @@ export default function HrPage() {
     });
   };
 
+  const closeClock = () => {
+    setClockOpen(false);
+    setClockEmployeeId("");
+    setClockType("CLOCK_IN");
+  };
+
   const handleClock = async () => {
     if (!clockEmployeeId || !tenant.branchId) return;
     try {
@@ -225,14 +276,20 @@ export default function HrPage() {
         body: JSON.stringify({ employeeId: clockEmployeeId, type: clockType }),
       });
       appToast.success(`${clockType === "CLOCK_IN" ? "Clocked in" : "Clocked out"} successfully`);
+      closeClock();
       reloadAttendance();
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to record attendance");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Failed to record attendance");
     }
   };
 
+  const closeRecipeDrawer = () => {
+    setRecipeDrawerOpen(false);
+    setRecipeForm(emptyRecipeForm());
+  };
+
   const handleSaveRecipe = async () => {
-    if (!tenant.branchId) return;
+    if (!tenant.branchId || !recipeForm.name.trim()) return;
     try {
       await apiFetch("/hr/staff-meal-recipes", {
         method: "POST",
@@ -247,12 +304,17 @@ export default function HrPage() {
             })),
         }),
       });
-      setRecipeForm({ name: "", lines: [{ inventoryItemId: "", quantity: "" }] });
+      closeRecipeDrawer();
       mealRecipesQuery.reload();
       appToast.success("Staff meal recipe saved");
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to save recipe");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Failed to save recipe");
     }
+  };
+
+  const closeMealDrawer = () => {
+    setMealDrawerOpen(false);
+    setMealForm(emptyMealForm());
   };
 
   const handleStaffMeal = async () => {
@@ -268,16 +330,11 @@ export default function HrPage() {
           deductFromPayroll: mealForm.deductFromPayroll,
         }),
       });
-      setMealForm({
-        employeeId: "",
-        staffMealRecipeId: "",
-        mealCount: "1",
-        deductFromPayroll: false,
-      });
+      closeMealDrawer();
       staffMealsQuery.reload();
       appToast.success("Staff meal recorded (recipe ingredients deducted)");
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to record staff meal");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Failed to record staff meal");
     }
   };
 
@@ -295,8 +352,8 @@ export default function HrPage() {
       });
       appToast.success(`Payroll run queued: ${job.id}`);
       payrollQuery.reload();
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to queue payroll run");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Failed to queue payroll run");
     }
   };
 
@@ -326,47 +383,24 @@ export default function HrPage() {
         </ScrollableTabsList>
 
         <Tabs.Content value="employees" pt={4}>
-          <ContentCard mb={4}>
-            <Text fontWeight="semibold" mb={3}>
-              Add employee
-            </Text>
-            <Flex gap={2} wrap="wrap">
-              <FormField label="Name" required>
-                <Input
-                  size="sm"
-                  w="180px"
-                  value={empForm.name}
-                  onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Designation">
-                <Input
-                  size="sm"
-                  w="160px"
-                  value={empForm.designation}
-                  onChange={(e) => setEmpForm({ ...empForm, designation: e.target.value })}
-                />
-              </FormField>
-              <FormField
-                label="Salary"
-                help="Base monthly gross pay before meal deductions and payroll adjustments."
-              >
-                <Input
-                  size="sm"
-                  w="120px"
-                  type="number"
-                  value={empForm.salary}
-                  onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })}
-                />
-              </FormField>
-              <Button size="sm" colorPalette="blue" alignSelf="flex-end" onClick={handleAddEmployee}>
-                Add
-              </Button>
-            </Flex>
-          </ContentCard>
-          <ContentCard>
+          <Flex gap={2} mb={4} wrap="wrap">
+            <Button size="sm" onClick={() => employeesQuery.reload()}>
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              colorPalette="blue"
+              w={{ base: "full", sm: "auto" }}
+              onClick={openCreateEmployee}
+            >
+              + Add employee
+            </Button>
+          </Flex>
+          <ContentCard p={0} overflow="hidden">
             {employeesQuery.loading ? (
-              <TableSkeleton rows={5} columns={5} />
+              <Box p={4}>
+                <TableSkeleton rows={5} columns={5} />
+              </Box>
             ) : (
               <>
                 <TableScrollArea>
@@ -374,7 +408,9 @@ export default function HrPage() {
                     <Table.Header>
                       <Table.Row>
                         <Table.ColumnHeader>Name</Table.ColumnHeader>
-                        <Table.ColumnHeader>Designation</Table.ColumnHeader>
+                        <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                          Designation
+                        </Table.ColumnHeader>
                         <Table.ColumnHeader>Salary</Table.ColumnHeader>
                         <Table.ColumnHeader>Status</Table.ColumnHeader>
                         <Table.ColumnHeader>Actions</Table.ColumnHeader>
@@ -382,22 +418,55 @@ export default function HrPage() {
                     </Table.Header>
                     <Table.Body>
                       {employees.map((e) => (
-                        <EmployeeRow
-                          key={e.id}
-                          employee={e}
-                          onSave={(id, data) => updateEmployee(id, data)}
-                          onTerminate={() => confirmTerminate(e)}
-                          onReactivate={(id) => updateEmployee(id, { status: "ACTIVE" })}
-                        />
+                        <Table.Row key={e.id} opacity={e.status === "TERMINATED" ? 0.75 : 1}>
+                          <Table.Cell fontWeight="medium">{e.name}</Table.Cell>
+                          <Table.Cell display={{ base: "none", sm: "table-cell" }}>
+                            {e.designation}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(e.salary)} />
+                          </Table.Cell>
+                          <Table.Cell>
+                            <StatusBadge status={e.status ?? "ACTIVE"} />
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Flex gap={1} wrap="wrap">
+                              <Button size="xs" variant="outline" onClick={() => openEditEmployee(e)}>
+                                Edit
+                              </Button>
+                              {e.status === "TERMINATED" ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  colorPalette="green"
+                                  onClick={() => updateEmployee(e.id, { status: "ACTIVE" })}
+                                >
+                                  Reactivate
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  colorPalette="red"
+                                  onClick={() => confirmTerminate(e)}
+                                >
+                                  Terminate
+                                </Button>
+                              )}
+                            </Flex>
+                          </Table.Cell>
+                        </Table.Row>
                       ))}
                     </Table.Body>
                   </Table.Root>
                 </TableScrollArea>
                 {employees.length === 0 && (
-                  <EmptyState
-                    title="No employees yet"
-                    description="Add staff above to track attendance, meals, and payroll."
-                  />
+                  <Box p={4}>
+                    <EmptyState
+                      title="No employees yet"
+                      description="Add staff to track attendance, meals, and payroll."
+                    />
+                  </Box>
                 )}
               </>
             )}
@@ -406,272 +475,199 @@ export default function HrPage() {
 
         <Tabs.Content value="attendance" pt={4}>
           {!tenant.branchId && <BranchRequiredNotice />}
-          <ContentCard maxW={{ base: "full", md: "480px" }} mb={4}>
-            <Stack gap={3}>
-              <FormField
-                label="Employee"
-                required
-                help="Select branch in the header first. Clock-in/out feeds payroll and attendance history."
-              >
-                <AppSelect
-                  items={[
-                    { value: "", label: "Select employee" },
-                    ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
-                  ]}
-                  value={clockEmployeeId}
-                  onValueChange={setClockEmployeeId}
-                  placeholder="Select employee"
-                />
-              </FormField>
-              <FormField
-                label="Action"
-                help="Clock in at shift start; clock out when the shift ends."
-              >
-                <AppSelect
-                  items={[
-                    { value: "CLOCK_IN", label: "Clock in" },
-                    { value: "CLOCK_OUT", label: "Clock out" },
-                  ]}
-                  value={clockType}
-                  onValueChange={(v) => setClockType(v as "CLOCK_IN" | "CLOCK_OUT")}
-                />
-              </FormField>
-              <Button size="sm" colorPalette="green" w="fit-content" onClick={handleClock}>
-                Record attendance
-              </Button>
-            </Stack>
-          </ContentCard>
-          <ContentCard>
-            <Text fontWeight="semibold" mb={2}>
-              Recent attendance
-            </Text>
-            {attendanceQuery.loading ? (
-              <ListSkeleton rows={5} />
-            ) : (
-              <>
-                {attendance.length === 0 && (
+          {tenant.branchId && (
+            <>
+              <Flex gap={2} mb={4} wrap="wrap">
+                <Button size="sm" onClick={reloadAttendance}>
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  colorPalette="blue"
+                  w={{ base: "full", sm: "auto" }}
+                  onClick={() => setClockOpen(true)}
+                  disabled={activeEmployees.length === 0}
+                >
+                  + Record attendance
+                </Button>
+              </Flex>
+              <ContentCard>
+                <Text fontWeight="semibold" mb={2}>
+                  Recent attendance
+                </Text>
+                {attendanceQuery.loading ? (
+                  <ListSkeleton rows={5} />
+                ) : attendance.length === 0 ? (
                   <EmptyState
                     title="No attendance records yet"
-                    description="Record clock-in and clock-out above once employees are added."
+                    description="Record clock-in and clock-out for active employees."
                   />
+                ) : (
+                  <Stack gap={1}>
+                    {attendance.map((a) => (
+                      <Flex
+                        key={a.id}
+                        justify="space-between"
+                        fontSize="sm"
+                        borderBottomWidth="1px"
+                        pb={1}
+                      >
+                        <Text>
+                          {a.employee.name} — {a.type.replace("_", " ")}
+                        </Text>
+                        <Text color="fg.muted">{formatDateTime(a.recordedAt)}</Text>
+                      </Flex>
+                    ))}
+                  </Stack>
                 )}
-                <Stack gap={1}>
-                  {attendance.map((a) => (
-                    <Flex key={a.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
-                      <Text>
-                        {a.employee.name} — {a.type.replace("_", " ")}
-                      </Text>
-                      <Text color="fg.muted">{formatDateTime(a.recordedAt)}</Text>
-                    </Flex>
-                  ))}
-                </Stack>
-              </>
-            )}
-          </ContentCard>
+              </ContentCard>
+            </>
+          )}
         </Tabs.Content>
 
         <Tabs.Content value="meals" pt={4}>
           {!tenant.branchId && <BranchRequiredNotice />}
-
-          <ContentCard mb={4}>
-            <Text fontWeight="semibold" mb={2}>
-              Meal recipes
-            </Text>
-            <Text fontSize="sm" color="fg.muted" mb={3}>
-              Define each staff meal as a recipe (ingredients per 1 meal). Consumption auto-deducts inventory.
-            </Text>
-            {mealRecipesQuery.loading ? (
-              <ListSkeleton rows={3} />
-            ) : (
-              mealRecipes.length > 0 && (
-                <Stack gap={2} mb={4}>
-                  {mealRecipes.map((r) => (
-                    <Box key={r.id} borderWidth="1px" borderRadius="md" p={3}>
-                      <Text fontWeight="medium">{r.name}</Text>
-                      <Text fontSize="sm" color="fg.muted">
-                        {r.lines
-                          .map((l) => `${l.inventoryItem.name} ${l.quantity}${l.inventoryItem.unit}`)
-                          .join(" · ")}
-                      </Text>
-                    </Box>
-                  ))}
-                </Stack>
-              )
-            )}
-            <Stack gap={2} maxW={{ base: "full", md: "640px" }}>
-              <FormField label="Recipe name" help="e.g. Staff Lunch">
-                <Input
+          {tenant.branchId && (
+            <>
+              <Text fontSize="sm" color="fg.muted" mb={4}>
+                Define meal recipes (ingredients per meal), then record consumption. Inventory
+                deducts from the staff pool automatically.
+              </Text>
+              <Flex gap={2} mb={4} wrap="wrap">
+                <Button size="sm" onClick={() => mealRecipesQuery.reload()}>
+                  Refresh
+                </Button>
+                <Button
                   size="sm"
-                  value={recipeForm.name}
-                  onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
-                />
-              </FormField>
-              {recipeForm.lines.map((line, idx) => (
-                <Flex key={idx} gap={2} align="flex-end" wrap="wrap">
-                  <FormField label={idx === 0 ? "Ingredient" : "Ingredient"}>
-                    <AppSelect
-                      flex={1}
-                      minWidth="200px"
-                      items={[
-                        { value: "", label: "Select ingredient" },
-                        ...inventoryItems.map((i) => ({
-                          value: i.id,
-                          label: `${i.name} (${i.unit})`,
-                        })),
-                      ]}
-                      value={line.inventoryItemId}
-                      onValueChange={(v) => {
-                        const lines = [...recipeForm.lines];
-                        lines[idx] = { ...lines[idx], inventoryItemId: v };
-                        setRecipeForm({ ...recipeForm, lines });
-                      }}
-                      placeholder="Select ingredient"
-                    />
-                  </FormField>
-                  <FormField
-                    label={idx === 0 ? "Qty per meal" : "Qty per meal"}
-                    help={idx === 0 ? "Amount of this ingredient used for one staff meal." : undefined}
-                  >
-                    <Input
-                      size="sm"
-                      w="120px"
-                      type="number"
-                      step="0.001"
-                      value={line.quantity}
-                      onChange={(e) => {
-                        const lines = [...recipeForm.lines];
-                        lines[idx] = { ...lines[idx], quantity: e.target.value };
-                        setRecipeForm({ ...recipeForm, lines });
-                      }}
-                    />
-                  </FormField>
-                </Flex>
-              ))}
-              <Flex gap={2}>
+                  colorPalette="blue"
+                  w={{ base: "full", sm: "auto" }}
+                  onClick={() => setRecipeDrawerOpen(true)}
+                >
+                  + New recipe
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    setRecipeForm({
-                      ...recipeForm,
-                      lines: [...recipeForm.lines, { inventoryItemId: "", quantity: "" }],
-                    })
-                  }
+                  w={{ base: "full", sm: "auto" }}
+                  onClick={() => setMealDrawerOpen(true)}
+                  disabled={mealRecipes.length === 0 || activeEmployees.length === 0}
                 >
-                  Add ingredient
-                </Button>
-                <Button size="sm" colorPalette="blue" onClick={handleSaveRecipe}>
-                  Save recipe
+                  + Record meal
                 </Button>
               </Flex>
-            </Stack>
-          </ContentCard>
 
-          <ContentCard maxW={{ base: "full", md: "560px" }} mb={4}>
-            <Text fontWeight="semibold" mb={2}>
-              Record consumption
-            </Text>
-            <Text fontSize="sm" color="fg.muted" mb={3}>
-              Select employee and meal recipe. Enter how many meals consumed.
-            </Text>
-            <Stack gap={3}>
-              <FormField label="Employee" required>
-                <AppSelect
-                  items={[
-                    { value: "", label: "Employee" },
-                    ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
-                  ]}
-                  value={mealForm.employeeId}
-                  onValueChange={(v) => setMealForm({ ...mealForm, employeeId: v })}
-                  placeholder="Employee"
-                />
-              </FormField>
-              <FormField label="Meal recipe" required>
-                <AppSelect
-                  items={[
-                    { value: "", label: "Meal recipe" },
-                    ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
-                  ]}
-                  value={mealForm.staffMealRecipeId}
-                  onValueChange={(v) => setMealForm({ ...mealForm, staffMealRecipeId: v })}
-                  placeholder="Meal recipe"
-                />
-              </FormField>
-              <FormField
-                label="Meals consumed"
-                help="Number of staff meals served — inventory is deducted by recipe × count."
-              >
-                <Input
-                  size="sm"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={mealForm.mealCount}
-                  onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Payroll deduction" help="Optionally deduct meal cost from next payroll.">
-                <AppSelect
-                  items={[
-                    { value: "no", label: "Do not deduct from payroll" },
-                    { value: "yes", label: "Deduct from next payroll" },
-                  ]}
-                  value={mealForm.deductFromPayroll ? "yes" : "no"}
-                  onValueChange={(v) =>
-                    setMealForm({ ...mealForm, deductFromPayroll: v === "yes" })
-                  }
-                />
-              </FormField>
-              <Button size="sm" colorPalette="green" w="fit-content" onClick={handleStaffMeal}>
-                Record meal
-              </Button>
-            </Stack>
-          </ContentCard>
+              <ContentCard mb={4} p={0} overflow="hidden">
+                <Box px={4} pt={4} pb={2}>
+                  <Text fontWeight="semibold">Meal recipes</Text>
+                </Box>
+                {mealRecipesQuery.loading ? (
+                  <Box p={4}>
+                    <ListSkeleton rows={3} />
+                  </Box>
+                ) : mealRecipes.length === 0 ? (
+                  <Box p={4}>
+                    <EmptyState
+                      title="No meal recipes"
+                      description="Create a recipe before recording staff meals."
+                    />
+                  </Box>
+                ) : (
+                  <TableScrollArea>
+                    <Table.Root size="sm">
+                      <Table.Header>
+                        <Table.Row>
+                          <Table.ColumnHeader>Name</Table.ColumnHeader>
+                          <Table.ColumnHeader>Ingredients</Table.ColumnHeader>
+                        </Table.Row>
+                      </Table.Header>
+                      <Table.Body>
+                        {mealRecipes.map((r) => (
+                          <Table.Row key={r.id}>
+                            <Table.Cell fontWeight="medium">{r.name}</Table.Cell>
+                            <Table.Cell fontSize="sm" color="fg.muted">
+                              {r.lines
+                                .map(
+                                  (l) =>
+                                    `${l.inventoryItem.name} ${l.quantity}${l.inventoryItem.unit}`,
+                                )
+                                .join(" · ")}
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Root>
+                  </TableScrollArea>
+                )}
+              </ContentCard>
 
-          <ContentCard>
-            <Text fontWeight="semibold" mb={2}>
-              Recent consumption
-            </Text>
-            {staffMealsQuery.loading ? (
-              <ListSkeleton rows={5} />
-            ) : (
-              <>
-                {staffMeals.length === 0 && (
+              <ContentCard>
+                <Text fontWeight="semibold" mb={2}>
+                  Recent consumption
+                </Text>
+                {staffMealsQuery.loading ? (
+                  <ListSkeleton rows={5} />
+                ) : staffMeals.length === 0 ? (
                   <EmptyState
                     title="No staff meals recorded yet"
-                    description="Save a meal recipe above, then record consumption when staff eat."
+                    description="Record consumption when staff eat."
                   />
+                ) : (
+                  <Stack gap={1}>
+                    {staffMeals.map((m) => (
+                      <Flex
+                        key={m.id}
+                        justify="space-between"
+                        fontSize="sm"
+                        borderBottomWidth="1px"
+                        pb={1}
+                      >
+                        <Text>
+                          {m.employee.name} — {m.mealCount}× {m.recipe.name}
+                        </Text>
+                        <Text color="fg.muted">{formatDateTime(m.createdAt)}</Text>
+                      </Flex>
+                    ))}
+                  </Stack>
                 )}
-                <Stack gap={1}>
-                  {staffMeals.map((m) => (
-                    <Flex key={m.id} justify="space-between" fontSize="sm" borderBottomWidth="1px" pb={1}>
-                      <Text>
-                        {m.employee.name} — {m.mealCount}× {m.recipe.name}
-                      </Text>
-                      <Text color="fg.muted">{formatDateTime(m.createdAt)}</Text>
-                    </Flex>
-                  ))}
-                </Stack>
-              </>
-            )}
-          </ContentCard>
+              </ContentCard>
+            </>
+          )}
         </Tabs.Content>
 
         <Tabs.Content value="payroll" pt={4}>
+          <Flex gap={2} mb={4} wrap="wrap">
+            <Button size="sm" onClick={() => payrollQuery.reload()}>
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              colorPalette="blue"
+              w={{ base: "full", sm: "auto" }}
+              onClick={confirmRunPayroll}
+            >
+              Run payroll for current month
+            </Button>
+          </Flex>
           <Text fontSize="sm" color="fg.muted" mb={3} maxW={{ base: "full", md: "560px" }}>
-            Run payroll to calculate gross pay, deductions, and net pay for all employees in the
-            current calendar month. Results appear below once processing completes.
+            Queues payroll for all active employees from the 1st of this month through today.
           </Text>
-          <Button size="sm" mb={4} colorPalette="blue" onClick={confirmRunPayroll}>
-            Run payroll for current month
-          </Button>
           {payrollQuery.loading ? (
             <TableSkeleton rows={4} columns={4} />
+          ) : payrollRuns.length === 0 ? (
+            <EmptyState
+              title="No payroll runs yet"
+              description="Run payroll for the current month to calculate pay for all employees."
+              action={
+                <Button size="sm" colorPalette="blue" onClick={confirmRunPayroll}>
+                  Run payroll
+                </Button>
+              }
+            />
           ) : (
-            <>
-              {payrollRuns.map((run) => (
-                <ContentCard key={run.id} mb={4}>
-                  <Flex justify="space-between" mb={2} wrap="wrap" gap={2}>
+            payrollRuns.map((run) => (
+              <ContentCard key={run.id} mb={4} p={0} overflow="hidden">
+                <Box px={4} pt={4} pb={2}>
+                  <Flex justify="space-between" wrap="wrap" gap={2}>
                     <Text fontWeight="semibold">
                       {formatDateTime(run.periodStart)} — {formatDateTime(run.periodEnd)}
                     </Text>
@@ -679,139 +675,266 @@ export default function HrPage() {
                       {run.status}
                     </Text>
                   </Flex>
-                  <TableScrollArea>
-                    <Table.Root size="sm">
-                      <Table.Header>
-                        <Table.Row>
-                          <Table.ColumnHeader>Employee</Table.ColumnHeader>
-                          <Table.ColumnHeader>Gross</Table.ColumnHeader>
-                          <Table.ColumnHeader>Deductions</Table.ColumnHeader>
-                          <Table.ColumnHeader>Net</Table.ColumnHeader>
+                </Box>
+                <TableScrollArea>
+                  <Table.Root size="sm">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader>Employee</Table.ColumnHeader>
+                        <Table.ColumnHeader>Gross</Table.ColumnHeader>
+                        <Table.ColumnHeader display={{ base: "none", sm: "table-cell" }}>
+                          Deductions
+                        </Table.ColumnHeader>
+                        <Table.ColumnHeader>Net</Table.ColumnHeader>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {run.lines.map((l, i) => (
+                        <Table.Row key={i}>
+                          <Table.Cell>{l.employee.name}</Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(l.grossPay)} />
+                          </Table.Cell>
+                          <Table.Cell display={{ base: "none", sm: "table-cell" }}>
+                            <MoneyText amount={Number(l.deductions)} />
+                          </Table.Cell>
+                          <Table.Cell>
+                            <MoneyText amount={Number(l.netPay)} />
+                          </Table.Cell>
                         </Table.Row>
-                      </Table.Header>
-                      <Table.Body>
-                        {run.lines.map((l, i) => (
-                          <Table.Row key={i}>
-                            <Table.Cell>{l.employee.name}</Table.Cell>
-                            <Table.Cell>
-                              <MoneyText amount={Number(l.grossPay)} />
-                            </Table.Cell>
-                            <Table.Cell>
-                              <MoneyText amount={Number(l.deductions)} />
-                            </Table.Cell>
-                            <Table.Cell>
-                              <MoneyText amount={Number(l.netPay)} />
-                            </Table.Cell>
-                          </Table.Row>
-                        ))}
-                      </Table.Body>
-                    </Table.Root>
-                  </TableScrollArea>
-                </ContentCard>
-              ))}
-              {payrollRuns.length === 0 && (
-                <EmptyState
-                  title="No payroll runs yet"
-                  description="Run payroll for the current month to calculate pay for all employees."
-                  action={
-                    <Button size="sm" colorPalette="blue" onClick={confirmRunPayroll}>
-                      Run payroll
-                    </Button>
-                  }
-                />
-              )}
-            </>
+                      ))}
+                    </Table.Body>
+                  </Table.Root>
+                </TableScrollArea>
+              </ContentCard>
+            ))
           )}
         </Tabs.Content>
       </Tabs.Root>
-    </DashboardShell>
-  );
-}
 
-function EmployeeRow({
-  employee,
-  onSave,
-  onTerminate,
-  onReactivate,
-}: {
-  employee: Employee;
-  onSave: (
-    id: string,
-    data: { name: string; designation: string; salary: number },
-  ) => void;
-  onTerminate: () => void;
-  onReactivate: (id: string) => void;
-}) {
-  const [name, setName] = useState(employee.name);
-  const [designation, setDesignation] = useState(employee.designation);
-  const [salary, setSalary] = useState(String(employee.salary));
-  const isTerminated = employee.status === "TERMINATED";
-
-  useEffect(() => {
-    setName(employee.name);
-    setDesignation(employee.designation);
-    setSalary(String(employee.salary));
-  }, [employee.name, employee.designation, employee.salary]);
-
-  return (
-    <Table.Row opacity={isTerminated ? 0.75 : 1}>
-      <Table.Cell>
-        <Input size="sm" value={name} onChange={(e) => setName(e.target.value)} />
-      </Table.Cell>
-      <Table.Cell>
-        <Input
-          size="sm"
-          value={designation}
-          onChange={(e) => setDesignation(e.target.value)}
-        />
-      </Table.Cell>
-      <Table.Cell>
-        <Input
-          size="sm"
-          type="number"
-          value={salary}
-          onChange={(e) => setSalary(e.target.value)}
-        />
-      </Table.Cell>
-      <Table.Cell>
-        <StatusBadge status={employee.status ?? "ACTIVE"} />
-      </Table.Cell>
-      <Table.Cell>
-        <Flex gap={2} wrap="wrap">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() =>
-              onSave(employee.id, {
-                name,
-                designation,
-                salary: Number(salary),
-              })
-            }
+      <FormDrawer
+        open={empDrawer !== null}
+        onClose={closeEmpDrawer}
+        title={empDrawer === "edit" ? "Edit employee" : "Add employee"}
+        size="sm"
+        primaryLabel={empDrawer === "edit" ? "Save" : "Create"}
+        onPrimary={handleSaveEmployee}
+        primaryDisabled={!empForm.name.trim()}
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Name" required>
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Name"
+              value={empForm.name}
+              onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Designation">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Designation"
+              value={empForm.designation}
+              onChange={(e) => setEmpForm({ ...empForm, designation: e.target.value })}
+            />
+          </FormField>
+          <FormField
+            label="Salary"
+            help="Base monthly gross pay before meal deductions and payroll adjustments."
           >
-            Save
-          </Button>
-          {isTerminated ? (
+            <Input
+              size="sm"
+              width="100%"
+              type="number"
+              placeholder="Salary"
+              value={empForm.salary}
+              onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })}
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
+
+      <FormDialog
+        open={clockOpen}
+        onClose={closeClock}
+        title="Record attendance"
+        primaryLabel="Record"
+        onPrimary={handleClock}
+        primaryDisabled={!clockEmployeeId}
+      >
+        <Stack gap={4} width="100%">
+          <FormField
+            label="Employee"
+            required
+            help="Active employees only. Select branch in the header first."
+          >
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "", label: "Select employee" },
+                ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
+              ]}
+              value={clockEmployeeId}
+              onValueChange={setClockEmployeeId}
+              placeholder="Select employee"
+            />
+          </FormField>
+          <FormField label="Action" help="Clock in at shift start; clock out when the shift ends.">
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "CLOCK_IN", label: "Clock in" },
+                { value: "CLOCK_OUT", label: "Clock out" },
+              ]}
+              value={clockType}
+              onValueChange={(v) => setClockType(v as "CLOCK_IN" | "CLOCK_OUT")}
+            />
+          </FormField>
+        </Stack>
+      </FormDialog>
+
+      <FormDrawer
+        open={recipeDrawerOpen}
+        onClose={closeRecipeDrawer}
+        title="New staff meal recipe"
+        description="Ingredients required for one staff meal (staff inventory pool)."
+        size="md"
+        primaryLabel="Save recipe"
+        onPrimary={handleSaveRecipe}
+        primaryDisabled={!recipeForm.name.trim()}
+      >
+        <FormSection title="Recipe">
+          <FormField label="Recipe name" help="e.g. Staff Lunch">
+            <Input
+              size="sm"
+              width="100%"
+              placeholder="Recipe name"
+              value={recipeForm.name}
+              onChange={(e) => setRecipeForm({ ...recipeForm, name: e.target.value })}
+            />
+          </FormField>
+        </FormSection>
+        <FormSection title="Ingredients">
+          <Stack gap={3} width="100%">
+            {recipeForm.lines.map((line, idx) => (
+              <Flex key={idx} gap={2} direction={{ base: "column", sm: "row" }} width="100%">
+                <AppSelect
+                  width="100%"
+                  items={[
+                    { value: "", label: "Select ingredient" },
+                    ...inventoryItems.map((i) => ({
+                      value: i.id,
+                      label: `${i.name} (${i.unit})`,
+                    })),
+                  ]}
+                  value={line.inventoryItemId}
+                  onValueChange={(v) => {
+                    const lines = [...recipeForm.lines];
+                    lines[idx] = { ...lines[idx], inventoryItemId: v };
+                    setRecipeForm({ ...recipeForm, lines });
+                  }}
+                  placeholder="Select ingredient"
+                />
+                <Input
+                  size="sm"
+                  width="100%"
+                  type="number"
+                  step="0.001"
+                  placeholder="Qty per meal"
+                  value={line.quantity}
+                  onChange={(e) => {
+                    const lines = [...recipeForm.lines];
+                    lines[idx] = { ...lines[idx], quantity: e.target.value };
+                    setRecipeForm({ ...recipeForm, lines });
+                  }}
+                />
+              </Flex>
+            ))}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
-              colorPalette="green"
-              onClick={() => onReactivate(employee.id)}
+              alignSelf="flex-start"
+              onClick={() =>
+                setRecipeForm({
+                  ...recipeForm,
+                  lines: [...recipeForm.lines, { inventoryItemId: "", quantity: "" }],
+                })
+              }
             >
-              Reactivate
+              + Ingredient line
             </Button>
-          ) : (
-            <Button
-              size="xs"
-              variant="outline"
-              colorPalette="red"
-              onClick={onTerminate}
-            >
-              Terminate
-            </Button>
-          )}
-        </Flex>
-      </Table.Cell>
-    </Table.Row>
+          </Stack>
+        </FormSection>
+      </FormDrawer>
+
+      <FormDrawer
+        open={mealDrawerOpen}
+        onClose={closeMealDrawer}
+        title="Record staff meal"
+        size="sm"
+        primaryLabel="Record meal"
+        onPrimary={handleStaffMeal}
+        primaryDisabled={
+          !mealForm.employeeId || !mealForm.staffMealRecipeId || !mealForm.mealCount
+        }
+      >
+        <Stack gap={4} width="100%">
+          <FormField label="Employee" required>
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "", label: "Employee" },
+                ...activeEmployees.map((e) => ({ value: e.id, label: e.name })),
+              ]}
+              value={mealForm.employeeId}
+              onValueChange={(v) => setMealForm({ ...mealForm, employeeId: v })}
+              placeholder="Employee"
+            />
+          </FormField>
+          <FormField label="Meal recipe" required>
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "", label: "Meal recipe" },
+                ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
+              ]}
+              value={mealForm.staffMealRecipeId}
+              onValueChange={(v) => setMealForm({ ...mealForm, staffMealRecipeId: v })}
+              placeholder="Meal recipe"
+            />
+          </FormField>
+          <FormField
+            label="Meals consumed"
+            help="Inventory is deducted by recipe × count."
+          >
+            <Input
+              size="sm"
+              width="100%"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="Meals consumed"
+              value={mealForm.mealCount}
+              onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Payroll deduction" help="Optionally deduct meal cost from next payroll.">
+            <AppSelect
+              width="100%"
+              items={[
+                { value: "no", label: "Do not deduct from payroll" },
+                { value: "yes", label: "Deduct from next payroll" },
+              ]}
+              value={mealForm.deductFromPayroll ? "yes" : "no"}
+              onValueChange={(v) =>
+                setMealForm({ ...mealForm, deductFromPayroll: v === "yes" })
+              }
+            />
+          </FormField>
+        </Stack>
+      </FormDrawer>
+    </DashboardShell>
   );
 }

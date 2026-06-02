@@ -38,6 +38,7 @@ const MODEL_PREFIXES: Record<string, string> = {
   StaffMealRecipeLine: "sml",
   AuditLog: "aud",
   Notification: "ntf",
+  NotificationPreference: "ntp",
   ReportJob: "rpt",
   Vendor: "ven",
   PurchaseOrder: "po",

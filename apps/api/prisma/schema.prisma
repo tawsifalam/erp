@@ -22,6 +22,7 @@ model User {
   employee    Employee?
   auditLogs     AuditLog[]
   notifications Notification[]
+  notificationPreferences NotificationPreference[]
   reportJobs    ReportJob[] @relation("ReportJobRequester")
 }
 
@@ -551,6 +552,22 @@ model Notification {
 
   @@index([organizationId, userId, createdAt])
   @@index([userId, readAt])
+}
+
+model NotificationPreference {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  type           String
+  inApp          Boolean  @default(true)
+  email          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, type])
+  @@index([userId, organizationId])
 }
 
 model ReportJob {

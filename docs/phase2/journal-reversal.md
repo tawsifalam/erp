@@ -65,6 +65,6 @@ Confirm dialog before posting.
 
 `20260612100000_journal_reversal`
 
-## Next (Sprint 5)
+## Next (Sprint 6)
 
-**Notification preferences** or **branch invitations** — see [README](./README.md).
+**Branch invitations** — per-branch membership ([README](./README.md)).

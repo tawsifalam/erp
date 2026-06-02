@@ -26,6 +26,9 @@ import { useModuleTab } from "@/lib/use-module-tab";
 import { InventoryPoolsSection } from "./inventory-pools-section";
 import { TeamAccessSection } from "./team-access-section";
 import { AuditLogSection } from "./audit-log-section";
+import { NotificationPreferencesSection } from "./notification-preferences-section";
+
+const ADMIN_TABS = new Set(["organization", "team", "audit", "pools"]);
 
 type Branch = {
   id: string;
@@ -54,7 +57,8 @@ function tenantHeadersFor(orgId: string | null, branchId: string | null): Tenant
 export default function SettingsPage() {
   const tenant = useTenant();
   const { ask, dialog } = useConfirmDialog();
-  const [tab, setTab] = useModuleTab("organization");
+  const isAdmin = canManageTenants(tenant.role);
+  const [tab, setTab] = useModuleTab(isAdmin ? "organization" : "notifications");
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +68,6 @@ export default function SettingsPage() {
   const [branchDrawerOpen, setBranchDrawerOpen] = useState(false);
   const [newOrgDrawerOpen, setNewOrgDrawerOpen] = useState(false);
 
-  const isAdmin = canManageTenants(tenant.role);
   const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
 
   const load = useCallback(async () => {
@@ -91,6 +94,12 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isAdmin && ADMIN_TABS.has(tab)) {
+      setTab("notifications");
+    }
+  }, [isAdmin, tab, setTab]);
 
   const saveOrgName = async () => {
     if (!tenantHeaders) return;
@@ -197,24 +206,30 @@ export default function SettingsPage() {
       {dialog}
       <ModulePageHeader />
 
-      {!isAdmin && (
+      {!isAdmin && tab !== "notifications" && (
         <ContextBanner status="info" title="View-only access">
           Tenant management requires Owner or Admin role. You can still switch organization and
           branch using the selectors in the header.
         </ContextBanner>
       )}
 
-      {isAdmin && (
-        <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)}>
-          <ScrollableTabsList>
-            <Tabs.List mb={4}>
-              <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
-              <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
-              <Tabs.Trigger value="audit">Audit log</Tabs.Trigger>
-              <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
-            </Tabs.List>
-          </ScrollableTabsList>
+      <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)}>
+        <ScrollableTabsList>
+          <Tabs.List mb={4}>
+            {isAdmin && (
+              <>
+                <Tabs.Trigger value="organization">Organization & branches</Tabs.Trigger>
+                <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
+                <Tabs.Trigger value="audit">Audit log</Tabs.Trigger>
+                <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
+              </>
+            )}
+            <Tabs.Trigger value="notifications">Notifications</Tabs.Trigger>
+          </Tabs.List>
+        </ScrollableTabsList>
 
+        {isAdmin && (
+          <>
           <Tabs.Content value="organization" pt={2}>
             <Flex gap={2} mb={4} wrap="wrap">
               <Button
@@ -318,8 +333,13 @@ export default function SettingsPage() {
           <Tabs.Content value="pools" pt={2}>
             <InventoryPoolsSection tenant={tenantHeaders} />
           </Tabs.Content>
-        </Tabs.Root>
-      )}
+          </>
+        )}
+
+        <Tabs.Content value="notifications" pt={2}>
+          <NotificationPreferencesSection tenant={tenantHeaders} />
+        </Tabs.Content>
+      </Tabs.Root>
 
       <FormDrawer
         open={newOrgDrawerOpen}

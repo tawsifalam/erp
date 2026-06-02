@@ -62,6 +62,6 @@ Jobs table download link points to `.pdf` or `.csv` depending on job.
 | E2E (mock) | `reports.spec.ts` — P&L PDF export + download link |
 | Smoke (real) | `smoke-local-06` — trial balance PDF queue |
 
-## Next (Sprint 5)
+## Next (Sprint 6)
 
-Per [README](./README.md) suggested order: **notification preferences** or **branch invitations**.
+**Branch invitations** — per-branch membership ([README](./README.md)).

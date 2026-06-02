@@ -104,7 +104,6 @@ export class ReportsProcessor extends WorkerHost {
           title: "Report ready",
           body: `Your ${label} export is ready to download.`,
           link: "/reports",
-          email: false,
         });
       }
     } catch (err) {

@@ -60,7 +60,6 @@ export class PayrollProcessor extends WorkerHost {
           title: "Payroll run failed",
           body: `Payroll run ${payrollRunId} could not be completed.`,
           link: "/hr",
-          email: true,
         },
       );
       throw err;
@@ -153,7 +152,6 @@ export class PayrollProcessor extends WorkerHost {
         title: "Payroll completed",
         body: `Payroll for ${periodLabel} has been processed.`,
         link: "/hr",
-        email: true,
       },
     );
   }

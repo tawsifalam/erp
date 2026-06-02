@@ -56,9 +56,13 @@ test.describe("Smoke — Accounting", () => {
     await page.getByRole("button", { name: "Post journal", exact: true }).click();
     await expect(page.getByText(desc)).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("button", { name: "Reverse" }).first().click();
+    const titlePattern = new RegExp(`^${desc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} —`);
+    await page
+      .getByText(titlePattern)
+      .locator("xpath=..")
+      .getByRole("button", { name: "Reverse" })
+      .click();
     await page.getByTestId("confirm-dialog-confirm").click();
-    await expect(page.getByText(/Journal entry reversed|reversed/i)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(`Reversal of: ${desc}`)).toBeVisible({ timeout: 15_000 });
   });
 

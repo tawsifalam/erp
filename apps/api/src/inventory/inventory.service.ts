@@ -311,7 +311,6 @@ export class InventoryService {
           title: "Low stock alert",
           body: `${item.name} (${item.sku}) is at ${item.currentStock} ${item.unit} (threshold ${item.lowStockThreshold})`,
           link: "/inventory",
-          email: true,
         },
       );
     } catch (err) {

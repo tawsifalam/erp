@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { Tenant } from "../common/decorators/tenant.decorator";
@@ -24,6 +24,25 @@ export class NotificationsController {
   @Patch("read-all")
   markAllRead(@Tenant() t: TenantContext) {
     return this.notifications.markAllRead(t.organizationId, t.userId);
+  }
+
+  @Get("preferences")
+  listPreferences(@Tenant() t: TenantContext) {
+    return this.notifications.listPreferences(t.organizationId, t.userId);
+  }
+
+  @Patch("preferences/:type")
+  updatePreference(
+    @Tenant() t: TenantContext,
+    @Param("type") type: string,
+    @Body() body: { inApp?: boolean; email?: boolean },
+  ) {
+    return this.notifications.updatePreference(
+      t.organizationId,
+      t.userId,
+      type,
+      body,
+    );
   }
 
   @Patch(":id/read")

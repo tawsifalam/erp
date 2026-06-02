@@ -27,7 +27,7 @@ Items intentionally left out of Phase 1 / 1.5 / 1.6. Grouped by theme; estimate 
 
 | Item | Phase 1 today | Phase 2 target |
 |------|----------------|----------------|
-| **`NotificationPreference`** | All events use fixed channels | Per-user toggles (email vs in-app) by event type |
+| **`NotificationPreference`** | All events use fixed channels | Per-user toggles (email vs in-app) by event type — [notification-preferences.md](./notification-preferences.md) |
 | **PO email to admins** | In-app `PO_AWAITING_RECEIPT` only | Optional email on PO submit (like payroll/low stock) |
 | **Audit retention / export** | Query + filter in Settings | CSV export, retention policy (ops) |
 
@@ -112,7 +112,8 @@ From [erp-completeness-roadmap.md](../erp-completeness-roadmap.md) — large or 
 | 2 | Vendor payment | [vendor-payment.md](./vendor-payment.md) | Shipped |
 | 3 | Journal reversal | [journal-reversal.md](./journal-reversal.md) | Shipped |
 | 4 | PDF financial reports | [pdf-financial-reports.md](./pdf-financial-reports.md) | Shipped |
-| 5 | Notification preferences | — | Planned |
+| 5 | Notification preferences | [notification-preferences.md](./notification-preferences.md) | Shipped |
+| 6 | Branch invitations | — | Planned |
 
 ## Suggested build order
 

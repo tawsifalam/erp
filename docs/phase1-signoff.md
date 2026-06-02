@@ -68,7 +68,7 @@ A property group can run **without spreadsheets** for:
 | Fiscal periods / period close | Deferred |
 | Journal reversal | Deferred |
 | Vendor payment (Dr AP / Cr Cash) | Receipt accrues AP only |
-| `NotificationPreference` | Deferred |
+| `NotificationPreference` | Shipped (Phase 2 Sprint 5) — per-user in-app / email toggles |
 | PDF financial reports | CSV via async jobs only |
 | Distribution (OTA, offline POS, mobile, QR) | [phase2/README.md](./phase2/README.md) § Distribution |
 | All Phase 1 deferrals (finance, integrations, branch access, …) | [phase2/README.md](./phase2/README.md) § Deferred from Phase 1 |
@@ -97,6 +97,7 @@ cd apps/api && pnpm prisma migrate deploy
 | `20260610100000_fiscal_periods` | Fiscal periods; journal `entryDate` |
 | `20260611100000_vendor_payments` | Vendor payments; Dr AP / Cr Cash or Bank |
 | `20260612100000_journal_reversal` | Journal reversal links (`reversesEntryId`, `reversedAt`) |
+| `20260613100000_notification_preferences` | Per-user notification channel preferences |
 
 Optional seed for local/demo: `pnpm db:seed`
 

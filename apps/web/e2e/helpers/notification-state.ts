@@ -1,6 +1,7 @@
 /** Mutable in-app notifications for Playwright API mocks (reset per test). */
 
 import { E2E_ACTOR_USER_ID, E2E_ORG_ID } from "./audit-state";
+import { resolveNotificationChannels } from "./notification-preference-state";
 
 export type MockNotification = {
   id: string;
@@ -56,6 +57,8 @@ export function resetNotificationState() {
   notifications = structuredClone(INITIAL) as MockNotification[];
 }
 
+export { resetNotificationPreferenceState } from "./notification-preference-state";
+
 export function recordNotification(input: {
   organizationId?: string;
   userId?: string;
@@ -64,10 +67,15 @@ export function recordNotification(input: {
   body: string;
   link?: string | null;
 }) {
+  const organizationId = input.organizationId ?? E2E_ORG_ID;
+  const userId = input.userId ?? E2E_ACTOR_USER_ID;
+  const channels = resolveNotificationChannels(organizationId, userId, input.type);
+  if (!channels.inApp) return null;
+
   const entry: MockNotification = {
     id: `ntf_${notifications.length + 1}`,
-    organizationId: input.organizationId ?? E2E_ORG_ID,
-    userId: input.userId ?? E2E_ACTOR_USER_ID,
+    organizationId,
+    userId,
     type: input.type,
     title: input.title,
     body: input.body,

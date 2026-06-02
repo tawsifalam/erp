@@ -51,4 +51,11 @@ test.describe("Smoke — Settings", () => {
     await expect(page.getByRole("tab", { name: /Audit/i })).toBeVisible();
     await expect(page.getByRole("table").first()).toBeVisible({ timeout: 15_000 });
   });
+
+  test("Notifications tab — preferences table", async ({ page }) => {
+    await goto(page, "/settings?tab=notifications");
+    await expect(page.getByRole("tab", { name: "Notifications", selected: true })).toBeVisible();
+    await expect(page.getByText("Low stock alerts")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("checkbox", { name: "Report ready in-app" })).toBeVisible();
+  });
 });

@@ -69,6 +69,11 @@ import {
   resetNotificationState,
   unreadNotificationCount,
 } from "./notification-state";
+import {
+  listNotificationPreferences,
+  resetNotificationPreferenceState,
+  updateNotificationPreference,
+} from "./notification-preference-state";
 
 /** Nest API on port 3001 (localhost or 127.0.0.1). */
 export function isBackendApiUrl(url: string): boolean {
@@ -317,6 +322,7 @@ export async function mockApiRoutes(page: Page) {
   resetInviteState();
   resetAuditState();
   resetNotificationState();
+  resetNotificationPreferenceState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -363,6 +369,44 @@ export async function mockApiRoutes(page: Page) {
       return fulfillJson(route, listNotifications(String(orgId), notificationUserId, limit));
     },
   );
+
+  await page.route(backendApiRoute("notifications/preferences"), async (route) => {
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    if (route.request().method() === "GET") {
+      return fulfillJson(route, listNotificationPreferences(String(orgId), notificationUserId));
+    }
+    return fulfillJson(route, {});
+  });
+
+  await page.route(/\/api\/notifications\/preferences\/([^/]+)$/, async (route) => {
+    if (route.request().method() !== "PATCH") return fulfillJson(route, {});
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const typeMatch = route.request().url().match(/\/preferences\/([^/]+)$/);
+    const type = typeMatch?.[1];
+    if (!type) {
+      return route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Missing notification type" }),
+      });
+    }
+    const body = route.request().postDataJSON() as { inApp?: boolean; email?: boolean };
+    const result = updateNotificationPreference(
+      String(orgId),
+      notificationUserId,
+      type,
+      body ?? {},
+    );
+    if (result && typeof result === "object" && "status" in result) {
+      const err = result as { status: number; message: string };
+      return route.fulfill({
+        status: err.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: err.message }),
+      });
+    }
+    return fulfillJson(route, result);
+  });
 
   await page.route(/\/api\/notifications\/[^/]+\/read$/, async (route) => {
     if (route.request().method() !== "PATCH") return fulfillJson(route, {});

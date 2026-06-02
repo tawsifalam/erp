@@ -232,7 +232,6 @@ export class ProcurementService {
         title: "Purchase order awaiting receipt",
         body: `PO ${purchaseOrderId.slice(0, 8)}… from ${vendor?.name ?? "vendor"} is ready to receive.`,
         link: "/procurement",
-        email: false,
       },
     );
     return updated;

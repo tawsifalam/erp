@@ -121,30 +121,36 @@ After changing `@erp/types` enums, rebuild: `pnpm --filter @erp/types build` (AP
 | Suite | Count | Notes |
 |-------|-------|--------|
 | API unit (`apps/api`) | 170 tests, 20 suites | `pnpm --filter @erp/api test` |
-| E2E (`apps/web/e2e`) | 18 spec files | Mocked API; needs dev server on :3000 for live runs |
+| E2E (`apps/web/e2e`) | 21 spec files | Mocked API; `pnpm test:e2e` or `pnpm test:visual-guide` |
 
-Representative E2E: `settings`, `procurement`, `rates`, `reports`, `audit`, `notifications`, `pms-flow`, `onboarding`.
+Representative E2E: `settings`, `procurement`, `rates`, `reports`, `audit`, `notifications`, `pms-flow`, `onboarding`, `visual-guide*.spec.ts`.
 
 ---
 
-## Production smoke checklist
+## Production smoke (required before go-live)
 
-Run on a staging stack with real PropelAuth and database:
+**Runbook:** [production-smoke-runbook.md](./production-smoke-runbook.md) — prerequisites (P1–P8) plus eight flows on **real** PropelAuth + database + Redis + MinIO.
 
-1. **Auth & team** — Admin sends email invite → user signs up → `POST /auth/sync` → membership with assigned role.
-2. **Join code (MVP)** — User requests join with code → admin approves with role.
-3. **Procurement** — Create vendor → PO → submit → receive partial → stock up → journal in Accounting.
-4. **Inventory / COGS** — Purchase with unit cost → average updates → complete POS order → COGS journal uses average.
-5. **Payroll** — Run payroll → COMPLETED → GL journals + download payslip PDF from HR.
-6. **Rates** — Seasonal plan + optional F&B bundle → new reservation quote → change dates → total recalculates.
-7. **Reports** — Queue `profit_and_loss` and `trial_balance` CSV → job completes → download.
-8. **Notifications** — Trigger low stock or complete report → bell + email (if Resend configured).
+| # | Flow |
+|---|------|
+| 1 | Auth & team — email invite → signup → `POST /auth/sync` → role |
+| 2 | Join code — request → admin approve |
+| 3 | Procurement — PO → receive → stock + AP journal |
+| 4 | Inventory / COGS — average cost → POS complete → COGS journal |
+| 5 | Payroll — run → GL + payslip PDF |
+| 6 | Rates — plan + quote → date change recalculates |
+| 7 | Reports — P&L + trial balance CSV |
+| 8 | Notifications — bell (+ email if Resend) |
+
+Track a run in GitHub: **Issues → New issue → Production smoke test**.
+
+**Local automation (no deploy):** [smoke-local.md](./smoke-local.md) — `pnpm smoke:local` after Docker + `db:reset` + `SMOKE_PROPELAUTH_USER_ID` in `.env`.
 
 ---
 
 ## Next steps
 
-1. **Production soak** — 1–2 design-partner properties; monitor audit, payroll, and PO flows.
+1. **Complete smoke runbook** on staging, then **production soak** — 1–2 design-partner properties; monitor audit, payroll, and PO flows.
 2. **Phase 2** — Prioritize per [phase2/README.md](./phase2/README.md) (channel manager after rates soak).
 3. **SaaS launch** — Billing/plan limits: [saas-launch-guide.md](./saas-launch-guide.md).
 
@@ -152,7 +158,8 @@ Run on a staging stack with real PropelAuth and database:
 
 ## Related
 
-- [Visual guide](./visual-guide.md) — module map, journeys, screenshots (`pnpm --filter @erp/web test:visual-guide`)
+- [Production smoke runbook](./production-smoke-runbook.md) — go-live validation checklist
+- [Visual guide](./visual-guide.md) — module map, journeys, screenshots (`pnpm visual-guide`, local only)
 - [ERP completeness roadmap](./erp-completeness-roadmap.md) — full history and deferred items
 - [PropelAuth](./propelauth.md) — auth and invite setup
 - [Cloud deployment](./cloud-deployment.md) — production env layout

@@ -12,6 +12,7 @@ apps/api/prisma/migrations/**/migration_lock.toml
 # Playwright output (any package)
 test-results/
 playwright-report/
+.playwright/smoke-auth.json
 
 # Visual guide generated assets (local only — regenerate: pnpm visual-guide)
 docs/visual/**

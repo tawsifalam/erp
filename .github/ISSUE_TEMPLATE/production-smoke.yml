@@ -1,0 +1,79 @@
+name: Production smoke test
+description: Track a staging or production smoke run (Phase 1 runbook)
+title: "Smoke: [environment] YYYY-MM-DD"
+labels: ["qa", "release"]
+body:
+  - type: markdown
+    value: |
+      Follow `docs/production-smoke-runbook.md` in the repo. Check off items below or paste notes from the runbook.
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: staging / production
+    validations:
+      required: true
+
+  - type: input
+    id: web_url
+    attributes:
+      label: Web URL
+      placeholder: https://app.example.com
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Git commit or tag
+    validations:
+      required: true
+
+  - type: textarea
+    id: prerequisites
+    attributes:
+      label: Prerequisites (P1–P8)
+      description: All must pass before flows
+      value: |
+        - [ ] Migrations deployed
+        - [ ] API health OK
+        - [ ] PropelAuth login works
+        - [ ] Redis + MinIO OK
+        - [ ] Org / branch / ADMIN exist
+        - [ ] Chart of accounts seeded
+        - [ ] Inventory pools exist
+    validations:
+      required: true
+
+  - type: textarea
+    id: flows
+    attributes:
+      label: Core flows (1–8)
+      value: |
+        - [ ] 1. Auth & team (email invite)
+        - [ ] 2. Join code approve
+        - [ ] 3. Procurement PO → receive → GL
+        - [ ] 4. Inventory average + COGS
+        - [ ] 5. Payroll + payslip PDF
+        - [ ] 6. Rates + reservation quote
+        - [ ] 7. P&L + trial balance CSV
+        - [ ] 8. Notifications (bell + email if Resend)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Overall result
+      options:
+        - Pass — ready for soak / go-live
+        - Fail — blockers documented
+    validations:
+      required: true
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers (if any)
+      placeholder: B1 — description

@@ -15,8 +15,38 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /visual-guide\.spec\.ts/,
+      testIgnore: /visual-guide.*\.spec\.ts|smoke-local\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], channel: "chrome" },
+    },
+    {
+      name: "smoke-local",
+      testMatch: /smoke-local\.spec\.ts/,
+      timeout: 120_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        headless: false,
+      },
+      ...(process.env.CI
+        ? {}
+        : {
+            webServer: [
+              {
+                command: "pnpm --filter @erp/api dev",
+                cwd: "../../",
+                url: "http://localhost:3001/api/health",
+                reuseExistingServer: true,
+                timeout: 180_000,
+              },
+              {
+                command: "pnpm --filter @erp/web dev",
+                cwd: "../../",
+                url: "http://localhost:3000",
+                reuseExistingServer: true,
+                timeout: 180_000,
+              },
+            ],
+          }),
     },
     {
       name: "visual-guide",

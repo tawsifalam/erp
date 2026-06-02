@@ -354,11 +354,14 @@ When **Finance complete** + **Control complete** are checked, the product meets 
 
 For **monetization and SaaS launch** (design partners, Stripe, plan limits), see [saas-launch-guide.md](./saas-launch-guide.md).
 
+**Before go-live:** run [production-smoke-runbook.md](./production-smoke-runbook.md) on staging (real auth + DB).
+
 ---
 
 ## Related docs
 
 - [Phase 1 sign-off](./phase1-signoff.md) — frozen checklist, migrations, smoke tests
+- [Production smoke runbook](./production-smoke-runbook.md) — staging/production validation
 - [App workflow guide](./app-workflow-guide.md) — current module behavior
 - [Phase 2 backlog](./phase2/README.md) — post-ERP distribution features
 - [Architecture v1](../hospitality_erp_architecture_v1.md) — original 12-week MVP plan

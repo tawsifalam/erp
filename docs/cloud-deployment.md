@@ -204,6 +204,8 @@ In the [PropelAuth dashboard](https://app.propelauth.com):
 
 See [propelauth.md](./propelauth.md) for sync behavior (`POST /api/auth/sync` on first dashboard visit).
 
+After deploy, run [production-smoke-runbook.md](./production-smoke-runbook.md) on the new environment before directing users.
+
 ---
 
 ## Step 5 — Production environment variables

@@ -752,6 +752,20 @@ async function main() {
     data: { adultCount: 2, childCount: 0, packageId: fullBoardPackage.id },
   });
 
+  // ─── Procurement (vendors) ─────────────────────────────────────────────────
+  await prisma.vendor.upsert({
+    where: { id: sid("ven", "00000000-0000-0000-0000-000000000001") },
+    update: {},
+    create: {
+      id: sid("ven", "00000000-0000-0000-0000-000000000001"),
+      organizationId: org.id,
+      name: "Fresh Foods Ltd",
+      contactName: "Rashid",
+      email: "orders@freshfoods.example",
+      isActive: true,
+    },
+  });
+
   // ─── Waste Record ──────────────────────────────────────────────────────────
   await prisma.inventoryMovement.create({
     data: {
@@ -777,6 +791,7 @@ async function main() {
   console.log(`   Inventory:    ${invItems.length} items`);
   console.log(`   Employees:    ${employees.length}`);
   console.log(`   Recipes:      ${recipes.length}`);
+  console.log(`   Vendors:      1 (Fresh Foods Ltd)`);
 }
 
 main()

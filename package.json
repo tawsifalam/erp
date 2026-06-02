@@ -8,6 +8,8 @@
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @erp/web test:e2e",
     "test:visual-guide": "pnpm --filter @erp/web test:visual-guide",
+    "smoke:local:setup": "node scripts/smoke-local-setup.mjs",
+    "smoke:local": "pnpm smoke:local:setup && pnpm --filter @erp/web test:smoke-local",
     "generate:visual-guide-pdf": "node scripts/generate-visual-guide-pdf.mjs",
     "visual-guide": "pnpm test:visual-guide && pnpm generate:visual-guide-pdf",
     "test:e2e:headed": "pnpm --filter @erp/web test:e2e:headed",

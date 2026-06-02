@@ -75,7 +75,10 @@ pnpm dev
 ```bash
 pnpm test                    # Unit tests only (fast)
 pnpm test:e2e:install        # Once: Playwright browser
-pnpm db:reset && pnpm test:e2e   # Full browser tests (stack must be reachable)
+pnpm db:reset && pnpm test:e2e   # Mocked API browser tests (web only)
+
+# Real stack smoke (PropelAuth token + Postgres) — see docs/smoke-local.md
+pnpm smoke:local
 ```
 
 ## 7. API headers

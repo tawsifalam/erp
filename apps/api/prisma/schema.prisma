@@ -46,6 +46,7 @@ model Organization {
   menuCategories MenuCategory[]
   inventoryPools InventoryPool[]
   inclusionPackages InclusionPackage[]
+  fiscalPeriods   FiscalPeriod[]
 }
 
 model UserOrganization {
@@ -380,15 +381,36 @@ model Account {
   @@unique([organizationId, code])
 }
 
+model FiscalPeriod {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  status         String    @default("OPEN")
+  closedAt       DateTime?
+  closedByUserId String?
+  createdAt      DateTime  @default(now())
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
+
 model JournalEntry {
   id             String   @id @default(uuid())
   organizationId String
   description    String?
   referenceType  String?
   referenceId    String?
+  entryDate      DateTime @default(now())
+  fiscalPeriodId String?
   createdAt      DateTime @default(now())
 
-  lines JournalLine[]
+  fiscalPeriod FiscalPeriod? @relation(fields: [fiscalPeriodId], references: [id])
+  lines        JournalLine[]
 }
 
 model JournalLine {

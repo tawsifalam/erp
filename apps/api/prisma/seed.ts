@@ -212,6 +212,22 @@ async function main() {
     accounts[acc.code] = a.id;
   }
 
+  // ─── Fiscal period (Phase 2 — open period for demo journals) ─────────────
+  const fiscalPeriod = await prisma.fiscalPeriod.upsert({
+    where: {
+      organizationId_name: { organizationId: org.id, name: "FY 2026" },
+    },
+    update: {},
+    create: {
+      id: sid("fp", "00000000-0000-0000-0000-000000000100"),
+      organizationId: org.id,
+      name: "FY 2026",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      endDate: new Date("2026-12-31T23:59:59.999Z"),
+      status: "OPEN",
+    },
+  });
+
   // ─── Sample Journal Entry (room payment) ───────────────────────────────────
   await prisma.journalEntry.create({
     data: {
@@ -219,6 +235,8 @@ async function main() {
       organizationId: org.id,
       description: "Room 101 advance payment - Rahim Ahmed",
       referenceType: "Reservation",
+      entryDate: new Date(),
+      fiscalPeriodId: fiscalPeriod.id,
       lines: {
         create: [
           { id: sid("jl"), accountId: accounts["1000"], debit: 7000, credit: 0 },
@@ -524,6 +542,8 @@ async function main() {
       description: "F&B Sale - Table T3",
       referenceType: "Order",
       referenceId: order1.id,
+      entryDate: new Date(),
+      fiscalPeriodId: fiscalPeriod.id,
       lines: {
         create: [
           { id: sid("jl"), accountId: accounts["1000"], debit: 690, credit: 0 },
@@ -541,6 +561,8 @@ async function main() {
       description: "COGS - Order T3 ingredients",
       referenceType: "Order",
       referenceId: order1.id,
+      entryDate: new Date(),
+      fiscalPeriodId: fiscalPeriod.id,
       lines: {
         create: [
           { id: sid("jl"), accountId: accounts["5000"], debit: 180, credit: 0 },

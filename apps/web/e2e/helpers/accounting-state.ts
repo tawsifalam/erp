@@ -2,6 +2,15 @@ import { recordAudit } from "./audit-state";
 
 type MockAccount = { id: string; code: string; name: string; type: string };
 
+type MockFiscalPeriod = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  closedAt: string | null;
+};
+
 type MockJournal = {
   id: string;
   description?: string;
@@ -18,6 +27,17 @@ const INITIAL_ACCOUNTS: MockAccount[] = [
   { id: "acc_5200", code: "5200", name: "Utilities Expense", type: "EXPENSE" },
 ];
 
+const INITIAL_FISCAL_PERIODS: MockFiscalPeriod[] = [
+  {
+    id: "fp_demo",
+    name: "FY 2026",
+    startDate: "2026-01-01T00:00:00.000Z",
+    endDate: "2026-12-31T23:59:59.999Z",
+    status: "OPEN",
+    closedAt: null,
+  },
+];
+
 const INITIAL_JOURNALS: MockJournal[] = [
   {
     id: "je_001",
@@ -31,15 +51,21 @@ const INITIAL_JOURNALS: MockJournal[] = [
 ];
 
 let accounts = structuredClone(INITIAL_ACCOUNTS) as MockAccount[];
+let fiscalPeriods = structuredClone(INITIAL_FISCAL_PERIODS) as MockFiscalPeriod[];
 let journals = structuredClone(INITIAL_JOURNALS) as MockJournal[];
 
 export function resetAccountingState() {
   accounts = structuredClone(INITIAL_ACCOUNTS) as MockAccount[];
+  fiscalPeriods = structuredClone(INITIAL_FISCAL_PERIODS) as MockFiscalPeriod[];
   journals = structuredClone(INITIAL_JOURNALS) as MockJournal[];
 }
 
 export function getAccountingAccounts() {
   return accounts.map((a) => ({ ...a }));
+}
+
+export function getFiscalPeriods() {
+  return fiscalPeriods.map((p) => ({ ...p }));
 }
 
 export function getAccountingJournals() {
@@ -50,11 +76,88 @@ function findAccount(id: string) {
   return accounts.find((a) => a.id === id);
 }
 
+type PeriodError = { errorStatus: number; message: string };
+
+function resolveOpenPeriod(entryDate: Date): MockFiscalPeriod | PeriodError {
+  const day = Date.UTC(
+    entryDate.getUTCFullYear(),
+    entryDate.getUTCMonth(),
+    entryDate.getUTCDate(),
+  );
+  const match = fiscalPeriods.find((p) => {
+    const start = new Date(p.startDate);
+    const end = new Date(p.endDate);
+    const startDay = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+    const endDay = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+    return day >= startDay && day <= endDay;
+  });
+  if (!match) {
+    return {
+      errorStatus: 400,
+      message: "No fiscal period covers this entry date. Create an open period first.",
+    };
+  }
+  if (match.status !== "OPEN") {
+    return {
+      errorStatus: 400,
+      message: `Fiscal period "${match.name}" is closed. Reopen it or choose another entry date.`,
+    };
+  }
+  return match;
+}
+
+function isPeriodError(
+  value: MockFiscalPeriod | PeriodError,
+): value is PeriodError {
+  return "errorStatus" in value;
+}
+
 export function handleAccountingMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
 ): unknown {
+  if (url.includes("/fiscal-periods")) {
+    if (method === "GET") return getFiscalPeriods();
+
+    if (method === "POST") {
+      const name = String(body?.name ?? "").trim();
+      const startDate = String(body?.startDate ?? "");
+      const endDate = String(body?.endDate ?? "");
+      if (!name || !startDate || !endDate) {
+        return { status: 400, message: "Period name and dates are required" };
+      }
+      const period: MockFiscalPeriod = {
+        id: `fp_${fiscalPeriods.length + 1}`,
+        name,
+        startDate: new Date(startDate).toISOString(),
+        endDate: new Date(endDate).toISOString(),
+        status: "OPEN",
+        closedAt: null,
+      };
+      fiscalPeriods.unshift(period);
+      return period;
+    }
+
+    const closeMatch = url.match(/\/fiscal-periods\/([^/]+)\/close/);
+    if (method === "PATCH" && closeMatch) {
+      const p = fiscalPeriods.find((x) => x.id === closeMatch[1]);
+      if (!p) return { status: 404, message: "Fiscal period not found" };
+      p.status = "CLOSED";
+      p.closedAt = new Date().toISOString();
+      return p;
+    }
+
+    const reopenMatch = url.match(/\/fiscal-periods\/([^/]+)\/reopen/);
+    if (method === "PATCH" && reopenMatch) {
+      const p = fiscalPeriods.find((x) => x.id === reopenMatch[1]);
+      if (!p) return { status: 404, message: "Fiscal period not found" };
+      p.status = "OPEN";
+      p.closedAt = null;
+      return p;
+    }
+  }
+
   if (url.includes("/accounts")) {
     if (method === "GET") return getAccountingAccounts();
 
@@ -90,6 +193,12 @@ export function handleAccountingMutation(
           status: 400,
           message: `Journal entry not balanced: debit=${totalDebit} credit=${totalCredit}`,
         };
+      }
+
+      const entryDate = body?.entryDate ? new Date(String(body.entryDate)) : new Date();
+      const periodCheck = resolveOpenPeriod(entryDate);
+      if (isPeriodError(periodCheck)) {
+        return { status: periodCheck.errorStatus, message: periodCheck.message };
       }
 
       const entry: MockJournal = {

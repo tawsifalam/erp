@@ -31,6 +31,7 @@ import { useAsync } from "@/lib/use-async";
 import { useModuleTab } from "@/lib/use-module-tab";
 import { formatDateTime } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
+import { FiscalPeriodsTab } from "./fiscal-periods-tab";
 
 type Account = { id: string; code: string; name: string; type: string };
 type Journal = {
@@ -157,6 +158,7 @@ export default function AccountingPage() {
           <Tabs.List>
             <Tabs.Trigger value="journals">Journal entries</Tabs.Trigger>
             <Tabs.Trigger value="accounts">Chart of accounts</Tabs.Trigger>
+            <Tabs.Trigger value="periods">Fiscal periods</Tabs.Trigger>
           </Tabs.List>
         </ScrollableTabsList>
 
@@ -225,6 +227,10 @@ export default function AccountingPage() {
               ))}
             </>
           )}
+        </Tabs.Content>
+
+        <Tabs.Content value="periods" pt={4}>
+          <FiscalPeriodsTab />
         </Tabs.Content>
 
         <Tabs.Content value="accounts" pt={4}>

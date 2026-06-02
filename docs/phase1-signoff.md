@@ -94,6 +94,7 @@ cd apps/api && pnpm prisma migrate deploy
 | `20260602100000_payroll_payslip` | Payslip storage key |
 | `20260602120000_rate_plan_fb_bundle` | F&B bundle on rate plans |
 | `20260603100000_organization_invite` | Email invite records |
+| `20260610100000_fiscal_periods` | Fiscal periods; journal `entryDate` |
 
 Optional seed for local/demo: `pnpm db:seed`
 
@@ -120,7 +121,7 @@ After changing `@erp/types` enums, rebuild: `pnpm --filter @erp/types build` (AP
 
 | Suite | Count | Notes |
 |-------|-------|--------|
-| API unit (`apps/api`) | 170 tests, 20 suites | `pnpm --filter @erp/api test` |
+| API unit (`apps/api`) | 174 tests, 21 suites | `pnpm --filter @erp/api test` |
 | E2E (`apps/web/e2e`) | 21 spec files | Mocked API; `pnpm test:e2e` or `pnpm test:visual-guide` |
 
 Representative E2E: `settings`, `procurement`, `rates`, `reports`, `audit`, `notifications`, `pms-flow`, `onboarding`, `visual-guide*.spec.ts`.

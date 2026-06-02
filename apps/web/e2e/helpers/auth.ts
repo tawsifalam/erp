@@ -709,12 +709,15 @@ export async function mockApiRoutes(page: Page) {
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleAccountingMutation(method, url, body);
-    if (result && typeof result === "object" && "status" in result && result.status === 400) {
-      return route.fulfill({
-        status: 400,
-        contentType: "application/json",
-        body: JSON.stringify({ message: (result as { message: string }).message }),
-      });
+    if (result && typeof result === "object" && "status" in result) {
+      const err = result as { status: number; message: string };
+      if (err.status === 400 || err.status === 404) {
+        return route.fulfill({
+          status: err.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: err.message }),
+        });
+      }
     }
     return fulfillJson(route, result);
   });

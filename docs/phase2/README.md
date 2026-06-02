@@ -104,11 +104,18 @@ From [erp-completeness-roadmap.md](../erp-completeness-roadmap.md) — large or 
 
 ---
 
+## In progress
+
+| Sprint | Item | Doc | Status |
+|--------|------|-----|--------|
+| 1 | Fiscal periods & period close | [fiscal-periods.md](./fiscal-periods.md) | Implemented (API + UI + seed) |
+| 2 | Vendor payment | — | Planned |
+
 ## Suggested build order
 
 After **production soak** on Phase 1:
 
-1. **Finance gaps** — fiscal periods + vendor payment (closes AP loop)
+1. **Finance gaps** — fiscal periods + vendor payment (closes AP loop) — *periods: Sprint 1 done*
 2. **Channel manager** — OTA sync (rates/availability already in ERP)
 3. **`integrations` module** — credentials + adapter framework for OTAs
 4. **Notification preferences** + PDF reports (quick UX wins)

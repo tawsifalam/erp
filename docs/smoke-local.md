@@ -77,8 +77,8 @@ pnpm --filter @erp/web test:smoke-local:headless
 | §6 PMS | `smoke-local-02-pms` | Room types, rooms, guests, packages, rates; new reservation + quote; 103 lifecycle; payment drawer; inclusions |
 | §3 Procurement | `smoke-local-03-procurement` | Vendor drawer, PO create/submit/receive, inventory stock, accounting journals |
 | §4 Inventory & POS | `smoke-local-04-inventory-pos` | New item, movement, BOM; POS kitchen send, complete & pay drawer, menu category; kitchen display |
-| §5 HR | `smoke-local-05-hr` | Add employee, attendance, staff meal drawers; payroll run (queued/completed) |
-| Accounting + §7 Reports | `smoke-local-06-accounting-reports` | Add account drawer, post balanced journal, journals list; P&L and trial balance export queued |
+| §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
+| Accounting + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods tab (seed FY 2026 OPEN), add account drawer, post balanced journal (requires open period), journals list; P&L and trial balance export queued |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
 
 ### Manual only (second user / email / production infra)

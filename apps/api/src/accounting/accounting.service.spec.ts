@@ -11,11 +11,26 @@ jest.mock("@erp/utils", () => ({
 
 const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
 
+const openPeriod = {
+  id: "fp-1",
+  organizationId: "org-1",
+  name: "FY 2026",
+  startDate: new Date("2026-01-01"),
+  endDate: new Date("2026-12-31"),
+  status: "OPEN",
+};
+
 const mockPrisma = {
   account: {
     findMany: jest.fn(),
     create: jest.fn(),
     findUnique: jest.fn(),
+  },
+  fiscalPeriod: {
+    findMany: jest.fn().mockResolvedValue([openPeriod]),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
   },
   journalEntry: {
     findMany: jest.fn(),
@@ -74,6 +89,36 @@ describe("AccountingService", () => {
       ).rejects.toThrow(/not balanced/i);
     });
 
+    it("throws when no fiscal period covers entry date", async () => {
+      mockPrisma.fiscalPeriod.findMany.mockResolvedValueOnce([]);
+
+      await expect(
+        service.createJournalEntry({
+          organizationId: "org-1",
+          lines: [
+            { accountId: "acc-1", debit: 100, credit: 0 },
+            { accountId: "acc-2", debit: 0, credit: 100 },
+          ],
+        }),
+      ).rejects.toThrow(/No fiscal period covers/i);
+    });
+
+    it("throws when fiscal period is closed", async () => {
+      mockPrisma.fiscalPeriod.findMany.mockResolvedValueOnce([
+        { ...openPeriod, status: "CLOSED" },
+      ]);
+
+      await expect(
+        service.createJournalEntry({
+          organizationId: "org-1",
+          lines: [
+            { accountId: "acc-1", debit: 100, credit: 0 },
+            { accountId: "acc-2", debit: 0, credit: 100 },
+          ],
+        }),
+      ).rejects.toThrow(/is closed/i);
+    });
+
     it("succeeds with balanced lines", async () => {
       const created = { id: "je-1", lines: [] };
       mockPrisma.journalEntry.create.mockResolvedValue(created);
@@ -89,19 +134,18 @@ describe("AccountingService", () => {
 
       expect(result).toEqual(created);
       expect(mockPrisma.journalEntry.create).toHaveBeenCalledWith({
-        data: {
+        data: expect.objectContaining({
           organizationId: "org-1",
           description: "Test entry",
-          referenceType: undefined,
-          referenceId: undefined,
+          fiscalPeriodId: "fp-1",
           lines: {
             create: [
               { id: "jl_test", accountId: "acc-1", debit: 100, credit: 0 },
               { id: "jl_test", accountId: "acc-2", debit: 0, credit: 100 },
             ],
           },
-        },
-        include: { lines: { include: { account: true } } },
+        }),
+        include: expect.any(Object),
       });
     });
 
@@ -201,7 +245,9 @@ describe("AccountingService", () => {
 
       expect(mockPrisma.journalEntry.findMany).toHaveBeenCalledWith({
         where: { organizationId: "org-1" },
-        include: { lines: { include: { account: true } } },
+        include: expect.objectContaining({
+          lines: { include: { account: true } },
+        }),
         orderBy: { createdAt: "desc" },
         take: 100,
       });

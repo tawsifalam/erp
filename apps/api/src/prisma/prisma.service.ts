@@ -92,6 +92,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get account() { return this._client.account; }
   get journalEntry() { return this._client.journalEntry; }
   get journalLine() { return this._client.journalLine; }
+  get fiscalPeriod() { return this._client.fiscalPeriod; }
   get employee() { return this._client.employee; }
   get attendanceRecord() { return this._client.attendanceRecord; }
   get payrollRun() { return this._client.payrollRun; }

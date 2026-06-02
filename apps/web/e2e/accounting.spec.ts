@@ -51,6 +51,21 @@ test.describe("Accounting", () => {
     await expect(page.getByText("Utility bill")).toBeVisible({ timeout: 5000 });
   });
 
+  test("fiscal periods tab lists seed period and closes", async ({ page }) => {
+    await page.goto("/accounting");
+    await page.getByRole("tab", { name: "Fiscal periods" }).click();
+    await expect(page.getByRole("tab", { name: "Fiscal periods", selected: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "FY 2026" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("cell", { name: "OPEN" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Close" }).click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByRole("cell", { name: "CLOSED" })).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Reopen" }).click();
+    await expect(page.getByRole("cell", { name: "OPEN" })).toBeVisible({ timeout: 5000 });
+  });
+
   test("shows error for unbalanced journal before post", async ({ page }) => {
     await page.goto("/accounting");
     await page.getByRole("button", { name: "+ Post journal" }).click();

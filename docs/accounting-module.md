@@ -151,9 +151,16 @@ E2E coverage includes journal list, chart of accounts, add account, post balance
 - [Accounting rules](./accounting-rules.md) — double-entry summary
 - [App workflow guide §5](./app-workflow-guide.md#5-accounting) — step-by-step examples
 
-## Future (phase 2)
+## Fiscal periods (Phase 2)
 
-- Payroll journals (salary expense / salary payable)
-- Trial balance and GL reports from journal data
-- Journal reversal / adjusting entries
-- Account edit (code immutable) and fiscal periods
+Org-scoped periods with **open/close**. All journal posts (manual and auto) require an **open** period covering `entryDate`.
+
+- **API:** `GET/POST /accounting/fiscal-periods`, `PATCH .../:id/close`, `PATCH .../:id/reopen`
+- **UI:** Accounting → **Fiscal periods** tab
+- **Doc:** [phase2/fiscal-periods.md](./phase2/fiscal-periods.md)
+
+## Future (Phase 2)
+
+- Journal reversal linked to original entry
+- Vendor payment (Dr AP / Cr Cash)
+- PDF financial reports

@@ -8,6 +8,13 @@ import { selectReportType, smokeSuffix, useSmokeHarness } from "./helpers/smoke-
 const { goto, expect } = useSmokeHarness();
 
 test.describe("Smoke — Accounting", () => {
+  test("Fiscal periods — seed open period visible", async ({ page }) => {
+    await goto(page, "/accounting?tab=periods");
+    await expect(page.getByRole("tab", { name: "Fiscal periods", selected: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "FY 2026" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("cell", { name: "OPEN" })).toBeVisible();
+  });
+
   test("Chart of accounts — add account drawer", async ({ page }) => {
     await goto(page, "/accounting");
     await page.getByRole("tab", { name: /Chart of accounts/i }).click();

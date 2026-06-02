@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";
@@ -34,6 +34,33 @@ export class AccountingController {
     return this.accounting.listJournalEntries(t.organizationId);
   }
 
+  @Get("fiscal-periods")
+  @RequirePermission(Permission.ACCOUNTING_READ)
+  fiscalPeriods(@Tenant() t: TenantContext) {
+    return this.accounting.listFiscalPeriods(t.organizationId);
+  }
+
+  @Post("fiscal-periods")
+  @RequirePermission(Permission.ACCOUNTING_WRITE)
+  createFiscalPeriod(
+    @Tenant() t: TenantContext,
+    @Body() body: { name: string; startDate: string; endDate: string },
+  ) {
+    return this.accounting.createFiscalPeriod(t.organizationId, body, t.userId);
+  }
+
+  @Patch("fiscal-periods/:id/close")
+  @RequirePermission(Permission.ACCOUNTING_WRITE)
+  closeFiscalPeriod(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.accounting.closeFiscalPeriod(t.organizationId, id, t.userId);
+  }
+
+  @Patch("fiscal-periods/:id/reopen")
+  @RequirePermission(Permission.ACCOUNTING_WRITE)
+  reopenFiscalPeriod(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.accounting.reopenFiscalPeriod(t.organizationId, id, t.userId);
+  }
+
   @Post("journals")
   @RequirePermission(Permission.ACCOUNTING_WRITE)
   createJournal(
@@ -44,6 +71,7 @@ export class AccountingController {
       referenceType?: string;
       referenceId?: string;
       description?: string;
+      entryDate?: string;
     },
   ) {
     return this.accounting.createJournalEntry({

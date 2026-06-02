@@ -29,4 +29,5 @@ export const AuditEntityType = {
   EMPLOYEE: "employee",
   RATE_PLAN: "rate_plan",
   RATE_RULE: "rate_rule",
+  FISCAL_PERIOD: "fiscal_period",
 } as const;

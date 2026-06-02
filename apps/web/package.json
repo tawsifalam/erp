@@ -14,7 +14,7 @@
     "test:visual-guide": "playwright test --project=visual-guide",
     "test:smoke-local": "playwright test --project=smoke-local",
     "test:smoke-local:headed": "playwright test --project=smoke-local --headed",
-    "test:smoke-local:headless": "playwright test --project=smoke-local --headed=false",
+    "test:smoke-local:headless": "SMOKE_HEADLESS=1 playwright test --project=smoke-local",
     "test:visual-guide:headed": "playwright test --project=visual-guide --headed",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",

@@ -15,17 +15,17 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /visual-guide.*\.spec\.ts|smoke-local\.spec\.ts/,
+      testIgnore: /visual-guide.*\.spec\.ts|smoke-local.*\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], channel: "chrome" },
     },
     {
       name: "smoke-local",
-      testMatch: /smoke-local\.spec\.ts/,
-      timeout: 120_000,
+      testMatch: /smoke-local-\d+.*\.spec\.ts/,
+      timeout: 300_000,
       use: {
         ...devices["Desktop Chrome"],
         channel: "chrome",
-        headless: false,
+        headless: process.env.SMOKE_HEADLESS === "1",
       },
       ...(process.env.CI
         ? {}

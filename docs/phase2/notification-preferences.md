@@ -61,6 +61,6 @@ At least one channel is not required — users can mute an event type entirely (
 
 `20260613100000_notification_preferences`
 
-## Next (Sprint 6)
+## Next
 
-**Branch invitations** — per-branch membership ([README](./README.md) § Organization & access).
+**Channel manager** or **integrations module** — see [README](./README.md).

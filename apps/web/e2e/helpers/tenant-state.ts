@@ -1,4 +1,8 @@
 import { E2E_ORG_ID, recordAudit } from "./audit-state";
+import {
+  handleBranchAccessMutation,
+  resetBranchAccessState,
+} from "./branch-access-state";
 
 type MockBranch = {
   id: string;
@@ -25,6 +29,7 @@ let branches = structuredClone(INITIAL_BRANCHES) as MockBranch[];
 export function resetTenantState() {
   orgName = "Boulevard Café";
   branches = structuredClone(INITIAL_BRANCHES) as MockBranch[];
+  resetBranchAccessState();
 }
 
 export function getTenantBranches() {
@@ -50,6 +55,9 @@ export function handleTenantMutation(
   url: string,
   body: Record<string, unknown> | null,
 ): unknown {
+  const branchAccess = handleBranchAccessMutation(method, url, body);
+  if (branchAccess !== null) return branchAccess;
+
   if (url.includes("/tenants/organizations/current")) {
     if (method === "GET") return getCurrentOrganization();
     if (method === "PATCH" && body?.name) {

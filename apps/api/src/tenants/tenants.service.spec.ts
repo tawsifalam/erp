@@ -26,6 +26,12 @@ const mockPrisma = {
     count: jest.fn(),
     delete: jest.fn(),
   },
+  userBranch: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+    delete: jest.fn(),
+  },
   reservation: { count: jest.fn() },
   employee: { updateMany: jest.fn() },
   reportJob: { updateMany: jest.fn() },
@@ -300,5 +306,54 @@ describe("TenantsService", () => {
     const result = await service.removeMember("org_1", "usr_member", "usr_admin");
     expect(result.removed).toBe(true);
     expect(mockPrisma.userOrganization.delete).toHaveBeenCalledWith({ where: { id: "uo_2" } });
+  });
+
+  it("listOrganizations filters branches for non-admin members", async () => {
+    mockPrisma.userOrganization.findMany.mockResolvedValue([
+      {
+        organizationId: "org_1",
+        role: "FRONT_DESK",
+        organization: {
+          id: "org_1",
+          name: "Demo",
+          branches: [
+            { id: "br_1", name: "Main" },
+            { id: "br_2", name: "Annex" },
+          ],
+        },
+      },
+    ]);
+    mockPrisma.userBranch.findMany.mockResolvedValue([{ branchId: "br_1" }]);
+
+    const result = await service.listOrganizations("usr_front");
+
+    expect(result[0].organization.branches).toEqual([{ id: "br_1", name: "Main" }]);
+  });
+
+  it("grantBranchAccess upserts ACTIVE user branch row", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue({
+      userId: "usr_front",
+      organizationId: "org_1",
+      role: "FRONT_DESK",
+    });
+    mockPrisma.userBranch.upsert.mockResolvedValue({
+      id: "ubr_1",
+      userId: "usr_front",
+      branchId: "br_1",
+      status: "ACTIVE",
+      user: { id: "usr_front", email: "front@test.com", name: null },
+    });
+
+    await service.grantBranchAccess("org_1", "br_1", "usr_front", "usr_admin");
+
+    expect(mockPrisma.userBranch.upsert).toHaveBeenCalled();
+  });
+
+  it("userHasBranchAccess returns true for admin without grant row", async () => {
+    await expect(
+      service.userHasBranchAccess("usr_admin", "org_1", "ADMIN", "br_1"),
+    ).resolves.toBe(true);
+    expect(mockPrisma.userBranch.findUnique).not.toHaveBeenCalled();
   });
 });

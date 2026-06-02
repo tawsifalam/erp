@@ -284,6 +284,43 @@ export class TenantsController {
     return this.tenants.deleteBranch(id, t.organizationId, t.userId);
   }
 
+  @Get("branches/:branchId/members")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  listBranchMembers(@Tenant() t: TenantContext, @Param("branchId") branchId: string) {
+    return this.tenants.listBranchMembers(t.organizationId, branchId);
+  }
+
+  @Post("branches/:branchId/members")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  grantBranchAccess(
+    @Tenant() t: TenantContext,
+    @Param("branchId") branchId: string,
+    @Body() body: { userId: string },
+  ) {
+    if (!body?.userId?.trim()) {
+      throw new BadRequestException("userId is required");
+    }
+    return this.tenants.grantBranchAccess(
+      t.organizationId,
+      branchId,
+      body.userId.trim(),
+      t.userId,
+    );
+  }
+
+  @Delete("branches/:branchId/members/:userId")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  revokeBranchAccess(
+    @Tenant() t: TenantContext,
+    @Param("branchId") branchId: string,
+    @Param("userId") userId: string,
+  ) {
+    return this.tenants.revokeBranchAccess(t.organizationId, branchId, userId, t.userId);
+  }
+
   @Get("context")
   @UseGuards(TenantGuard)
   context(@Req() req: Request & { tenant: unknown }) {

@@ -73,7 +73,7 @@ pnpm --filter @erp/web test:smoke-local:headless
 | Runbook | Spec file | Steps automated |
 |---------|-----------|-----------------|
 | P0–P2 | `smoke-local-00-prereq` | API health, dashboard KPIs, all module shells |
-| §1 Settings | `smoke-local-01-settings` | Org/branches, team join code + invite form, inventory pools drawer, audit log, **notification preferences** |
+| §1 Settings | `smoke-local-01-settings` | Org/branches, team, pools, audit, notifications, **branch access** |
 | §6 PMS | `smoke-local-02-pms` | Room types, rooms, guests, packages, rates; new reservation + quote; 103 lifecycle; payment drawer; inclusions |
 | §3 Procurement | `smoke-local-03-procurement` | Vendor drawer, PO create/submit/receive, **vendor payment** (Dr AP / Cr Bank), inventory stock, accounting journals |
 | §4 Inventory & POS | `smoke-local-04-inventory-pos` | New item, movement, BOM; POS kitchen send, complete & pay drawer, menu category; kitchen display |

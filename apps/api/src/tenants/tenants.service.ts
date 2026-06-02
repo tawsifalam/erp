@@ -12,6 +12,10 @@ import { InventoryPoolsService } from "../inventory/inventory-pools.service";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
 import { PropelAuthService } from "../auth/propelauth.service";
+import {
+  hasImplicitBranchAccess,
+  UserBranchStatus,
+} from "./branch-access.constants";
 
 const VALID_ROLES = new Set(Object.values(Role));
 
@@ -43,12 +47,65 @@ export class TenantsService {
     return email.trim().toLowerCase();
   }
 
-  listOrganizations(userId: string) {
-    return this.prisma.userOrganization.findMany({
+  async listOrganizations(userId: string) {
+    const memberships = await this.prisma.userOrganization.findMany({
       where: { userId },
       include: { organization: { include: { branches: { orderBy: { name: "asc" } } } } },
       orderBy: { organization: { name: "asc" } },
     });
+
+    return Promise.all(
+      memberships.map(async (membership) => ({
+        ...membership,
+        organization: {
+          ...membership.organization,
+          branches: await this.filterAccessibleBranches(
+            userId,
+            membership.organizationId,
+            membership.role,
+            membership.organization.branches,
+          ),
+        },
+      })),
+    );
+  }
+
+  private async filterAccessibleBranches(
+    userId: string,
+    organizationId: string,
+    role: string,
+    branches: { id: string; name: string }[],
+  ) {
+    if (hasImplicitBranchAccess(role)) return branches;
+
+    const grants = await this.prisma.userBranch.findMany({
+      where: {
+        userId,
+        organizationId,
+        status: UserBranchStatus.ACTIVE,
+      },
+      select: { branchId: true },
+    });
+    const allowed = new Set(grants.map((g) => g.branchId));
+    return branches.filter((b) => allowed.has(b.id));
+  }
+
+  async userHasBranchAccess(
+    userId: string,
+    organizationId: string,
+    role: string,
+    branchId: string,
+  ): Promise<boolean> {
+    if (hasImplicitBranchAccess(role)) return true;
+
+    const grant = await this.prisma.userBranch.findUnique({
+      where: { userId_branchId: { userId, branchId } },
+    });
+    return (
+      !!grant &&
+      grant.organizationId === organizationId &&
+      grant.status === UserBranchStatus.ACTIVE
+    );
   }
 
   countMemberships(userId: string) {
@@ -824,5 +881,129 @@ export class TenantsService {
     }
 
     return accepted;
+  }
+
+  async listBranchMembers(organizationId: string, branchId: string) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, organizationId },
+    });
+    if (!branch) throw new NotFoundException("Branch not found");
+
+    const [members, grants] = await Promise.all([
+      this.prisma.userOrganization.findMany({
+        where: { organizationId },
+        include: { user: { select: { id: true, email: true, name: true } } },
+        orderBy: { user: { email: "asc" } },
+      }),
+      this.prisma.userBranch.findMany({
+        where: { branchId, organizationId, status: UserBranchStatus.ACTIVE },
+        select: { userId: true },
+      }),
+    ]);
+
+    const granted = new Set(grants.map((g) => g.userId));
+
+    return members.map((m) => ({
+      userId: m.userId,
+      role: m.role,
+      user: m.user,
+      implicitAccess: hasImplicitBranchAccess(m.role),
+      hasBranchAccess: hasImplicitBranchAccess(m.role) || granted.has(m.userId),
+    }));
+  }
+
+  async grantBranchAccess(
+    organizationId: string,
+    branchId: string,
+    targetUserId: string,
+    grantedByUserId: string,
+  ) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, organizationId },
+    });
+    if (!branch) throw new NotFoundException("Branch not found");
+
+    const membership = await this.prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId: targetUserId, organizationId },
+      },
+    });
+    if (!membership) {
+      throw new BadRequestException("User is not a member of this organization");
+    }
+    if (hasImplicitBranchAccess(membership.role)) {
+      throw new BadRequestException("Owners and admins already have access to all branches");
+    }
+
+    const row = await this.prisma.userBranch.upsert({
+      where: { userId_branchId: { userId: targetUserId, branchId } },
+      create: {
+        organizationId,
+        userId: targetUserId,
+        branchId,
+        status: UserBranchStatus.ACTIVE,
+        grantedByUserId,
+        approvedAt: new Date(),
+      },
+      update: {
+        status: UserBranchStatus.ACTIVE,
+        grantedByUserId,
+        approvedAt: new Date(),
+      },
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+      },
+    });
+
+    await this.audit.record({
+      organizationId,
+      userId: grantedByUserId,
+      action: AuditAction.APPROVE,
+      entityType: AuditEntityType.USER_BRANCH,
+      entityId: row.id,
+      metadata: { branchId, targetUserId },
+    });
+
+    return row;
+  }
+
+  async revokeBranchAccess(
+    organizationId: string,
+    branchId: string,
+    targetUserId: string,
+    actingUserId: string,
+  ) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, organizationId },
+    });
+    if (!branch) throw new NotFoundException("Branch not found");
+
+    const membership = await this.prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId: targetUserId, organizationId },
+      },
+    });
+    if (!membership) throw new NotFoundException("Member not found");
+    if (hasImplicitBranchAccess(membership.role)) {
+      throw new BadRequestException("Cannot revoke implicit branch access for owners and admins");
+    }
+
+    const existing = await this.prisma.userBranch.findUnique({
+      where: { userId_branchId: { userId: targetUserId, branchId } },
+    });
+    if (!existing) throw new NotFoundException("Branch access grant not found");
+
+    await this.prisma.userBranch.delete({ where: { id: existing.id } });
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.USER_BRANCH,
+      entityId: existing.id,
+      metadata: { branchId, targetUserId },
+    });
+
+    return { ok: true };
   }
 }

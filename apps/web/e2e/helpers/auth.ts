@@ -55,6 +55,10 @@ import {
   resetInclusionsState,
 } from "./inclusions-state";
 import {
+  getAccessibleBranchesForUser,
+  resetBranchAccessState,
+} from "./branch-access-state";
+import {
   getOrgName,
   getTenantBranches,
   handleTenantMutation,
@@ -174,6 +178,12 @@ export async function mockAuth(page: Page) {
 
 /** Organizations list for GET /api/tenants/organizations (branches stay in sync with tenant-state). */
 export function getMockOrganizations() {
+  const adminBranches = getTenantBranches().map((b) => ({ id: b.id, name: b.name }));
+  const frontBranches = getAccessibleBranchesForUser("usr-front-desk", "FRONT_DESK").map((b) => ({
+    id: b.id,
+    name: b.name,
+  }));
+
   return [
     {
       organizationId: FAKE_ORG_ID,
@@ -181,7 +191,7 @@ export function getMockOrganizations() {
       organization: {
         id: FAKE_ORG_ID,
         name: getOrgName(),
-        branches: getTenantBranches().map((b) => ({ id: b.id, name: b.name })),
+        branches: adminBranches,
       },
     },
     {
@@ -194,6 +204,22 @@ export function getMockOrganizations() {
       },
     },
   ];
+}
+
+/** Expose front-desk filtered branches for branch-access E2E (non-admin simulation). */
+export function getMockFrontDeskOrganization() {
+  return {
+    organizationId: FAKE_ORG_ID,
+    role: "FRONT_DESK",
+    organization: {
+      id: FAKE_ORG_ID,
+      name: getOrgName(),
+      branches: getAccessibleBranchesForUser("usr-front-desk", "FRONT_DESK").map((b) => ({
+        id: b.id,
+        name: b.name,
+      })),
+    },
+  };
 }
 
 /** Dashboard metrics vary by org/branch for E2E tenant switching */

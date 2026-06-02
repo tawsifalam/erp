@@ -148,17 +148,15 @@ pnpm db:reset
 
 Use this when developing from scratch instead of applying incremental migrations. On production, use `prisma migrate deploy` only if you have existing data to preserve.
 
-## Phase 2 — Branch invitations (planned)
+## Phase 2 — Branch access (shipped)
 
-| Concept | Design |
-|---------|--------|
-| **Model** | `BranchJoinRequest` or `UserBranch` with `status: PENDING \| ACTIVE` |
-| **Scope** | Org member may only access approved branches |
-| **Flow** | Branch admin invites or user requests branch access |
-| **Approval** | Branch admin assigns branch-scoped role |
-| **Guards** | Extend `TenantGuard` for branch membership when `X-Branch-Id` set |
-| **UI** | Settings → Branch → Team; header branch selector hides unapproved branches |
+| Concept | Implementation |
+|---------|----------------|
+| **Model** | `UserBranch` with `status: ACTIVE` |
+| **Scope** | Non-admin org members only see granted branches |
+| **Flow** | Admin grants / revokes under Settings → Branch access |
+| **Guards** | `TenantGuard` checks branch access when `X-Branch-Id` set |
 
-See [ERP completeness roadmap — 1.6a](erp-completeness-roadmap.md).
+See [phase2/branch-invitations.md](./phase2/branch-invitations.md).
 
-Phase 1 roles are **org-wide** (e.g. FRONT_DESK sees PMS for all branches in the org selector).
+Phase 1 roles remain **org-wide** for permissions (e.g. FRONT_DESK role); branch access controls **which properties** they can work in.

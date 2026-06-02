@@ -58,4 +58,11 @@ test.describe("Smoke — Settings", () => {
     await expect(page.getByText("Low stock alerts")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("checkbox", { name: "Report ready in-app" })).toBeVisible();
   });
+
+  test("Branch access tab — member list", async ({ page }) => {
+    await goto(page, "/settings?tab=branch-access");
+    await expect(page.getByRole("tab", { name: "Branch access", selected: true })).toBeVisible();
+    await expect(page.getByText("Grant org members access")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("columnheader", { name: "Member" })).toBeVisible();
+  });
 });

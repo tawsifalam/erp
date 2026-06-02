@@ -27,8 +27,9 @@ import { InventoryPoolsSection } from "./inventory-pools-section";
 import { TeamAccessSection } from "./team-access-section";
 import { AuditLogSection } from "./audit-log-section";
 import { NotificationPreferencesSection } from "./notification-preferences-section";
+import { BranchAccessSection } from "./branch-access-section";
 
-const ADMIN_TABS = new Set(["organization", "team", "audit", "pools"]);
+const ADMIN_TABS = new Set(["organization", "team", "audit", "pools", "branch-access"]);
 
 type Branch = {
   id: string;
@@ -222,6 +223,7 @@ export default function SettingsPage() {
                 <Tabs.Trigger value="team">Team & access</Tabs.Trigger>
                 <Tabs.Trigger value="audit">Audit log</Tabs.Trigger>
                 <Tabs.Trigger value="pools">Inventory pools</Tabs.Trigger>
+                <Tabs.Trigger value="branch-access">Branch access</Tabs.Trigger>
               </>
             )}
             <Tabs.Trigger value="notifications">Notifications</Tabs.Trigger>
@@ -332,6 +334,9 @@ export default function SettingsPage() {
 
           <Tabs.Content value="pools" pt={2}>
             <InventoryPoolsSection tenant={tenantHeaders} />
+          </Tabs.Content>
+          <Tabs.Content value="branch-access" pt={2}>
+            <BranchAccessSection tenant={tenantHeaders} />
           </Tabs.Content>
           </>
         )}

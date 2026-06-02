@@ -98,6 +98,7 @@ cd apps/api && pnpm prisma migrate deploy
 | `20260611100000_vendor_payments` | Vendor payments; Dr AP / Cr Cash or Bank |
 | `20260612100000_journal_reversal` | Journal reversal links (`reversesEntryId`, `reversedAt`) |
 | `20260613100000_notification_preferences` | Per-user notification channel preferences |
+| `20260614100000_user_branch` | Branch-scoped membership grants |
 
 Optional seed for local/demo: `pnpm db:seed`
 

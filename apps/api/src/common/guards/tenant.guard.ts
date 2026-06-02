@@ -1,11 +1,15 @@
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
   Injectable,
-  BadRequestException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import {
+  hasImplicitBranchAccess,
+  UserBranchStatus,
+} from "../../tenants/branch-access.constants";
 
 @Injectable()
 export class TenantGuard implements CanActivate {
@@ -34,6 +38,28 @@ export class TenantGuard implements CanActivate {
 
     const membership = dbUser.memberships[0];
     const branchHeader = request.headers["x-branch-id"] as string | undefined;
+
+    if (branchHeader) {
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: branchHeader, organizationId: orgHeader },
+      });
+      if (!branch) {
+        throw new ForbiddenException("Branch does not belong to this organization");
+      }
+
+      if (!hasImplicitBranchAccess(membership.role)) {
+        const grant = await this.prisma.userBranch.findUnique({
+          where: { userId_branchId: { userId: dbUser.id, branchId: branchHeader } },
+        });
+        if (
+          !grant ||
+          grant.organizationId !== orgHeader ||
+          grant.status !== UserBranchStatus.ACTIVE
+        ) {
+          throw new ForbiddenException("You do not have access to this branch");
+        }
+      }
+    }
 
     request.tenant = {
       organizationId: orgHeader,

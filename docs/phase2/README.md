@@ -45,9 +45,9 @@ Items intentionally left out of Phase 1 / 1.5 / 1.6. Grouped by theme; estimate 
 
 | Item | Phase 1 today | Phase 2 target |
 |------|----------------|----------------|
-| **Branch-scoped membership** | Org-wide roles; any branch in header if org member | `BranchJoinRequest` or `UserBranch`; approve per branch |
-| **Branch team UI** | Settings → org team only | Settings → Branch → Team; header hides unapproved branches |
-| **`TenantGuard`** | `X-Organization-Id` + org role | Optional branch membership check on `X-Branch-Id` |
+| **Branch-scoped membership** | Org-wide roles; any branch in header if org member | `UserBranch` grants per branch — [branch-invitations.md](./branch-invitations.md) |
+| **Branch team UI** | Settings → org team only | Settings → **Branch access**; header hides unapproved branches |
+| **`TenantGuard`** | `X-Organization-Id` + org role | Branch membership check on `X-Branch-Id` |
 
 **Doc:** [organization-onboarding.md](../organization-onboarding.md) § Phase 2 — Branch invitations
 
@@ -113,7 +113,7 @@ From [erp-completeness-roadmap.md](../erp-completeness-roadmap.md) — large or 
 | 3 | Journal reversal | [journal-reversal.md](./journal-reversal.md) | Shipped |
 | 4 | PDF financial reports | [pdf-financial-reports.md](./pdf-financial-reports.md) | Shipped |
 | 5 | Notification preferences | [notification-preferences.md](./notification-preferences.md) | Shipped |
-| 6 | Branch invitations | — | Planned |
+| 6 | Branch invitations | [branch-invitations.md](./branch-invitations.md) | Shipped |
 
 ## Suggested build order
 

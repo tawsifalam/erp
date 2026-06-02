@@ -39,6 +39,7 @@ const MODEL_PREFIXES: Record<string, string> = {
   AuditLog: "aud",
   Notification: "ntf",
   NotificationPreference: "ntp",
+  UserBranch: "ubr",
   ReportJob: "rpt",
   Vendor: "ven",
   PurchaseOrder: "po",

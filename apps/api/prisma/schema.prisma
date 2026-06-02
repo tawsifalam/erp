@@ -23,6 +23,8 @@ model User {
   auditLogs     AuditLog[]
   notifications Notification[]
   notificationPreferences NotificationPreference[]
+  branchAccesses UserBranch[] @relation("UserBranchMember")
+  grantedBranchAccesses UserBranch[] @relation("UserBranchGranter")
   reportJobs    ReportJob[] @relation("ReportJobRequester")
 }
 
@@ -123,6 +125,7 @@ model Branch {
   inclusionRecipes InclusionRecipe[]
   purchaseOrders   PurchaseOrder[]
   vendorPayments   VendorPayment[]
+  userAccess       UserBranch[]
 }
 
 model RoomType {
@@ -552,6 +555,26 @@ model Notification {
 
   @@index([organizationId, userId, createdAt])
   @@index([userId, readAt])
+}
+
+model UserBranch {
+  id              String    @id @default(uuid())
+  organizationId  String
+  userId          String
+  branchId        String
+  status          String    @default("ACTIVE")
+  grantedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  approvedAt      DateTime?
+
+  user      User   @relation("UserBranchMember", fields: [userId], references: [id], onDelete: Cascade)
+  branch    Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  grantedBy User?  @relation("UserBranchGranter", fields: [grantedByUserId], references: [id])
+
+  @@unique([userId, branchId])
+  @@index([branchId, status])
+  @@index([organizationId, userId])
 }
 
 model NotificationPreference {

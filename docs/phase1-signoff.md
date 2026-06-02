@@ -96,6 +96,7 @@ cd apps/api && pnpm prisma migrate deploy
 | `20260603100000_organization_invite` | Email invite records |
 | `20260610100000_fiscal_periods` | Fiscal periods; journal `entryDate` |
 | `20260611100000_vendor_payments` | Vendor payments; Dr AP / Cr Cash or Bank |
+| `20260612100000_journal_reversal` | Journal reversal links (`reversesEntryId`, `reversedAt`) |
 
 Optional seed for local/demo: `pnpm db:seed`
 

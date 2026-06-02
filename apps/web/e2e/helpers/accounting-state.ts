@@ -15,6 +15,8 @@ type MockJournal = {
   id: string;
   description?: string;
   createdAt: string;
+  reversedAt?: string | null;
+  reversesEntryId?: string | null;
   lines: { account: { name: string; code?: string }; debit: string; credit: string }[];
 };
 
@@ -69,7 +71,11 @@ export function getFiscalPeriods() {
 }
 
 export function getAccountingJournals() {
-  return journals.map((j) => ({ ...j }));
+  return journals.map((j) => ({
+    ...j,
+    reversedAt: j.reversedAt ?? null,
+    reversesEntryId: j.reversesEntryId ?? null,
+  }));
 }
 
 /** Called from procurement mock when a vendor payment is recorded. */
@@ -194,6 +200,38 @@ export function handleAccountingMutation(
 
   if (url.includes("/journals")) {
     if (method === "GET") return getAccountingJournals();
+
+    const reverseMatch = url.match(/\/journals\/([^/]+)\/reverse/);
+    if (method === "POST" && reverseMatch) {
+      const original = journals.find((j) => j.id === reverseMatch[1]);
+      if (!original) return { status: 404, message: "Journal entry not found" };
+      if (original.reversesEntryId) {
+        return { status: 400, message: "Cannot reverse a reversal entry" };
+      }
+      if (original.reversedAt) {
+        return { status: 400, message: "Journal entry has already been reversed" };
+      }
+      const reversal: MockJournal = {
+        id: `je_${journals.length + 1}`,
+        description: `Reversal of: ${original.description ?? original.id}`,
+        createdAt: new Date().toISOString(),
+        reversesEntryId: original.id,
+        lines: original.lines.map((l) => ({
+          account: { ...l.account },
+          debit: l.credit,
+          credit: l.debit,
+        })),
+      };
+      original.reversedAt = new Date().toISOString();
+      journals.unshift(reversal);
+      recordAudit({
+        action: "REVERSE",
+        entityType: "journal_entry",
+        entityId: original.id,
+        metadata: { reversalEntryId: reversal.id },
+      });
+      return reversal;
+    }
 
     if (method === "POST") {
       const lines = (body?.lines as { accountId: string; debit: number; credit: number }[]) ?? [];

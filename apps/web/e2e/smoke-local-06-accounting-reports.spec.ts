@@ -42,6 +42,26 @@ test.describe("Smoke — Accounting", () => {
     await expect(page.getByText(desc)).toBeVisible({ timeout: 15_000 });
   });
 
+  test("Journal entries — reverse posted entry", async ({ page }) => {
+    const desc = `Smoke reverse ${smokeSuffix()}`;
+    await goto(page, "/accounting");
+    await page.getByRole("button", { name: "+ Post journal" }).click();
+    await page.getByPlaceholder("Description").fill(desc);
+    await page.getByRole("button", { name: "+ Line" }).click();
+    await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
+    await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
+    const numberInputs = page.locator('input[type="number"]');
+    await numberInputs.nth(0).fill("50");
+    await numberInputs.nth(3).fill("50");
+    await page.getByRole("button", { name: "Post journal", exact: true }).click();
+    await expect(page.getByText(desc)).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Reverse" }).first().click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByText(/Journal entry reversed|reversed/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(`Reversal of: ${desc}`)).toBeVisible({ timeout: 15_000 });
+  });
+
   test("Journal entries tab — list visible", async ({ page }) => {
     await goto(page, "/accounting");
     await expect(page.getByRole("tab", { name: "Journal entries" })).toBeVisible();

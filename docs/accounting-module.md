@@ -159,8 +159,16 @@ Org-scoped periods with **open/close**. All journal posts (manual and auto) requ
 - **UI:** Accounting → **Fiscal periods** tab
 - **Doc:** [phase2/fiscal-periods.md](./phase2/fiscal-periods.md)
 
+## Journal reversal (Phase 2)
+
+- **API:** `POST /accounting/journals/:id/reverse`
+- **UI:** Reverse button on journal cards; Reversed / Reversal badges
+- **Doc:** [phase2/journal-reversal.md](./phase2/journal-reversal.md)
+
+## Vendor payment (Phase 2)
+
+See [phase2/vendor-payment.md](./phase2/vendor-payment.md) — Dr AP / Cr Cash or Bank from Procurement.
+
 ## Future (Phase 2)
 
-- Journal reversal linked to original entry
-- Vendor payment (Dr AP / Cr Cash)
 - PDF financial reports

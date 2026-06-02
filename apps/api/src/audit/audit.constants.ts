@@ -5,6 +5,7 @@ export const AuditAction = {
   DELETE: "DELETE",
   SUBMIT: "SUBMIT",
   RECEIVE: "RECEIVE",
+  REVERSE: "REVERSE",
   APPROVE: "APPROVE",
   REJECT: "REJECT",
   ROLE_CHANGE: "ROLE_CHANGE",

@@ -3,8 +3,9 @@ import { AccountType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
-import { roundMoney, generatePrefixedId } from "@erp/utils";
+import { roundMoney, generatePrefixedId, toNumber } from "@erp/utils";
 import { FiscalPeriodStatus } from "./fiscal-period.constants";
+import { JOURNAL_REVERSAL_REF_TYPE } from "./journal.constants";
 import { periodContainsDate, periodsOverlap } from "./fiscal-period.utils";
 
 @Injectable()
@@ -153,10 +154,105 @@ export class AccountingService {
       include: {
         lines: { include: { account: true } },
         fiscalPeriod: { select: { id: true, name: true, status: true } },
+        reversesEntry: {
+          select: { id: true, description: true, createdAt: true },
+        },
+        reversedBy: {
+          select: { id: true, description: true, createdAt: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+  }
+
+  async reverseJournalEntry(
+    organizationId: string,
+    journalEntryId: string,
+    userId?: string,
+    entryDateInput?: string,
+  ) {
+    const original = await this.prisma.journalEntry.findFirst({
+      where: { id: journalEntryId, organizationId },
+      include: { lines: { include: { account: true } } },
+    });
+    if (!original) throw new NotFoundException("Journal entry not found");
+    if (original.reversesEntryId) {
+      throw new BadRequestException("Cannot reverse a reversal entry");
+    }
+    if (original.reversedAt) {
+      throw new BadRequestException("Journal entry has already been reversed");
+    }
+
+    const entryDate =
+      entryDateInput !== undefined
+        ? this.parseDate(entryDateInput, "entryDate")
+        : new Date();
+
+    const fiscalPeriod = await this.resolveOpenFiscalPeriod(organizationId, entryDate);
+
+    const reversalLines = original.lines.map((l) => ({
+      accountId: l.accountId,
+      debit: roundMoney(toNumber(l.credit)),
+      credit: roundMoney(toNumber(l.debit)),
+    }));
+
+    const label = original.description?.trim() || original.id.slice(0, 8);
+    const reversal = await this.prisma.journalEntry.create({
+      data: {
+        organizationId,
+        description: `Reversal of: ${label}`,
+        referenceType: JOURNAL_REVERSAL_REF_TYPE,
+        referenceId: original.id,
+        entryDate,
+        fiscalPeriodId: fiscalPeriod.id,
+        reversesEntryId: original.id,
+        lines: {
+          create: reversalLines.map((l) => ({
+            id: generatePrefixedId("jl"),
+            accountId: l.accountId,
+            debit: l.debit,
+            credit: l.credit,
+          })),
+        },
+      },
+      include: {
+        lines: { include: { account: true } },
+        reversesEntry: { select: { id: true, description: true, createdAt: true } },
+      },
+    });
+
+    await this.prisma.journalEntry.update({
+      where: { id: original.id },
+      data: { reversedAt: new Date() },
+    });
+
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.REVERSE,
+      entityType: AuditEntityType.JOURNAL_ENTRY,
+      entityId: original.id,
+      metadata: { reversalEntryId: reversal.id },
+    });
+
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.JOURNAL_ENTRY,
+      entityId: reversal.id,
+      metadata: {
+        referenceType: JOURNAL_REVERSAL_REF_TYPE,
+        referenceId: original.id,
+        reversesEntryId: original.id,
+      },
+    });
+
+    return {
+      ...reversal,
+      reversedAt: new Date(),
+    };
   }
 
   async createJournalEntry(params: {

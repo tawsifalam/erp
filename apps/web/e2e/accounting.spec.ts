@@ -66,6 +66,26 @@ test.describe("Accounting", () => {
     await expect(page.getByRole("cell", { name: "OPEN" })).toBeVisible({ timeout: 5000 });
   });
 
+  test("reverse journal entry creates offsetting entry", async ({ page }) => {
+    await page.goto("/accounting");
+    await page.getByRole("button", { name: "+ Post journal" }).click();
+    await page.getByPlaceholder("Description").fill("Adjusting entry");
+    await page.getByRole("button", { name: "+ Line" }).click();
+    await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
+    await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
+    const numberInputs = page.locator('input[type="number"]');
+    await numberInputs.nth(0).fill("250");
+    await numberInputs.nth(3).fill("250");
+    await page.getByRole("button", { name: "Post journal", exact: true }).click();
+    await expect(page.getByText("Adjusting entry")).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole("button", { name: "Reverse" }).first().click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByText(/Journal entry reversed/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Reversal of: Adjusting entry")).toBeVisible();
+    await expect(page.getByText("Reversed", { exact: true })).toBeVisible();
+  });
+
   test("shows error for unbalanced journal before post", async ({ page }) => {
     await page.goto("/accounting");
     await page.getByRole("button", { name: "+ Post journal" }).click();

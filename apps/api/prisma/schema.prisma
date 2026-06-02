@@ -402,17 +402,21 @@ model FiscalPeriod {
 }
 
 model JournalEntry {
-  id             String   @id @default(uuid())
-  organizationId String
-  description    String?
-  referenceType  String?
-  referenceId    String?
-  entryDate      DateTime @default(now())
-  fiscalPeriodId String?
-  createdAt      DateTime @default(now())
+  id              String    @id @default(uuid())
+  organizationId  String
+  description     String?
+  referenceType   String?
+  referenceId     String?
+  entryDate       DateTime  @default(now())
+  fiscalPeriodId  String?
+  reversesEntryId String?   @unique
+  reversedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
-  fiscalPeriod FiscalPeriod? @relation(fields: [fiscalPeriodId], references: [id])
-  lines        JournalLine[]
+  fiscalPeriod   FiscalPeriod? @relation(fields: [fiscalPeriodId], references: [id])
+  lines          JournalLine[]
+  reversesEntry  JournalEntry? @relation("JournalReversal", fields: [reversesEntryId], references: [id])
+  reversedBy     JournalEntry? @relation("JournalReversal")
 }
 
 model JournalLine {

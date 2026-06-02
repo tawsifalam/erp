@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
+  Badge,
   Button,
   Flex,
   Input,
@@ -32,12 +33,15 @@ import { useModuleTab } from "@/lib/use-module-tab";
 import { formatDateTime } from "@/lib/format";
 import { appToast } from "@/lib/app-toast";
 import { FiscalPeriodsTab } from "./fiscal-periods-tab";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 
 type Account = { id: string; code: string; name: string; type: string };
 type Journal = {
   id: string;
   description?: string;
   createdAt: string;
+  reversedAt?: string | null;
+  reversesEntryId?: string | null;
   lines: { account: { name: string }; debit: string; credit: string }[];
 };
 
@@ -45,6 +49,7 @@ type JournalLineForm = { accountId: string; debit: string; credit: string };
 
 export default function AccountingPage() {
   const tenant = useTenantHeaders();
+  const { ask, dialog } = useConfirmDialog();
   const [tab, setTab] = useModuleTab("journals");
   const [journalForm, setJournalForm] = useState({
     description: "",
@@ -120,6 +125,27 @@ export default function AccountingPage() {
     }
   };
 
+  const reverseJournal = (journal: Journal) => {
+    ask({
+      title: "Reverse journal entry",
+      description: `Create an offsetting entry for "${journal.description ?? journal.id}"? This cannot be undone.`,
+      confirmLabel: "Reverse entry",
+      onConfirm: async () => {
+        try {
+          await apiFetch(`/accounting/journals/${journal.id}/reverse`, {
+            method: "POST",
+            tenant,
+            body: JSON.stringify({}),
+          });
+          appToast.success("Journal entry reversed");
+          journalsQuery.reload();
+        } catch (e) {
+          appToast.error(e instanceof Error ? e.message : "Failed to reverse entry");
+        }
+      },
+    });
+  };
+
   const handleCreateAccount = async () => {
     try {
       await apiFetch("/accounting/accounts", {
@@ -151,6 +177,7 @@ export default function AccountingPage() {
 
   return (
     <DashboardShell>
+      {dialog}
       <ModulePageHeader />
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} mb={4}>
@@ -196,9 +223,28 @@ export default function AccountingPage() {
               )}
               {journals.map((j) => (
                 <ContentCard key={j.id} mb={6}>
-                  <Text fontWeight="semibold" mb={2}>
-                    {j.description ?? j.id} — {formatDateTime(j.createdAt)}
-                  </Text>
+                  <Flex justify="space-between" align="flex-start" gap={2} mb={2} wrap="wrap">
+                    <Text fontWeight="semibold">
+                      {j.description ?? j.id} — {formatDateTime(j.createdAt)}
+                    </Text>
+                    <Flex gap={2} align="center">
+                      {j.reversesEntryId && (
+                        <Badge colorPalette="purple" size="sm">
+                          Reversal
+                        </Badge>
+                      )}
+                      {j.reversedAt && (
+                        <Badge colorPalette="gray" size="sm">
+                          Reversed
+                        </Badge>
+                      )}
+                      {!j.reversedAt && !j.reversesEntryId && (
+                        <Button size="xs" variant="outline" onClick={() => reverseJournal(j)}>
+                          Reverse
+                        </Button>
+                      )}
+                    </Flex>
+                  </Flex>
                   <TableScrollArea>
                     <Table.Root size="sm">
                       <Table.Header>

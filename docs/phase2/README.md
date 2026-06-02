@@ -110,7 +110,8 @@ From [erp-completeness-roadmap.md](../erp-completeness-roadmap.md) — large or 
 |--------|------|-----|--------|
 | 1 | Fiscal periods & period close | [fiscal-periods.md](./fiscal-periods.md) | Shipped |
 | 2 | Vendor payment | [vendor-payment.md](./vendor-payment.md) | Shipped |
-| 3 | Journal reversal | — | Planned |
+| 3 | Journal reversal | [journal-reversal.md](./journal-reversal.md) | Shipped |
+| 4 | PDF financial reports | — | Planned |
 
 ## Suggested build order
 

@@ -7,6 +7,7 @@ import { PrismaService } from "../prisma/prisma.service";
 jest.mock("@erp/utils", () => ({
   roundMoney: (v: number) => Math.round(v * 100) / 100,
   generatePrefixedId: () => "jl_test",
+  toNumber: (v: unknown) => Number(v),
 }));
 
 const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
@@ -34,7 +35,9 @@ const mockPrisma = {
   },
   journalEntry: {
     findMany: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
   },
 };
 
@@ -265,6 +268,62 @@ describe("AccountingService", () => {
       expect(mockPrisma.account.findUnique).toHaveBeenCalledWith({
         where: { organizationId_code: { organizationId: "org-1", code: "1000" } },
       });
+    });
+  });
+
+  describe("reverseJournalEntry", () => {
+    const original = {
+      id: "je-original",
+      organizationId: "org-1",
+      description: "Utility bill",
+      reversesEntryId: null,
+      reversedAt: null,
+      lines: [
+        { accountId: "acc-1", debit: 500, credit: 0, account: { name: "Utilities" } },
+        { accountId: "acc-2", debit: 0, credit: 500, account: { name: "Bank" } },
+      ],
+    };
+
+    it("rejects reversing an already reversed entry", async () => {
+      mockPrisma.journalEntry.findFirst.mockResolvedValue({
+        ...original,
+        reversedAt: new Date(),
+      });
+
+      await expect(
+        service.reverseJournalEntry("org-1", "je-original"),
+      ).rejects.toThrow(/already been reversed/i);
+    });
+
+    it("creates offsetting entry and marks original reversed", async () => {
+      mockPrisma.journalEntry.findFirst.mockResolvedValue(original);
+      mockPrisma.journalEntry.create.mockResolvedValue({
+        id: "je-reversal",
+        description: "Reversal of: Utility bill",
+        lines: [],
+      });
+
+      await service.reverseJournalEntry("org-1", "je-original", "user-1");
+
+      expect(mockPrisma.journalEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            reversesEntryId: "je-original",
+            referenceType: "journal_reversal",
+            lines: {
+              create: [
+                expect.objectContaining({ accountId: "acc-1", debit: 0, credit: 500 }),
+                expect.objectContaining({ accountId: "acc-2", debit: 500, credit: 0 }),
+              ],
+            },
+          }),
+        }),
+      );
+      expect(mockPrisma.journalEntry.update).toHaveBeenCalledWith({
+        where: { id: "je-original" },
+        data: expect.objectContaining({ reversedAt: expect.any(Date) }),
+      });
+      expect(mockAudit.record).toHaveBeenCalled();
     });
   });
 });

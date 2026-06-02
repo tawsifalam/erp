@@ -61,6 +61,21 @@ export class AccountingController {
     return this.accounting.reopenFiscalPeriod(t.organizationId, id, t.userId);
   }
 
+  @Post("journals/:id/reverse")
+  @RequirePermission(Permission.ACCOUNTING_WRITE)
+  reverseJournal(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body() body: { entryDate?: string },
+  ) {
+    return this.accounting.reverseJournalEntry(
+      t.organizationId,
+      id,
+      t.userId,
+      body?.entryDate,
+    );
+  }
+
   @Post("journals")
   @RequirePermission(Permission.ACCOUNTING_WRITE)
   createJournal(

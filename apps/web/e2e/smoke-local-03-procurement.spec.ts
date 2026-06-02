@@ -36,6 +36,16 @@ test.describe("Smoke — Procurement", () => {
     await expect(page.getByText(/Goods received/i)).toBeVisible({ timeout: 15_000 });
   });
 
+  test("Vendor payment — record after PO receive", async ({ page }) => {
+    await goto(page, "/procurement");
+    await page.getByRole("tab", { name: "Vendor payments" }).click();
+    await page.getByRole("button", { name: "+ Record payment" }).click();
+    await pickAppSelectInDrawer(page, "Record vendor payment", 0, "Fresh Foods Ltd");
+    await page.getByLabel("Amount").fill("495");
+    await page.getByRole("button", { name: "Record payment", exact: true }).click();
+    await expect(page.getByText(/Vendor payment recorded/i)).toBeVisible({ timeout: 15_000 });
+  });
+
   test("Inventory — stock visible after receive", async ({ page }) => {
     await goto(page, "/inventory");
     await expect(page.getByRole("cell", { name: "Rice" }).first()).toBeVisible({

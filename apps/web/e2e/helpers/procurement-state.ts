@@ -1,6 +1,7 @@
 /** Mutable procurement state for Playwright route mocks. */
 
 import { recordAudit } from "./audit-state";
+import { recordVendorPaymentJournal } from "./accounting-state";
 import { getInventoryItems } from "./inventory-state";
 
 export type MockVendor = {
@@ -39,12 +40,43 @@ const INITIAL_VENDORS: MockVendor[] = [
   },
 ];
 
+type MockVendorPayment = {
+  id: string;
+  amount: string;
+  paymentDate: string;
+  payFromAccountCode: string;
+  reference: string | null;
+  vendor: { name: string };
+  purchaseOrder: { id: string; status: string } | null;
+};
+
 let vendors = structuredClone(INITIAL_VENDORS) as MockVendor[];
 let purchaseOrders: MockPurchaseOrder[] = [];
+let vendorPayments: MockVendorPayment[] = [];
+
+function computeVendorAp(vendorId: string) {
+  let accrued = 0;
+  for (const po of purchaseOrders) {
+    if (po.vendorId !== vendorId) continue;
+    for (const line of po.lines) {
+      accrued += Number(line.receivedQty) * Number(line.unitPrice);
+    }
+  }
+  const paid = vendorPayments
+    .filter((p) => p.vendor.name === vendors.find((v) => v.id === vendorId)?.name)
+    .reduce((s, p) => s + Number(p.amount), 0);
+  const balance = Math.round((accrued - paid) * 100) / 100;
+  return {
+    accrued: Math.round(accrued * 100) / 100,
+    paid: Math.round(paid * 100) / 100,
+    balance,
+  };
+}
 
 export function resetProcurementState() {
   vendors = structuredClone(INITIAL_VENDORS) as MockVendor[];
   purchaseOrders = [];
+  vendorPayments = [];
 }
 
 export function getProcurementVendors() {
@@ -63,7 +95,54 @@ export function handleProcurementMutation(
   url: string,
   body: Record<string, unknown> | null,
 ): unknown {
-  if (method === "GET" && url.includes("/vendors")) {
+  if (method === "GET" && url.includes("/vendor-payments")) {
+    return vendorPayments.map((p) => ({ ...p }));
+  }
+
+  if (method === "GET" && url.match(/\/vendors\/[^/]+\/ap-balance/)) {
+    const vendorId = url.match(/\/vendors\/([^/]+)\/ap-balance/)?.[1];
+    if (!vendorId) return { status: 404, message: "Vendor not found" };
+    return computeVendorAp(vendorId);
+  }
+
+  if (method === "POST" && url.includes("/vendor-payments")) {
+    const vendorId = String(body?.vendorId ?? "");
+    const vendor = vendors.find((v) => v.id === vendorId);
+    if (!vendor) return { status: 404, message: "Vendor not found" };
+    const amount = Number(body?.amount ?? 0);
+    if (amount <= 0) return { status: 400, message: "amount must be positive" };
+    const bal = computeVendorAp(vendorId);
+    if (amount > bal.balance) {
+      return {
+        status: 400,
+        message: `Payment ${amount} exceeds outstanding AP balance ${bal.balance} for this vendor`,
+      };
+    }
+    const payment: MockVendorPayment = {
+      id: `vp_${vendorPayments.length + 1}`,
+      amount: String(amount),
+      paymentDate: body?.paymentDate
+        ? new Date(String(body.paymentDate)).toISOString()
+        : new Date().toISOString(),
+      payFromAccountCode: String(body?.payFromAccountCode ?? "1100"),
+      reference: body?.reference ? String(body.reference) : null,
+      vendor: { name: vendor.name },
+      purchaseOrder: body?.purchaseOrderId
+        ? { id: String(body.purchaseOrderId), status: "RECEIVED" }
+        : null,
+    };
+    vendorPayments.unshift(payment);
+    recordVendorPaymentJournal(vendor.name, amount);
+    recordAudit({
+      action: "CREATE",
+      entityType: "vendor_payment",
+      entityId: payment.id,
+      metadata: { vendorId, amount },
+    });
+    return payment;
+  }
+
+  if (method === "GET" && url.includes("/vendors") && !url.includes("/ap-balance")) {
     return getProcurementVendors();
   }
 

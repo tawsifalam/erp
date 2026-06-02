@@ -166,4 +166,32 @@ describe("AccountingListenersService — POS folio", () => {
 
     expect(mockAccounting.createJournalEntry).not.toHaveBeenCalled();
   });
+
+  it("postVendorPayment debits AP and credits pay-from account", async () => {
+    mockAccounting.getAccountByCode.mockImplementation((_org: string, code: string) => {
+      if (code === "2000") return { id: "acc-ap" };
+      if (code === "1100") return { id: "acc-bank" };
+      return null;
+    });
+
+    await service.postVendorPayment({
+      organizationId: "org-1",
+      vendorPaymentId: "vp-1",
+      amount: 500,
+      payFromAccountCode: "1100",
+      vendorName: "Fresh Foods",
+      userId: "user-1",
+    });
+
+    expect(mockAccounting.createJournalEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceType: "vendor_payment",
+        referenceId: "vp-1",
+        lines: [
+          { accountId: "acc-ap", debit: 500, credit: 0 },
+          { accountId: "acc-bank", debit: 0, credit: 500 },
+        ],
+      }),
+    );
+  });
 });

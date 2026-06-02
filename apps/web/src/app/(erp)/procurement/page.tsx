@@ -24,6 +24,7 @@ import {
 import { apiFetch } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { appToast } from "@/lib/app-toast";
+import { VendorPaymentsTab } from "./vendor-payments-tab";
 
 type Vendor = {
   id: string;
@@ -180,6 +181,7 @@ export default function ProcurementPage() {
         <Tabs.List mb={4}>
           <Tabs.Trigger value="vendors">Vendors</Tabs.Trigger>
           <Tabs.Trigger value="orders">Purchase orders</Tabs.Trigger>
+          <Tabs.Trigger value="payments">Vendor payments</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="vendors">
@@ -265,6 +267,10 @@ export default function ProcurementPage() {
               <EmptyState title="No purchase orders" description="Create a PO to receive stock into inventory." />
             )}
           </ContentCard>
+        </Tabs.Content>
+
+        <Tabs.Content value="payments">
+          <VendorPaymentsTab tenant={tenant} vendors={vendors} orders={orders} />
         </Tabs.Content>
       </Tabs.Root>
 

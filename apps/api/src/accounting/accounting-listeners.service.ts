@@ -106,6 +106,39 @@ export class AccountingListenersService {
     });
   }
 
+  async postVendorPayment(params: {
+    organizationId: string;
+    vendorPaymentId: string;
+    amount: number;
+    payFromAccountCode: string;
+    vendorName?: string;
+    userId?: string;
+    paymentDate?: Date;
+  }) {
+    const { organizationId, vendorPaymentId, amount, payFromAccountCode } = params;
+    if (amount <= 0) return;
+    const ap = await this.accounting.getAccountByCode(organizationId, "2000");
+    const payFrom = await this.accounting.getAccountByCode(
+      organizationId,
+      payFromAccountCode,
+    );
+    if (!ap || !payFrom) return;
+
+    const vendorLabel = params.vendorName ? ` — ${params.vendorName}` : "";
+    return this.accounting.createJournalEntry({
+      organizationId,
+      userId: params.userId,
+      entryDate: params.paymentDate,
+      referenceType: "vendor_payment",
+      referenceId: vendorPaymentId,
+      description: `Vendor payment${vendorLabel}`,
+      lines: [
+        { accountId: ap.id, debit: amount, credit: 0 },
+        { accountId: payFrom.id, debit: 0, credit: amount },
+      ],
+    });
+  }
+
   async postRoomReceivable(
     organizationId: string,
     reservationId: string,

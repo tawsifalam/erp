@@ -107,4 +107,42 @@ export class ProcurementController {
       userId: t.userId,
     });
   }
+
+  @Get("vendor-payments")
+  @RequirePermission(Permission.INVENTORY_READ)
+  listVendorPayments(@Tenant() t: TenantContext) {
+    return this.procurement.listVendorPayments(t.branchId!);
+  }
+
+  @Get("vendors/:id/ap-balance")
+  @RequirePermission(Permission.INVENTORY_READ)
+  vendorApBalance(@Tenant() t: TenantContext, @Param("id") vendorId: string) {
+    return this.procurement.getVendorApBalance(
+      t.organizationId,
+      t.branchId!,
+      vendorId,
+    );
+  }
+
+  @Post("vendor-payments")
+  @RequirePermission(Permission.ACCOUNTING_WRITE)
+  createVendorPayment(
+    @Tenant() t: TenantContext,
+    @Body()
+    body: {
+      vendorId: string;
+      amount: number;
+      paymentDate?: string;
+      payFromAccountCode?: string;
+      purchaseOrderId?: string;
+      reference?: string;
+    },
+  ) {
+    return this.procurement.createVendorPayment({
+      organizationId: t.organizationId,
+      branchId: t.branchId!,
+      userId: t.userId,
+      ...body,
+    });
+  }
 }

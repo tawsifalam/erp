@@ -72,6 +72,20 @@ export function getAccountingJournals() {
   return journals.map((j) => ({ ...j }));
 }
 
+/** Called from procurement mock when a vendor payment is recorded. */
+export function recordVendorPaymentJournal(vendorName: string, amount: number) {
+  const entry: MockJournal = {
+    id: `je_${journals.length + 1}`,
+    description: `Vendor payment — ${vendorName}`,
+    createdAt: new Date().toISOString(),
+    lines: [
+      { account: { name: "Accounts Payable", code: "2000" }, debit: String(amount), credit: "0" },
+      { account: { name: "Bank Account", code: "1100" }, debit: "0", credit: String(amount) },
+    ],
+  };
+  journals.unshift(entry);
+}
+
 function findAccount(id: string) {
   return accounts.find((a) => a.id === id);
 }

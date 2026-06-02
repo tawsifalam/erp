@@ -17,6 +17,7 @@ import {
   PO_STATUS_RECEIVED,
   PO_STATUS_SUBMITTED,
 } from "./procurement.constants";
+import { PAY_FROM_ACCOUNT_CODES } from "./vendor-payment.constants";
 import { NotificationsService } from "../notifications/notifications.service";
 import { NotificationType } from "../notifications/notifications.constants";
 import { Role } from "@erp/types";
@@ -328,5 +329,148 @@ export class ProcurementService {
     });
 
     return receipt;
+  }
+
+  listVendorPayments(branchId: string) {
+    return this.prisma.vendorPayment.findMany({
+      where: { branchId },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        purchaseOrder: { select: { id: true, status: true } },
+      },
+      orderBy: { paymentDate: "desc" },
+      take: 100,
+    });
+  }
+
+  async getVendorApBalance(
+    organizationId: string,
+    branchId: string,
+    vendorId: string,
+  ) {
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, organizationId },
+    });
+    if (!vendor) throw new NotFoundException("Vendor not found");
+
+    const lines = await this.prisma.purchaseOrderLine.findMany({
+      where: {
+        purchaseOrder: { branchId, vendorId, organizationId },
+      },
+    });
+
+    const accrued = roundMoney(
+      lines.reduce((s, l) => s + toNumber(l.receivedQty) * toNumber(l.unitPrice), 0),
+    );
+
+    const paidAgg = await this.prisma.vendorPayment.aggregate({
+      where: { organizationId, branchId, vendorId },
+      _sum: { amount: true },
+    });
+    const paid = roundMoney(toNumber(paidAgg._sum.amount ?? 0));
+
+    return { accrued, paid, balance: roundMoney(accrued - paid) };
+  }
+
+  async createVendorPayment(params: {
+    organizationId: string;
+    branchId: string;
+    userId?: string;
+    vendorId: string;
+    amount: number;
+    paymentDate?: string;
+    payFromAccountCode?: string;
+    purchaseOrderId?: string;
+    reference?: string;
+  }) {
+    if (params.amount <= 0) {
+      throw new BadRequestException("amount must be positive");
+    }
+
+    const payFrom = params.payFromAccountCode ?? "1100";
+    if (!PAY_FROM_ACCOUNT_CODES.includes(payFrom as (typeof PAY_FROM_ACCOUNT_CODES)[number])) {
+      throw new BadRequestException("payFromAccountCode must be 1000 (Cash) or 1100 (Bank)");
+    }
+
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: params.vendorId, organizationId: params.organizationId, isActive: true },
+    });
+    if (!vendor) throw new NotFoundException("Vendor not found");
+
+    if (params.purchaseOrderId) {
+      const po = await this.prisma.purchaseOrder.findFirst({
+        where: {
+          id: params.purchaseOrderId,
+          branchId: params.branchId,
+          vendorId: params.vendorId,
+          organizationId: params.organizationId,
+        },
+      });
+      if (!po) {
+        throw new BadRequestException("Purchase order does not match vendor or branch");
+      }
+    }
+
+    const paymentDate = params.paymentDate
+      ? new Date(params.paymentDate)
+      : new Date();
+    if (Number.isNaN(paymentDate.getTime())) {
+      throw new BadRequestException("Invalid paymentDate");
+    }
+
+    const balance = await this.getVendorApBalance(
+      params.organizationId,
+      params.branchId,
+      params.vendorId,
+    );
+    const amount = roundMoney(params.amount);
+    if (amount > balance.balance) {
+      throw new BadRequestException(
+        `Payment ${amount} exceeds outstanding AP balance ${balance.balance} for this vendor`,
+      );
+    }
+
+    const payment = await this.prisma.vendorPayment.create({
+      data: {
+        id: generatePrefixedId("vp"),
+        organizationId: params.organizationId,
+        branchId: params.branchId,
+        vendorId: params.vendorId,
+        purchaseOrderId: params.purchaseOrderId ?? null,
+        amount,
+        paymentDate,
+        payFromAccountCode: payFrom,
+        reference: params.reference?.trim() || null,
+      },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        purchaseOrder: { select: { id: true, status: true } },
+      },
+    });
+
+    await this.accounting.postVendorPayment({
+      organizationId: params.organizationId,
+      vendorPaymentId: payment.id,
+      amount,
+      payFromAccountCode: payFrom,
+      vendorName: vendor.name,
+      userId: params.userId,
+      paymentDate,
+    });
+
+    await this.audit.record({
+      organizationId: params.organizationId,
+      userId: params.userId,
+      action: AuditAction.CREATE,
+      entityType: AuditEntityType.VENDOR_PAYMENT,
+      entityId: payment.id,
+      metadata: {
+        vendorId: params.vendorId,
+        amount,
+        purchaseOrderId: params.purchaseOrderId,
+      },
+    });
+
+    return payment;
   }
 }

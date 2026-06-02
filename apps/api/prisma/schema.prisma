@@ -41,7 +41,8 @@ model Organization {
   ratePlans    RatePlan[]
   guests       Guest[]
   accounts     Account[]
-  vendors      Vendor[]
+  vendors        Vendor[]
+  vendorPayments VendorPayment[]
   employees    Employee[]
   menuCategories MenuCategory[]
   inventoryPools InventoryPool[]
@@ -119,7 +120,8 @@ model Branch {
   staffMeals     StaffMeal[]
   reportJobs     ReportJob[]
   inclusionRecipes InclusionRecipe[]
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders   PurchaseOrder[]
+  vendorPayments   VendorPayment[]
 }
 
 model RoomType {
@@ -577,7 +579,8 @@ model Vendor {
   updatedAt      DateTime @updatedAt
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders   PurchaseOrder[]
+  vendorPayments   VendorPayment[]
 
   @@index([organizationId, name])
 }
@@ -595,10 +598,32 @@ model PurchaseOrder {
 
   branch   Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
   vendor   Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  lines    PurchaseOrderLine[]
-  receipts GoodsReceipt[]
+  lines          PurchaseOrderLine[]
+  receipts       GoodsReceipt[]
+  vendorPayments VendorPayment[]
 
   @@index([branchId, status])
+}
+
+model VendorPayment {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  branchId           String
+  vendorId           String
+  purchaseOrderId    String?
+  amount             Decimal  @db.Decimal(12, 2)
+  paymentDate        DateTime @default(now())
+  payFromAccountCode String   @default("1100")
+  reference          String?
+  createdAt          DateTime @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch        Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  vendor        Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, paymentDate])
+  @@index([vendorId])
 }
 
 model PurchaseOrderLine {

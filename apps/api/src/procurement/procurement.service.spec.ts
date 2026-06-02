@@ -34,6 +34,11 @@ const mockPrisma = {
     update: jest.fn(),
   },
   goodsReceipt: { create: jest.fn() },
+  vendorPayment: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    aggregate: jest.fn(),
+  },
 };
 
 const mockInventory = {
@@ -43,6 +48,7 @@ const mockInventory = {
 
 const mockAccounting = {
   postGoodsReceipt: jest.fn(),
+  postVendorPayment: jest.fn(),
 };
 
 const mockAudit = { record: jest.fn() };
@@ -128,5 +134,64 @@ describe("ProcurementService", () => {
     );
     expect(mockAccounting.postGoodsReceipt).toHaveBeenCalledWith("org-1", "gr-1", 500);
     expect(mockAudit.record).toHaveBeenCalled();
+  });
+
+  describe("createVendorPayment", () => {
+    it("rejects amount above AP balance", async () => {
+      mockPrisma.vendor.findFirst.mockResolvedValue({
+        id: "ven-1",
+        name: "Fresh Foods",
+        organizationId: "org-1",
+      });
+      mockPrisma.purchaseOrderLine.findMany.mockResolvedValue([
+        { receivedQty: 10, unitPrice: 50 },
+      ]);
+      mockPrisma.vendorPayment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+
+      await expect(
+        service.createVendorPayment({
+          organizationId: "org-1",
+          branchId: "br-1",
+          vendorId: "ven-1",
+          amount: 600,
+        }),
+      ).rejects.toThrow(/exceeds outstanding AP balance/i);
+    });
+
+    it("creates payment and posts GL", async () => {
+      mockPrisma.vendor.findFirst.mockResolvedValue({
+        id: "ven-1",
+        name: "Fresh Foods",
+        organizationId: "org-1",
+      });
+      mockPrisma.purchaseOrderLine.findMany.mockResolvedValue([
+        { receivedQty: 10, unitPrice: 50 },
+      ]);
+      mockPrisma.vendorPayment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      mockPrisma.vendorPayment.create.mockResolvedValue({
+        id: "vp-1",
+        amount: 500,
+        vendor: { name: "Fresh Foods" },
+        purchaseOrder: null,
+      });
+
+      await service.createVendorPayment({
+        organizationId: "org-1",
+        branchId: "br-1",
+        vendorId: "ven-1",
+        amount: 500,
+        userId: "user-1",
+      });
+
+      expect(mockPrisma.vendorPayment.create).toHaveBeenCalled();
+      expect(mockAccounting.postVendorPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: "org-1",
+          vendorPaymentId: "vp-1",
+          amount: 500,
+        }),
+      );
+      expect(mockAudit.record).toHaveBeenCalled();
+    });
   });
 });

@@ -78,7 +78,7 @@ pnpm --filter @erp/web test:smoke-local:headless
 | §3 Procurement | `smoke-local-03-procurement` | Vendor drawer, PO create/submit/receive, **vendor payment** (Dr AP / Cr Bank), inventory stock, accounting journals |
 | §4 Inventory & POS | `smoke-local-04-inventory-pos` | New item, movement, BOM; POS kitchen send, complete & pay drawer, menu category; kitchen display |
 | §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
-| Accounting + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post journal; **reverse journal**; journals list; P&L and trial balance exports |
+| Accounting + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
 
 ### Manual only (second user / email / production infra)

@@ -18,7 +18,7 @@ Items intentionally left out of Phase 1 / 1.5 / 1.6. Grouped by theme; estimate 
 | **Period close** | N/A | Block or warn on POST to closed periods; admin reopen |
 | **Journal reversal** | Manual offsetting entries only | Reversal API linked to original `JournalEntry` |
 | **Vendor payment** | PO receive → Dr Inventory / Cr AP only | Payment run: Dr AP / Cr Cash; tie to vendor / PO |
-| **PDF financial reports** | CSV via async `ReportJob` | PDF for trial balance, P&L, balance sheet, GL |
+| **PDF financial reports** | CSV via async `ReportJob` | PDF for trial balance, P&L, balance sheet, GL — [pdf-financial-reports.md](./pdf-financial-reports.md) |
 | **GRNI / accrual PO** (optional) | Receipt posts to AP immediately | Accrue on receipt, reclass on invoice (if needed) |
 
 **Docs:** [accounting-module.md](../accounting-module.md) (future section), [accounting-rules.md](../accounting-rules.md)
@@ -111,7 +111,8 @@ From [erp-completeness-roadmap.md](../erp-completeness-roadmap.md) — large or 
 | 1 | Fiscal periods & period close | [fiscal-periods.md](./fiscal-periods.md) | Shipped |
 | 2 | Vendor payment | [vendor-payment.md](./vendor-payment.md) | Shipped |
 | 3 | Journal reversal | [journal-reversal.md](./journal-reversal.md) | Shipped |
-| 4 | PDF financial reports | — | Planned |
+| 4 | PDF financial reports | [pdf-financial-reports.md](./pdf-financial-reports.md) | Shipped |
+| 5 | Notification preferences | — | Planned |
 
 ## Suggested build order
 

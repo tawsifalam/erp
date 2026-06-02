@@ -95,6 +95,28 @@ describe("ReportingService", () => {
     it("throws when branchId missing for branch-scoped report", () => {
       expect(() => service.requestExport("org-1", "low_stock")).toThrow(BadRequestException);
     });
+
+    it("stores pdf format for financial reports", async () => {
+      mockPrisma.reportJob.create.mockResolvedValue({ id: "rpt-pdf" });
+
+      await service.requestExport("org-1", "trial_balance", undefined, {
+        asOf: "2026-05-31",
+        format: "pdf",
+      });
+
+      expect(mockPrisma.reportJob.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: "trial_balance",
+          params: expect.objectContaining({ format: "pdf", asOf: "2026-05-31" }),
+        }),
+      });
+    });
+
+    it("rejects pdf format for branch reports", () => {
+      expect(() =>
+        service.requestExport("org-1", "branch_summary", "branch-1", { format: "pdf" }),
+      ).toThrow(BadRequestException);
+    });
   });
 
   describe("listReportTypes", () => {

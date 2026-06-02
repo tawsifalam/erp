@@ -9,8 +9,10 @@ import {
   ReportExportParams,
   isFinancialReportType,
   isValidReportType,
+  normalizeReportFormat,
   normalizeReportType,
   parseReportDate,
+  REPORT_FORMAT_PDF,
 } from "./reporting.constants";
 
 @Injectable()
@@ -80,6 +82,7 @@ export class ReportingService {
       requiresDateRange: code === "profit_and_loss" || code === "general_ledger",
       requiresAsOf: code === "trial_balance" || code === "balance_sheet",
       requiresAccountCode: code === "general_ledger",
+      supportsPdf: isFinancialReportType(code),
     }));
   }
 
@@ -110,7 +113,17 @@ export class ReportingService {
       throw new BadRequestException("Branch is required for this report type");
     }
 
-    const storedParams = this.validateExportParams(normalizedType, params);
+    let format;
+    try {
+      format = normalizeReportFormat(params?.format);
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : "Invalid report format");
+    }
+    if (format === REPORT_FORMAT_PDF && !isFinancialReportType(normalizedType)) {
+      throw new BadRequestException("PDF export is only available for financial reports");
+    }
+
+    const storedParams = this.validateExportParams(normalizedType, { ...params, format });
 
     return this.prisma.reportJob.create({
       data: {
@@ -130,11 +143,14 @@ export class ReportingService {
   ): ReportExportParams | null {
     if (!isFinancialReportType(type)) return null;
 
+    const format = normalizeReportFormat(params?.format);
+
     const stored: ReportExportParams = {
       from: params?.from,
       to: params?.to,
       asOf: params?.asOf,
       accountCode: params?.accountCode,
+      format,
     };
 
     try {

@@ -4,11 +4,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { ReportGeneratorsService } from "./report-generators.service";
 import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
-import { isFinancialReportType } from "./reporting.constants";
-import type { ReportExportParams } from "./reporting.constants";
+import {
+  REPORT_FORMAT_PDF,
+  REPORT_TYPE_LABELS,
+  isFinancialReportType,
+  type ReportExportParams,
+} from "./reporting.constants";
 import { NotificationsService } from "../notifications/notifications.service";
 import { NotificationType } from "../notifications/notifications.constants";
-import { REPORT_TYPE_LABELS } from "./reporting.constants";
 
 @Processor("reports")
 export class ReportsProcessor extends WorkerHost {
@@ -39,20 +42,45 @@ export class ReportsProcessor extends WorkerHost {
       }
 
       const params = (reportJob.params ?? {}) as ReportExportParams;
-      const csv = isFinancialReportType(reportJob.type)
-        ? await this.financialGenerators.generate(
+      const isPdf = params.format === REPORT_FORMAT_PDF;
+      if (isPdf && !isFinancialReportType(reportJob.type)) {
+        throw new Error("PDF export is only available for financial reports");
+      }
+
+      let fileBody: Buffer;
+      let extension: string;
+      let contentType: string;
+
+      if (isFinancialReportType(reportJob.type)) {
+        if (isPdf) {
+          fileBody = await this.financialGenerators.generatePdf(
             reportJob.type,
             reportJob.organizationId,
             params,
-          )
-        : await this.generators.generate(
-            reportJob.type,
-            reportJob.branchId!,
           );
+          extension = "pdf";
+          contentType = "application/pdf";
+        } else {
+          const csv = await this.financialGenerators.generate(
+            reportJob.type,
+            reportJob.organizationId,
+            params,
+          );
+          fileBody = Buffer.from(csv);
+          extension = "csv";
+          contentType = "text/csv";
+        }
+      } else {
+        const csv = await this.generators.generate(reportJob.type, reportJob.branchId!);
+        fileBody = Buffer.from(csv);
+        extension = "csv";
+        contentType = "text/csv";
+      }
+
       const result = await this.storage.upload(
-        `reports/${reportJob.id}.csv`,
-        Buffer.from(csv),
-        "text/csv",
+        `reports/${reportJob.id}.${extension}`,
+        fileBody,
+        contentType,
       );
 
       await this.prisma.reportJob.update({

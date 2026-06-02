@@ -11,6 +11,7 @@ import {
   parseReportDate,
   toCsv,
 } from "./reporting.constants";
+import { buildFinancialReportPdf } from "./financial-report-pdf";
 
 type AccountBalance = {
   code: string;
@@ -20,35 +21,74 @@ type AccountBalance = {
   credit: number;
 };
 
+type ReportTable = {
+  title: string;
+  periodLabel: string;
+  headers: string[];
+  rows: (string | number)[][];
+};
+
 @Injectable()
 export class FinancialReportGeneratorsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async generate(type: string, organizationId: string, params: ReportExportParams): Promise<string> {
+    const table = await this.buildTable(type, organizationId, params);
+    return toCsv(table.headers, table.rows);
+  }
+
+  async generatePdf(
+    type: string,
+    organizationId: string,
+    params: ReportExportParams,
+  ): Promise<Buffer> {
+    const table = await this.buildTable(type, organizationId, params);
+    return buildFinancialReportPdf(table.title, table.periodLabel, table.headers, table.rows);
+  }
+
+  private async buildTable(
+    type: string,
+    organizationId: string,
+    params: ReportExportParams,
+  ): Promise<ReportTable> {
     switch (type) {
       case REPORT_TYPE_TRIAL_BALANCE:
-        return this.trialBalanceCsv(organizationId, params);
+        return this.trialBalanceTable(organizationId, params);
       case REPORT_TYPE_PROFIT_AND_LOSS:
-        return this.profitAndLossCsv(organizationId, params);
+        return this.profitAndLossTable(organizationId, params);
       case REPORT_TYPE_BALANCE_SHEET:
-        return this.balanceSheetCsv(organizationId, params);
+        return this.balanceSheetTable(organizationId, params);
       case REPORT_TYPE_GENERAL_LEDGER:
-        return this.generalLedgerCsv(organizationId, params);
+        return this.generalLedgerTable(organizationId, params);
       default:
         throw new Error(`No financial generator for report type: ${type}`);
     }
   }
 
-  private async trialBalanceCsv(organizationId: string, params: ReportExportParams) {
+  private async trialBalanceTable(
+    organizationId: string,
+    params: ReportExportParams,
+  ): Promise<ReportTable> {
     const asOf = parseReportDate(params.asOf ?? params.to, new Date());
     const balances = await this.accountBalancesThrough(organizationId, asOf);
     const rows = balances
       .filter((b) => b.debit > 0 || b.credit > 0)
       .map((b) => [b.code, b.name, b.type, b.debit, b.credit]);
-    return toCsv(["code", "name", "type", "debit", "credit"], rows);
+    const totalDebit = roundMoney(rows.reduce((s, r) => s + Number(r[3]), 0));
+    const totalCredit = roundMoney(rows.reduce((s, r) => s + Number(r[4]), 0));
+    rows.push(["", "TOTAL", "", totalDebit, totalCredit]);
+    return {
+      title: "Trial balance",
+      periodLabel: `As of ${asOf.toISOString().slice(0, 10)}`,
+      headers: ["code", "name", "type", "debit", "credit"],
+      rows,
+    };
   }
 
-  private async profitAndLossCsv(organizationId: string, params: ReportExportParams) {
+  private async profitAndLossTable(
+    organizationId: string,
+    params: ReportExportParams,
+  ): Promise<ReportTable> {
     const to = parseReportDate(params.to, new Date());
     const from = parseReportDate(
       params.from,
@@ -68,10 +108,18 @@ export class FinancialReportGeneratorsService {
             : roundMoney(b.debit - b.credit);
         return [b.code, b.name, b.type, amount];
       });
-    return toCsv(["code", "name", "type", "amount"], rows);
+    return {
+      title: "Profit & loss",
+      periodLabel: `${from.toISOString().slice(0, 10)} — ${to.toISOString().slice(0, 10)}`,
+      headers: ["code", "name", "type", "amount"],
+      rows,
+    };
   }
 
-  private async balanceSheetCsv(organizationId: string, params: ReportExportParams) {
+  private async balanceSheetTable(
+    organizationId: string,
+    params: ReportExportParams,
+  ): Promise<ReportTable> {
     const asOf = parseReportDate(params.asOf ?? params.to, new Date());
     const balances = await this.accountBalancesThrough(organizationId, asOf);
     const rows = balances
@@ -89,10 +137,18 @@ export class FinancialReportGeneratorsService {
             : roundMoney(b.credit - b.debit);
         return [b.code, b.name, b.type, balance];
       });
-    return toCsv(["code", "name", "type", "balance"], rows);
+    return {
+      title: "Balance sheet",
+      periodLabel: `As of ${asOf.toISOString().slice(0, 10)}`,
+      headers: ["code", "name", "type", "balance"],
+      rows,
+    };
   }
 
-  private async generalLedgerCsv(organizationId: string, params: ReportExportParams) {
+  private async generalLedgerTable(
+    organizationId: string,
+    params: ReportExportParams,
+  ): Promise<ReportTable> {
     if (!params.accountCode?.trim()) {
       throw new Error("accountCode is required for general ledger export");
     }
@@ -124,17 +180,21 @@ export class FinancialReportGeneratorsService {
       orderBy: { journalEntry: { createdAt: "asc" } },
     });
 
-    return toCsv(
-      ["date", "description", "referenceType", "referenceId", "debit", "credit"],
-      lines.map((l) => [
-        l.journalEntry.createdAt.toISOString(),
-        l.journalEntry.description ?? "",
-        l.journalEntry.referenceType ?? "",
-        l.journalEntry.referenceId ?? "",
-        toNumber(l.debit),
-        toNumber(l.credit),
-      ]),
-    );
+    const rows = lines.map((l) => [
+      l.journalEntry.createdAt.toISOString().slice(0, 10),
+      l.journalEntry.description ?? "",
+      l.journalEntry.referenceType ?? "",
+      l.journalEntry.referenceId ?? "",
+      toNumber(l.debit),
+      toNumber(l.credit),
+    ]);
+
+    return {
+      title: `General ledger — ${account.code} ${account.name}`,
+      periodLabel: `${from.toISOString().slice(0, 10)} — ${to.toISOString().slice(0, 10)}`,
+      headers: ["date", "description", "referenceType", "referenceId", "debit", "credit"],
+      rows,
+    };
   }
 
   private async accountBalancesThrough(

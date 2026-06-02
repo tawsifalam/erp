@@ -65,6 +65,6 @@ Confirm dialog before posting.
 
 `20260612100000_journal_reversal`
 
-## Next (Sprint 4)
+## Next (Sprint 5)
 
-**PDF financial reports** — trial balance, P&L, balance sheet, GL ([README](./README.md)).
+**Notification preferences** or **branch invitations** — see [README](./README.md).

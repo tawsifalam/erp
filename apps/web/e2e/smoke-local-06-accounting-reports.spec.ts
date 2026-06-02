@@ -80,7 +80,14 @@ test.describe("Smoke — Reports", () => {
     await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 15_000 });
   });
 
-  test("Trial balance — queue export", async ({ page }) => {
+  test("Trial balance — queue PDF export", async ({ page }) => {
+    await goto(page, "/reports");
+    await selectReportType(page, "trial_balance").selectOption("trial_balance", { force: true });
+    await page.getByRole("button", { name: "Export PDF" }).first().click();
+    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("Trial balance — queue CSV export", async ({ page }) => {
     await goto(page, "/reports");
     await selectReportType(page, "trial_balance").selectOption("trial_balance", { force: true });
     await page.getByRole("button", { name: "Export CSV" }).first().click();

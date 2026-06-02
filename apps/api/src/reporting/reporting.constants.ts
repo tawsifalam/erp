@@ -42,12 +42,23 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
 export const BRANCH_SCOPED_REPORT_TYPES = new Set<string>(BRANCH_REPORT_TYPES);
 export const FINANCIAL_SCOPED_REPORT_TYPES = new Set<string>(FINANCIAL_REPORT_TYPES);
 
+export const REPORT_FORMAT_CSV = "csv";
+export const REPORT_FORMAT_PDF = "pdf";
+export type ReportExportFormat = typeof REPORT_FORMAT_CSV | typeof REPORT_FORMAT_PDF;
+
 export type ReportExportParams = {
   from?: string;
   to?: string;
   asOf?: string;
   accountCode?: string;
+  format?: ReportExportFormat;
 };
+
+export function normalizeReportFormat(format?: string): ReportExportFormat {
+  if (!format || format === REPORT_FORMAT_CSV) return REPORT_FORMAT_CSV;
+  if (format === REPORT_FORMAT_PDF) return REPORT_FORMAT_PDF;
+  throw new Error(`Invalid report format: ${format}. Use csv or pdf.`);
+}
 
 export function normalizeReportType(type: string): ReportType {
   if (type === REPORT_TYPE_SUMMARY_ALIAS) return REPORT_TYPE_BRANCH_SUMMARY;

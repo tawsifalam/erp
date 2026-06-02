@@ -38,6 +38,7 @@ type ReportType = {
   requiresDateRange?: boolean;
   requiresAsOf?: boolean;
   requiresAccountCode?: boolean;
+  supportsPdf?: boolean;
 };
 
 const FINANCIAL_TYPES = new Set([
@@ -98,9 +99,13 @@ export default function ReportsPage() {
     if (jobsQuery.error) appToast.error(jobsQuery.error);
   }, [jobsQuery.error]);
 
-  const exportCsv = async () => {
+  const exportReport = async (format: "csv" | "pdf") => {
     if (selectedType?.requiresBranch && !tenant.branchId) {
       appToast.error("Select a branch in the header for this report.");
+      return;
+    }
+    if (format === "pdf" && !selectedType?.supportsPdf) {
+      appToast.error("PDF export is only available for financial reports.");
       return;
     }
     try {
@@ -117,6 +122,7 @@ export default function ReportsPage() {
               : undefined,
           asOf: selectedType?.requiresAsOf ? dates.asOf : undefined,
           accountCode: selectedType?.requiresAccountCode ? accountCode : undefined,
+          format,
         }),
       });
       appToast.success("Export queued — refresh or wait for completion");
@@ -208,11 +214,22 @@ export default function ReportsPage() {
         <Button
           size="sm"
           colorPalette="blue"
-          onClick={exportCsv}
+          onClick={() => exportReport("csv")}
           disabled={typesQuery.loading}
         >
           Export CSV
         </Button>
+        {selectedType?.supportsPdf && (
+          <Button
+            size="sm"
+            variant="outline"
+            colorPalette="blue"
+            onClick={() => exportReport("pdf")}
+            disabled={typesQuery.loading}
+          >
+            Export PDF
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -268,12 +285,12 @@ export default function ReportsPage() {
             {jobs.length === 0 && (
               <EmptyState
                 title="No report jobs yet"
-                description="Export a CSV report to generate a downloadable file. Jobs appear here while processing."
+                description="Export a CSV or PDF report to generate a downloadable file. Jobs appear here while processing."
                 action={
                   <Button
                     size="sm"
                     colorPalette="blue"
-                    onClick={exportCsv}
+                    onClick={() => exportReport("csv")}
                     disabled={typesQuery.loading}
                   >
                     Export CSV

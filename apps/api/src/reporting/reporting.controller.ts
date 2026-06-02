@@ -42,6 +42,7 @@ export class ReportingController {
       to?: string;
       asOf?: string;
       accountCode?: string;
+      format?: "csv" | "pdf";
     },
   ) {
     const branchId = body.branchId || t.branchId;
@@ -54,6 +55,7 @@ export class ReportingController {
         to: body.to,
         asOf: body.asOf,
         accountCode: body.accountCode,
+        format: body.format,
       },
       t.userId,
     );

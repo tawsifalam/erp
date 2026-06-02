@@ -29,17 +29,27 @@ test.describe("Reports", () => {
     await expect(page.locator("select option", { hasText: "Balance sheet" })).toHaveCount(1);
   });
 
-  test("queues profit and loss financial export", async ({ page }) => {
+  test("queues profit and loss financial export as PDF", async ({ page }) => {
     await page.goto("/reports");
     const hidden = page.locator("select").filter({
       has: page.locator('option[value="profit_and_loss"]'),
     });
     await hidden.selectOption("profit_and_loss", { force: true });
     await expect(page.getByText("From")).toBeVisible();
-    await page.getByRole("button", { name: "Export CSV" }).click();
+    await page.getByRole("button", { name: "Export PDF" }).click();
     await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole("cell", { name: "profit_and_loss" }).first()).toBeVisible({
       timeout: 10_000,
     });
+    const row = page.getByRole("row").filter({ hasText: "profit_and_loss" }).first();
+    await expect(row.getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      /report-new\.pdf/,
+    );
+  });
+
+  test("Export PDF hidden for branch-scoped reports", async ({ page }) => {
+    await page.goto("/reports");
+    await expect(page.getByRole("button", { name: "Export PDF" })).toHaveCount(0);
   });
 });

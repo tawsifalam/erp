@@ -43,13 +43,13 @@ List types: `GET /reporting/types`
 ## Export flow
 
 ```
-POST /reporting/export { type, branchId? }
-  → Create ReportJob (PENDING)
+POST /reporting/export { type, branchId?, format?: "csv" | "pdf", ... }
+  → Create ReportJob (PENDING, params.format stored for financial reports)
   → BullMQ "reports" queue
   → ReportsProcessor
       → PROCESSING
-      → Generate CSV (ReportGeneratorsService)
-      → Upload to storage
+      → Generate CSV or PDF (financial types) / CSV only (branch types)
+      → Upload to storage (.csv or .pdf)
       → COMPLETED (fileUrl) or FAILED (errorMessage)
 ```
 
@@ -84,15 +84,29 @@ curl -s "$BASE/reporting/jobs" \
 | Page | Features |
 |------|----------|
 | `/dashboard` | Occupancy, reservations, revenue, low-stock alerts + item list |
-| `/reports` | Report type picker, export CSV, jobs table with download link and poll while pending |
+| `/reports` | Report type picker, export CSV/PDF (financial), jobs table with download link and poll while pending |
 
 ## Job statuses
 
 `PENDING` → `PROCESSING` → `COMPLETED` | `FAILED`
 
+## Financial reports (Phase 2)
+
+Organization-wide exports (no branch required):
+
+| Code | Label | Formats |
+|------|-------|---------|
+| `trial_balance` | Trial balance | CSV, **PDF** |
+| `profit_and_loss` | Profit & loss | CSV, **PDF** |
+| `balance_sheet` | Balance sheet | CSV, **PDF** |
+| `general_ledger` | General ledger | CSV, **PDF** (requires `accountCode`) |
+
+`POST /reporting/export` body: `{ type, from?, to?, asOf?, accountCode?, format?: "csv" | "pdf" }`
+
+See [phase2/pdf-financial-reports.md](./phase2/pdf-financial-reports.md).
+
 ## Phase 2 (deferred)
 
-- PDF reports, GL/trial balance exports
 - Cross-branch / org analytics
 - Charts and period comparisons
 - PMS room revenue in dashboard

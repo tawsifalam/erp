@@ -20,6 +20,7 @@ const mockGenerators = {
 
 const mockFinancialGenerators = {
   generate: jest.fn(),
+  generatePdf: jest.fn(),
 };
 
 describe("ReportsProcessor", () => {
@@ -67,6 +68,32 @@ describe("ReportsProcessor", () => {
         errorMessage: null,
       },
     });
+  });
+
+  it("uploads PDF for financial report when format is pdf", async () => {
+    mockPrisma.reportJob.findUnique.mockResolvedValue({
+      id: "rpt-pdf",
+      organizationId: "org-1",
+      type: "trial_balance",
+      branchId: null,
+      params: { format: "pdf", asOf: "2026-05-31" },
+      requestedByUserId: null,
+    });
+    mockFinancialGenerators.generatePdf.mockResolvedValue(Buffer.from("%PDF-1.4"));
+    mockStorage.upload.mockResolvedValue({ url: "https://storage/report.pdf", key: "reports/rpt-pdf.pdf" });
+
+    await processor.process({ data: { reportJobId: "rpt-pdf" } } as never);
+
+    expect(mockFinancialGenerators.generatePdf).toHaveBeenCalledWith(
+      "trial_balance",
+      "org-1",
+      expect.objectContaining({ format: "pdf" }),
+    );
+    expect(mockStorage.upload).toHaveBeenCalledWith(
+      "reports/rpt-pdf.pdf",
+      expect.any(Buffer),
+      "application/pdf",
+    );
   });
 
   it("marks job FAILED on generator error", async () => {

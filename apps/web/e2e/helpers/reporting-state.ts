@@ -14,15 +14,16 @@ const REPORT_TYPES = [
   { code: "branch_summary", label: "Branch summary", requiresBranch: true },
   { code: "low_stock", label: "Low stock items", requiresBranch: true },
   { code: "revenue_today", label: "Today's revenue (POS)", requiresBranch: true },
-  { code: "trial_balance", label: "Trial balance", requiresBranch: false, requiresAsOf: true },
-  { code: "profit_and_loss", label: "Profit & loss", requiresBranch: false, requiresDateRange: true },
-  { code: "balance_sheet", label: "Balance sheet", requiresBranch: false, requiresAsOf: true },
+  { code: "trial_balance", label: "Trial balance", requiresBranch: false, requiresAsOf: true, supportsPdf: true },
+  { code: "profit_and_loss", label: "Profit & loss", requiresBranch: false, requiresDateRange: true, supportsPdf: true },
+  { code: "balance_sheet", label: "Balance sheet", requiresBranch: false, requiresAsOf: true, supportsPdf: true },
   {
     code: "general_ledger",
     label: "General ledger",
     requiresBranch: false,
     requiresDateRange: true,
     requiresAccountCode: true,
+    supportsPdf: true,
   },
 ];
 
@@ -62,11 +63,13 @@ export function handleReportingMutation(
 
   if (url.includes("/reporting/export") && method === "POST") {
     const type = String(body?.type ?? "branch_summary");
+    const format = (body?.format as string) ?? "csv";
+    const isPdf = format === "pdf";
     const job: MockReportJob = {
       id: `rpt_${reportJobs.length + 1}`,
       type: type === "summary" ? "branch_summary" : type,
       status: "COMPLETED",
-      fileUrl: "https://example.com/report-new.csv",
+      fileUrl: isPdf ? "https://example.com/report-new.pdf" : "https://example.com/report-new.csv",
       createdAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
     };

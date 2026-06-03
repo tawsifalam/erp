@@ -8,12 +8,13 @@
 #   docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml \
 #     exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
 
+# Compose merges port lists by default; !reset clears base publish rules from docker-compose.yml.
 services:
   postgres:
-    ports: []
+    ports: !reset []
 
   redis:
-    ports: []
+    ports: !reset []
 
   minio:
-    ports: []
+    ports: !reset []

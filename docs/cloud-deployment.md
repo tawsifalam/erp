@@ -473,7 +473,7 @@ Duplicate Steps 1–11 with:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `Bind for :::6379 failed: port is already allocated` (or 5432) | Host or another container uses that port | Use `docker-compose.prod.yml` (no host publish); or stop conflicting service: `sudo ss -tlnp \| grep -E '6379\|5432'` |
+| `Bind for :::6379 failed: port is already allocated` (5432, 9000, 9001) | Host or another container uses that port | Use `docker-compose.prod.yml` with `ports: !reset []`; confirm with `docker compose … config \| grep -A2 'minio:'`; or stop conflict: `sudo ss -tlnp \| grep -E '6379\|5432\|9000\|9001'` |
 | API `EAI_AGAIN redis` / can't reach `postgres:5432` | `redis`/`postgres` containers not running (often failed bind) or wrong URLs in `.env` | `docker compose … ps`; fix ports; ensure `REDIS_URL`/`DATABASE_URL` use service names inside Docker, not `127.0.0.1` |
 | Login loop | Wrong `PROPELAUTH_REDIRECT_URI` | Match PropelAuth dashboard exactly |
 | API 401 | Token not sent | Check `/api/auth/access_token`; user logged in |

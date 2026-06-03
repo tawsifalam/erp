@@ -435,15 +435,36 @@ Example cron (Postgres on VPS):
 
 ### Updates (deploy new version)
 
+UI code is **compiled into the `web` image** at `docker compose build` time (`NEXT_PUBLIC_*` are baked in then too). `up -d` alone does not pick up `git pull`.
+
 ```bash
 cd /opt/erp
 git pull
+git log -1 --oneline
+
+# .env must have production NEXT_PUBLIC_* before building web (do not `source .env` if PROPELAUTH_VERIFIER_KEY has spaces — Compose reads the file directly)
 PUPPETEER_SKIP_DOWNLOAD=true pnpm install && pnpm db:generate
-COMPOSE="-f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml"
-docker compose $COMPOSE build api web
-docker compose $COMPOSE exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
-docker compose $COMPOSE up -d postgres redis minio api web nginx
+
+docker compose \
+  -f /opt/erp/infra/docker/docker-compose.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
+  build --no-cache web api
+
+docker compose \
+  -f /opt/erp/infra/docker/docker-compose.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
+  exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+
+docker compose \
+  -f /opt/erp/infra/docker/docker-compose.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
+  up -d --force-recreate api web
 ```
+
+Omit `docker-compose.prod-host-nginx.yml` and add `nginx` to `up` if using Docker nginx instead of host nginx.
 
 Zero-downtime: run two API replicas behind nginx (Phase 2 ops).
 
@@ -507,6 +528,7 @@ Duplicate Steps 1–11 with:
 | Reports stuck PENDING | Redis down | Check `REDIS_URL`; `docker compose ps redis` |
 | Payroll no file | MinIO/S3 unavailable | Check API logs; storage disables gracefully |
 | Blank API calls from browser | Wrong `NEXT_PUBLIC_API_URL` | Rebuild web with correct public URL |
+| Web UI missing new screens (e.g. Integrations) | Old `web` image still running | `git pull` on server, `build --no-cache web`, `up -d --force-recreate web`; hard-refresh browser / purge Cloudflare cache |
 
 ---
 

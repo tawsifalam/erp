@@ -43,10 +43,12 @@ test.describe("Smoke — HR", () => {
     await goto(page, "/hr");
     await page.getByRole("tab", { name: /Payroll/i }).click();
     await expect(page.getByRole("button", { name: /Run payroll for current month/i })).toBeVisible();
+    const payrollRun = page.waitForResponse(
+      (r) => r.url().includes("/payroll/runs") && r.request().method() === "POST" && r.ok(),
+    );
     await page.getByRole("button", { name: /Run payroll for current month/i }).click();
     await acceptConfirmDialog(page);
-    await expect(page.getByText(/Payroll run queued|Payroll run completed/i)).toBeVisible({
-      timeout: 30_000,
-    });
+    await payrollRun;
+    await expect(page.getByText(/Payroll run queued|Payroll run completed/i)).toBeVisible();
   });
 });

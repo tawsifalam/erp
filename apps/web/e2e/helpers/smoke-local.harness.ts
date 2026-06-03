@@ -7,6 +7,8 @@ import {
   type SmokeAuth,
 } from "./smoke-setup";
 
+export { SMOKE_SEED_BRANCH_NAME, SMOKE_SEED_ORG_NAME, SMOKE_TIMEOUT } from "./smoke-constants";
+
 export const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 /** Unique suffix per run to avoid duplicate names in the DB. */
@@ -33,23 +35,30 @@ export function useSmokeHarness() {
     await setupRealStackPage(page, sharedAuth);
   });
 
+  async function goto(page: Page, path: string) {
+    if (!sharedAuth) sharedAuth = await loadSmokeAuth();
+    await gotoAppRealStack(page, path, sharedAuth);
+  }
+
   return {
     get auth() {
       if (!sharedAuth) throw new Error("Smoke auth not loaded");
       return sharedAuth;
     },
-    goto: gotoAppRealStack,
+    goto,
     expect,
   };
 }
 
 export async function openPmsTab(page: Page, tab: string | RegExp) {
-  await gotoAppRealStack(page, "/pms");
+  if (!sharedAuth) sharedAuth = await loadSmokeAuth();
+  await gotoAppRealStack(page, "/pms", sharedAuth);
   await page.getByRole("tab", { name: tab }).click();
 }
 
 export async function ensureProcurementVendor(page: Page, name = "Fresh Foods Ltd") {
-  await gotoAppRealStack(page, "/procurement");
+  if (!sharedAuth) sharedAuth = await loadSmokeAuth();
+  await gotoAppRealStack(page, "/procurement", sharedAuth);
   const vendorsPanel = page.getByRole("tabpanel", { name: "Vendors" });
   const vendorCells = vendorsPanel.getByRole("cell", { name });
   if ((await vendorCells.count()) === 0) {
@@ -57,7 +66,7 @@ export async function ensureProcurementVendor(page: Page, name = "Fresh Foods Lt
     await page.getByLabel("Name").fill(name);
     await page.getByLabel("Contact").fill("Rashid");
     await page.getByRole("button", { name: "Save" }).click();
-    await expect(vendorCells.first()).toBeVisible({ timeout: 15_000 });
+    await expect(vendorCells.first()).toBeVisible();
   }
 }
 

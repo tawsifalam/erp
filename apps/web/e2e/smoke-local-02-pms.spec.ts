@@ -4,7 +4,7 @@
 import { test } from "@playwright/test";
 import { pickAppSelectInDrawer } from "./helpers/app-select";
 import { clickRowActionOnPage } from "./helpers/row-actions";
-import { openPmsTab, smokeSuffix, useSmokeHarness } from "./helpers/smoke-local.harness";
+import { openPmsTab, smokeSuffix, SMOKE_TIMEOUT, useSmokeHarness } from "./helpers/smoke-local.harness";
 
 const { goto, expect } = useSmokeHarness();
 
@@ -37,7 +37,7 @@ test.describe("Smoke — PMS setup", () => {
 
   test("Guest packages — recipes and package drawers", async ({ page }) => {
     await openPmsTab(page, "Guest packages");
-    await expect(page.getByText("Full board (3 meals)").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Full board (3 meals)").first()).toBeVisible();
 
     await page.getByRole("button", { name: "+ New recipe" }).click();
     await expect(page.getByRole("dialog", { name: "New inclusion recipe" })).toBeVisible();
@@ -74,7 +74,7 @@ test.describe("Smoke — PMS operations", () => {
     await pickAppSelectInDrawer(page, "New reservation", 2, /104/);
     await page.waitForResponse(
       (r) => r.url().includes("/pms/pricing/quote") && r.ok(),
-      { timeout: 15_000 },
+      { timeout: SMOKE_TIMEOUT },
     );
     await expect(page.getByRole("dialog", { name: "New reservation" })).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).first().click();
@@ -90,24 +90,24 @@ test.describe("Smoke — PMS operations", () => {
 
     if (await row("INQUIRY").isVisible().catch(() => false)) {
       await row("INQUIRY").getByRole("button", { name: "Confirm" }).click();
-      await expect(row("CONFIRMED")).toBeVisible({ timeout: 15_000 });
+      await expect(row("CONFIRMED")).toBeVisible();
     }
 
     if (await row("CONFIRMED").isVisible().catch(() => false)) {
       await row("CONFIRMED").getByRole("button", { name: "Check in" }).click();
-      await expect(row("CHECKED_IN")).toBeVisible({ timeout: 15_000 });
+      await expect(row("CHECKED_IN")).toBeVisible();
     }
 
     if (await row("CHECKED_IN").isVisible().catch(() => false)) {
       await row("CHECKED_IN").getByRole("button", { name: "Check out" }).click();
-      await expect(row("CHECKED_OUT")).toBeVisible({ timeout: 15_000 });
+      await expect(row("CHECKED_OUT")).toBeVisible();
     }
 
     await page.getByRole("tab", { name: "Rooms" }).click();
     const dirty = page.getByRole("row").filter({ hasText: "103" });
     if (await dirty.getByRole("cell", { name: "DIRTY" }).isVisible().catch(() => false)) {
       await dirty.getByRole("button", { name: "→ VACANT" }).click();
-      await expect(dirty.getByRole("cell", { name: "VACANT" })).toBeVisible({ timeout: 10_000 });
+      await expect(dirty.getByRole("cell", { name: "VACANT" })).toBeVisible();
     }
   });
 
@@ -127,9 +127,7 @@ test.describe("Smoke — PMS operations", () => {
     if ((await rahim.count()) === 0) return;
 
     await clickRowActionOnPage(page, "Rahim Ahmed", "Inclusions");
-    await expect(page.getByRole("heading", { name: "Guest inclusions" })).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(page.getByRole("heading", { name: "Guest inclusions" })).toBeVisible();
     await page.getByRole("button", { name: "Close" }).click();
   });
 });

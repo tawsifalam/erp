@@ -119,9 +119,11 @@ Successful delete cascades rooms, reservations, POS, inventory, and related bran
 | Layer | Location |
 |-------|----------|
 | Unit | `apps/api/src/tenants/tenants.service.spec.ts` |
-| E2E | `apps/web/e2e/settings.spec.ts` |
+| E2E (mocked API) | `apps/web/e2e/settings.spec.ts` |
+| Local smoke (real stack) | `apps/web/e2e/smoke-local-01-settings.spec.ts` — see [smoke-local.md](./smoke-local.md) |
 
 ```bash
 pnpm --filter @erp/api test -- tenants
 pnpm --filter @erp/web test:e2e settings
+pnpm --filter @erp/web test:smoke-local -- smoke-local-01-settings
 ```

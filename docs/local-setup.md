@@ -45,6 +45,8 @@ docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
 
 ## 4. Database
 
+Prisma loads **`DATABASE_URL` from the repo root `.env`** ([`apps/api/prisma.config.ts`](../apps/api/prisma.config.ts)). You do not need a separate `apps/api/.env` for `pnpm db:reset` / `db:migrate`.
+
 Single initial migration (`20260101000000_init`) — full schema including org onboarding (`joinCode`, join requests).
 
 ```bash

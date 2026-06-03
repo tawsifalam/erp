@@ -40,9 +40,7 @@ test.describe("Smoke — POS & kitchen", () => {
     const draftRow = page.getByRole("row").filter({ hasText: "T5" });
     if (await draftRow.isVisible().catch(() => false)) {
       await draftRow.getByRole("button", { name: "Send to kitchen" }).click();
-      await expect(draftRow.getByText("SUBMITTED", { exact: true })).toBeVisible({
-        timeout: 15_000,
-      });
+      await expect(draftRow.getByText("SUBMITTED", { exact: true })).toBeVisible();
     } else {
       await expect(page.getByRole("row").nth(1)).toBeVisible();
     }

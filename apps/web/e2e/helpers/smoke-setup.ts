@@ -1,7 +1,10 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Page } from "@playwright/test";
-import { SMOKE_SEED_BRANCH_ID, SMOKE_SEED_ORG_ID, SMOKE_AUTH_FILE } from "./smoke-constants";
+import {
+  SMOKE_AUTH_FILE,
+  SMOKE_TIMEOUT,
+} from "./smoke-constants";
 
 export type SmokeAuth = {
   accessToken: string;
@@ -84,9 +87,40 @@ export async function setupRealStackPage(page: Page, auth: SmokeAuth) {
   );
 }
 
-export async function gotoAppRealStack(page: Page, path: string) {
+/** Select seed org/branch in the header when another membership is active. */
+export async function ensureSeedTenant(page: Page, auth: SmokeAuth) {
+  await page.getByTestId("tenant-selector").waitFor({ state: "visible", timeout: SMOKE_TIMEOUT });
+
+  const orgSelect = page.locator('select[aria-label="Organization"]');
+  await orgSelect.locator(`option[value="${auth.organizationId}"]`).waitFor({
+    state: "attached",
+    timeout: SMOKE_TIMEOUT,
+  });
+
+  const orgId = await orgSelect.inputValue();
+  if (orgId !== auth.organizationId) {
+    await orgSelect.selectOption({ value: auth.organizationId }, { force: true, timeout: SMOKE_TIMEOUT });
+    await orgSelect.dispatchEvent("change");
+  }
+
+  const branchSelect = page.locator('select[aria-label="Branch"]');
+  await branchSelect.locator(`option[value="${auth.branchId}"]`).waitFor({
+    state: "attached",
+    timeout: SMOKE_TIMEOUT,
+  });
+  const branchId = await branchSelect.inputValue();
+  if (branchId !== auth.branchId) {
+    await branchSelect.selectOption({ value: auth.branchId }, { force: true, timeout: SMOKE_TIMEOUT });
+    await branchSelect.dispatchEvent("change");
+  }
+}
+
+export async function gotoAppRealStack(page: Page, path: string, auth?: SmokeAuth) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .waitFor({ state: "visible", timeout: 30_000 });
+    .waitFor({ state: "visible", timeout: SMOKE_TIMEOUT });
+  if (auth) {
+    await ensureSeedTenant(page, auth);
+  }
 }

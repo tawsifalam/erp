@@ -36,6 +36,7 @@ erp_require_env_keys \
   NEXT_PUBLIC_APP_URL \
   NEXT_PUBLIC_AUTH_URL \
   PROPELAUTH_API_KEY \
+  PROPELAUTH_VERIFIER_KEY \
   CORS_ORIGIN
 
 if [[ "${DO_PULL}" -eq 1 ]]; then
@@ -68,4 +69,5 @@ domain="${domain%%/*}"
 erp_print_nginx_hint "${domain}"
 
 echo "==> initial deploy complete"
+echo "    Next: install TLS (certbot) if not done, then run docs/production-smoke-runbook.md"
 echo "    update later: ./scripts/deploy-prod.sh update"

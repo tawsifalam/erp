@@ -56,4 +56,4 @@ Production: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf
 
 ## Phase 1 smoke test
 
-After deploy, verify all modules: [cloud-deployment.md § Step 10](./cloud-deployment.md#step-10--smoke-test-phase-1-modules).
+After deploy, verify all modules: [cloud-deployment.md § Step 10](./cloud-deployment.md#step-10--smoke-test-phase-1) (summary) and the full [production-smoke-runbook.md](./production-smoke-runbook.md). Local automation: [smoke-local.md](./smoke-local.md).

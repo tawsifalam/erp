@@ -7,7 +7,7 @@ Step-by-step coverage of [production-smoke-runbook.md](./production-smoke-runboo
 - Real PropelAuth access token ([testing your backend](https://docs.propelauth.com/recipes/testing-your-backend))
 - **No** mocked `:3001` API routes (unlike `pnpm test:e2e`)
 
-Specs run in order (`smoke-local-00` … `07`) with a **headed** browser by default.
+Specs run in order (`smoke-local-00` … `07`) with a **headed** browser by default. Element assertions use a **5 second** timeout (`playwright.config.ts` → `smoke-local` project).
 
 ---
 
@@ -16,7 +16,7 @@ Specs run in order (`smoke-local-00` … `07`) with a **headed** browser by defa
 1. **Infrastructure**
 
    ```bash
-   docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+   docker compose up -d postgres redis minio
    pnpm db:reset   # seed vendor, PMS, POS, HR, COA, etc.
    ```
 
@@ -47,8 +47,10 @@ pnpm smoke:local
 
 `smoke:local` runs:
 
-1. `pnpm smoke:local:setup` — PropelAuth `access_token`, `POST /api/auth/sync`, links user to **seed org** as OWNER, writes `.playwright/smoke-auth.json` (gitignored).
-2. `playwright test --project=smoke-local` — starts API + web if not already running.
+1. `pnpm smoke:local:setup` — PropelAuth `access_token`, `POST /api/auth/sync`, **always** links user to seed org as OWNER, writes `.playwright/smoke-auth.json` (gitignored).
+2. `playwright test --project=smoke-local` — starts API + web if not already running; selects seed org/branch in the header before each navigation.
+
+Setup always links your PropelAuth user to the **seed organization** (`Boulevard Hospitality Group` / `Main Hotel & Restaurant`), even if you belong to other orgs.
 
 **Setup only** (API must be up):
 
@@ -77,7 +79,7 @@ Smoke tests assume **seed data** (demo org, room 103 INQUIRY, chart of accounts,
 With Postgres/Redis/MinIO containers running:
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+docker compose up -d postgres redis minio
 pnpm db:reset
 ```
 
@@ -110,8 +112,8 @@ Use when `db:reset` is not enough (stale Docker volumes, old report files in Min
 
 ```bash
 # Optional: stop pnpm dev / API first
-docker compose -f infra/docker/docker-compose.yml down -v
-docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+docker compose down -v
+docker compose up -d postgres redis minio
 pnpm db:reset
 pnpm smoke:local
 ```
@@ -142,22 +144,22 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 
 ## Automated coverage matrix
 
-| Runbook | Spec file | Steps automated |
-|---------|-----------|-----------------|
-| P0–P2 | `smoke-local-00-prereq` | API health, dashboard KPIs, all module shells |
-| §1 Settings | `smoke-local-01-settings` | Org/branches, team, pools, audit, notifications, branch access, integrations, **channel export** |
+| Runbook / area | Spec file | Steps automated |
+|----------------|-----------|-----------------|
+| Prerequisites P0–P2 | `smoke-local-00-prereq` | API health, dashboard KPIs, all module shells |
+| Prereq P6, P8 + Settings module | `smoke-local-01-settings` | Org rename, add/edit branch, guest/staff pools, custom pool, team join code UI, audit, notification toggle, branch access list, integrations, **channel export** |
 | §6 PMS | `smoke-local-02-pms` | Room types, rooms, guests, packages, rates; new reservation + quote; 103 lifecycle; payment drawer; inclusions |
 | §3 Procurement | `smoke-local-03-procurement` | Vendor drawer, PO create/submit/receive, **vendor payment** (Dr AP / Cr Bank), inventory stock, accounting journals |
 | §4 Inventory & POS | `smoke-local-04-inventory-pos` | New item, movement, BOM; POS kitchen send, complete & pay drawer, menu category; kitchen display |
 | §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
-| Accounting + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
+| Prereq P7 + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
 
 ### Manual only (second user / email / production infra)
 
 | Runbook | Why manual |
 |---------|------------|
-| §1 Email invite end-to-end | Requires PropelAuth email + second account |
+| §1 Email invite end-to-end | Requires PropelAuth email + second account (team tab form is smoke-tested; submit not asserted) |
 | §2 Join code approval | Requires second user without org |
 | §8.3 Notification email | Requires `RESEND_API_KEY` and inbox check |
 | §5.5 Payslip PDF download | Optional deep check; payroll job must complete + MinIO |

@@ -93,6 +93,8 @@ pnpm db:reset      # Creates all tables + demo seed (recommended for fresh setup
 
 Use `pnpm db:migrate` only when adding new migrations after the init schema.
 
+`pnpm db:reset` and other `db:*` commands read **`DATABASE_URL` from this file** via [`apps/api/prisma.config.ts`](apps/api/prisma.config.ts).
+
 ```bash
 # Or manually:
 pnpm db:migrate    # Creates all tables
@@ -137,10 +139,13 @@ The seed creates a realistic working dataset:
 ```bash
 pnpm test              # Unit tests (API Jest + web Vitest + utils Vitest)
 pnpm test:e2e:install  # One-time: download Playwright Chromium
-pnpm test:e2e          # E2E (Playwright; needs API/web stack + seed data)
+pnpm test:e2e          # E2E (Playwright; mocked API routes + seed data)
+pnpm smoke:local       # Real-stack smoke (PropelAuth + DB; see docs/smoke-local.md)
 ```
 
 E2E expects Postgres/Redis running and seed data (`pnpm db:reset`). Playwright starts `pnpm dev` from the repo root unless `CI` is set.
+
+Local smoke (`pnpm smoke:local`) also needs Docker infra, a PropelAuth test user, and `SMOKE_PROPELAUTH_USER_ID` in `.env` — see [smoke-local.md](docs/smoke-local.md).
 
 ## Documentation
 
@@ -160,3 +165,5 @@ E2E expects Postgres/Redis running and seed data (`pnpm db:reset`). Playwright s
 - [Tenant Model](docs/tenant-model.md) — multi-tenancy architecture
 - [Deployment](docs/deployment.md) — production deployment summary
 - [Cloud Deployment Guide](docs/cloud-deployment.md) — step-by-step cloud deploy for Phase 1
+- [Production Smoke Runbook](docs/production-smoke-runbook.md) — go-live checklist after deploy
+- [Local Smoke Tests](docs/smoke-local.md) — automated real-stack smoke on localhost

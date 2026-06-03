@@ -168,6 +168,7 @@ Not required for Phase 1 sign-off; run if time allows.
 | Audit | Settings → **Audit log** filters by entity after procurement/payroll | ☐ |
 | RBAC | `FRONT_DESK` cannot open `/settings` or `/accounting` | ☐ |
 | Realtime | Kitchen display updates when order sent (Socket.IO) | ☐ |
+| Integrations | Settings → **Integrations** → channel manager connection → **Export availability** | ☐ |
 
 ---
 

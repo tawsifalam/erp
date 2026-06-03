@@ -37,11 +37,14 @@ export default defineConfig({
     {
       name: "smoke-local",
       testMatch: /smoke-local-\d+.*\.spec\.ts/,
-      timeout: 300_000,
+      timeout: 120_000,
+      expect: { timeout: 5_000 },
       use: {
         ...devices["Desktop Chrome"],
         channel: "chrome",
         headless: process.env.SMOKE_HEADLESS === "1",
+        actionTimeout: 5_000,
+        navigationTimeout: 15_000,
       },
       ...(process.env.CI
         ? {}

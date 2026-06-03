@@ -9,7 +9,7 @@ const { goto, expect } = useSmokeHarness();
 test.describe("Smoke — Notifications", () => {
   test("Bell — opens list and mark all read", async ({ page }) => {
     await goto(page, "/dashboard");
-    await expect(page.getByTestId("notification-bell")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("notification-bell")).toBeVisible();
     await page.getByTestId("notification-bell").click();
     await expect(page.getByTestId("notification-list")).toBeVisible();
     const markAll = page.getByRole("button", { name: "Mark all read" });
@@ -27,13 +27,13 @@ test.describe("Smoke — Notifications", () => {
       await page.getByRole("button", { name: "Save changes" }).waitFor({ state: "visible" });
       await page.getByRole("spinbutton").fill("100");
       await page.getByRole("button", { name: "Save changes" }).click();
-      await expect(page.getByText("LOW").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("LOW").first()).toBeVisible();
 
       await goto(page, "/dashboard");
       await page.getByTestId("notification-bell").click();
       await expect(
         page.getByTestId("notification-list").getByText(/threshold|low stock/i).first(),
-      ).toBeVisible({ timeout: 15_000 });
+      ).toBeVisible();
     }
   });
 
@@ -42,8 +42,12 @@ test.describe("Smoke — Notifications", () => {
     await selectReportType(page, "profit_and_loss").selectOption("profit_and_loss", {
       force: true,
     });
+    const exportQueued = page.waitForResponse(
+      (r) => r.url().includes("/reporting/export") && r.request().method() === "POST" && r.ok(),
+    );
     await page.getByRole("button", { name: "Export CSV" }).first().click();
-    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 15_000 });
+    await exportQueued;
+    await expect(page.getByText(/Export queued/i)).toBeVisible();
 
     await goto(page, "/dashboard");
     await page.getByTestId("notification-bell").click();
@@ -52,6 +56,6 @@ test.describe("Smoke — Notifications", () => {
         .getByTestId("notification-list")
         .getByText(/export is ready|Export queued|report/i)
         .first(),
-    ).toBeVisible({ timeout: 45_000 });
+    ).toBeVisible();
   });
 });

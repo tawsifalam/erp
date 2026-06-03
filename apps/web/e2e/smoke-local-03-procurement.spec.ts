@@ -25,7 +25,7 @@ test.describe("Smoke — Procurement", () => {
     await page.getByLabel("Quantity").fill("5");
     await page.getByLabel("Unit price").fill("99");
     await page.getByRole("button", { name: "Create & submit" }).click();
-    await expect(page.getByText(/Purchase order created/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Purchase order created/i)).toBeVisible();
     await expect(page.getByRole("cell", { name: "SUBMITTED" }).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Receive" }).first().click();
@@ -33,7 +33,7 @@ test.describe("Smoke — Procurement", () => {
     await pickAppSelectInDrawer(page, "Receive goods", 0, /Rice \(remaining/);
     await receiveDrawer.getByRole("spinbutton").fill("5");
     await receiveDrawer.getByRole("button", { name: "Receive" }).click();
-    await expect(page.getByText(/Goods received/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Goods received/i)).toBeVisible();
   });
 
   test("Vendor payment — record after PO receive", async ({ page }) => {
@@ -43,19 +43,17 @@ test.describe("Smoke — Procurement", () => {
     await pickAppSelectInDrawer(page, "Record vendor payment", 0, "Fresh Foods Ltd");
     await page.getByLabel("Amount").fill("495");
     await page.getByRole("button", { name: "Record payment", exact: true }).click();
-    await expect(page.getByText(/Vendor payment recorded/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Vendor payment recorded/i)).toBeVisible();
   });
 
   test("Inventory — stock visible after receive", async ({ page }) => {
     await goto(page, "/inventory");
-    await expect(page.getByRole("cell", { name: "Rice" }).first()).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("cell", { name: "Rice" }).first()).toBeVisible();
   });
 
   test("Accounting — procurement journal entries", async ({ page }) => {
     await goto(page, "/accounting");
     await expect(page.getByRole("tab", { name: "Journal entries" })).toBeVisible();
-    await expect(page.getByRole("row").nth(1)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("row").nth(1)).toBeVisible();
   });
 });

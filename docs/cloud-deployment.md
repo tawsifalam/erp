@@ -276,7 +276,7 @@ Expected containers (project `erp`): **postgres, redis, minio, api, web** — fi
 
    Or use Cloudflare origin certificates — adjust `ssl_certificate` paths in the site file.
 
-4. Confirm WebSocket routes: `/socket.io/` must have `Upgrade` headers (included in the example).
+3. Confirm WebSocket routes: `/socket.io/` must have `Upgrade` headers (included in the example).
 
 Public check:
 
@@ -290,22 +290,26 @@ curl -s https://app.yourdomain.com/api/health
 
 ## Step 10 — Smoke test (Phase 1)
 
+Use the full checklist in **[production-smoke-runbook.md](./production-smoke-runbook.md)** (prerequisites P1–P8, sections 1–8, sign-off). Locally, `pnpm smoke:local` automates most module flows — see [smoke-local.md](./smoke-local.md).
+
 Browser: `https://app.yourdomain.com`
 
 | # | Test | Pass |
 |---|------|------|
 | 1 | Auth | PropelAuth login → `/dashboard` |
-| 2 | Sync | First visit creates user/org |
-| 3 | Settings | Branch + inventory pools |
-| 4 | PMS | Guest, room, reservation, check-in/out |
+| 2 | Sync | First visit creates user/org (or onboarding join) |
+| 3 | Settings | Org rename, add/edit branch, guest/staff pools, team join code, notification prefs, integrations + channel export |
+| 4 | PMS | Guest, room, reservation, check-in/out, rates quote |
 | 5 | POS | Order → kitchen → pay |
 | 6 | Kitchen | Ticket flow |
-| 7 | Inventory | Items, movements |
-| 8 | Accounting | Journals after POS |
-| 9 | HR | Employee, payroll queue |
+| 7 | Inventory | Items, movements, COGS |
+| 8 | Accounting | Journals after POS/procurement |
+| 9 | HR | Employee, payroll run |
 | 10 | Reports | CSV export completes |
 | 11 | Realtime | PMS room updates (Socket.IO) |
 | 12 | Health | `GET /api/health` → 200 |
+
+**Manual on production:** email invite (runbook §1), join-code approval (§2), notification email when Resend is configured (§8.3).
 
 ---
 

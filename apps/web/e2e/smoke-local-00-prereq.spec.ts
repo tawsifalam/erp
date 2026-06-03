@@ -32,9 +32,7 @@ test.describe("Smoke — prerequisites", () => {
     ];
     for (const { path, heading } of routes) {
       await goto(page, path);
-      await expect(page.getByRole("heading", { name: heading, level: 2 })).toBeVisible({
-        timeout: 15_000,
-      });
+      await expect(page.getByRole("heading", { name: heading, level: 2 })).toBeVisible();
     }
   });
 });

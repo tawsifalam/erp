@@ -11,7 +11,7 @@ test.describe("Smoke — Accounting", () => {
   test("Fiscal periods — seed open period visible", async ({ page }) => {
     await goto(page, "/accounting?tab=periods");
     await expect(page.getByRole("tab", { name: "Fiscal periods", selected: true })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "FY 2026" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("cell", { name: "FY 2026" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "OPEN" })).toBeVisible();
   });
 
@@ -40,7 +40,7 @@ test.describe("Smoke — Accounting", () => {
     await numberInputs.nth(3).fill("100");
     await expect(page.getByText("Balanced ✓")).toBeVisible();
     await page.getByRole("button", { name: "Post journal", exact: true }).click();
-    await expect(page.getByText(desc)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(desc)).toBeVisible();
   });
 
   test("Journal entries — reverse posted entry", async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe("Smoke — Accounting", () => {
     await numberInputs.nth(0).fill("50");
     await numberInputs.nth(3).fill("50");
     await page.getByRole("button", { name: "Post journal", exact: true }).click();
-    await expect(page.getByText(desc)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(desc)).toBeVisible();
 
     const titlePattern = new RegExp(`^${desc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} —`);
     await page
@@ -65,13 +65,13 @@ test.describe("Smoke — Accounting", () => {
       .getByRole("button", { name: "Reverse" })
       .click();
     await page.getByTestId("confirm-dialog-confirm").click();
-    await expect(page.getByText(`Reversal of: ${desc}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(`Reversal of: ${desc}`)).toBeVisible();
   });
 
   test("Journal entries tab — list visible", async ({ page }) => {
     await goto(page, "/accounting");
     await expect(page.getByRole("tab", { name: "Journal entries" })).toBeVisible();
-    await expect(page.getByRole("row").nth(1)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("row").nth(1)).toBeVisible();
   });
 });
 
@@ -83,20 +83,20 @@ test.describe("Smoke — Reports", () => {
     });
     await expect(page.getByText("From")).toBeVisible();
     await page.getByRole("button", { name: "Export CSV" }).first().click();
-    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Export queued/i)).toBeVisible();
   });
 
   test("Trial balance — queue PDF export", async ({ page }) => {
     await goto(page, "/reports");
     await selectReportType(page, "trial_balance").selectOption("trial_balance", { force: true });
     await page.getByRole("button", { name: "Export PDF" }).first().click();
-    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Export queued/i)).toBeVisible();
   });
 
   test("Trial balance — queue CSV export", async ({ page }) => {
     await goto(page, "/reports");
     await selectReportType(page, "trial_balance").selectOption("trial_balance", { force: true });
     await page.getByRole("button", { name: "Export CSV" }).first().click();
-    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Export queued/i)).toBeVisible();
   });
 });

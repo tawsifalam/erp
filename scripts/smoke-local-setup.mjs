@@ -152,13 +152,10 @@ async function main() {
   const accessToken = await createAccessToken();
 
   console.log("Syncing ERP user (API must be running)…");
-  const sync = await syncUser(accessToken);
-  if (!sync.hasActiveMembership) {
-    console.log("No membership yet — linking to seed organization…");
-    await ensureMembership();
-  } else {
-    console.log("User has active membership(s)");
-  }
+  await syncUser(accessToken);
+
+  console.log("Ensuring membership in seed organization…");
+  await ensureMembership();
 
   await mkdir(path.dirname(AUTH_FILE), { recursive: true });
   const payload = {

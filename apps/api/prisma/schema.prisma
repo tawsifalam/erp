@@ -51,6 +51,7 @@ model Organization {
   inventoryPools InventoryPool[]
   inclusionPackages InclusionPackage[]
   fiscalPeriods   FiscalPeriod[]
+  integrationConnections IntegrationConnection[]
 }
 
 model UserOrganization {
@@ -126,6 +127,7 @@ model Branch {
   purchaseOrders   PurchaseOrder[]
   vendorPayments   VendorPayment[]
   userAccess       UserBranch[]
+  integrationConnections IntegrationConnection[]
 }
 
 model RoomType {
@@ -575,6 +577,43 @@ model UserBranch {
   @@unique([userId, branchId])
   @@index([branchId, status])
   @@index([organizationId, userId])
+}
+
+model IntegrationConnection {
+  id              String   @id @default(uuid())
+  organizationId  String
+  branchId        String?
+  adapterKey      String
+  name            String
+  status          String   @default("ACTIVE")
+  webhookSecret   String
+  credentialsJson Json?
+  configJson      Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  webhookEvents IntegrationWebhookEvent[]
+
+  @@index([organizationId, status])
+  @@index([branchId])
+}
+
+model IntegrationWebhookEvent {
+  id             String   @id @default(uuid())
+  connectionId   String
+  organizationId String
+  eventType      String
+  payload        Json
+  status         String
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model NotificationPreference {

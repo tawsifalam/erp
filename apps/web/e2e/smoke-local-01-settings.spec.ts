@@ -65,4 +65,15 @@ test.describe("Smoke — Settings", () => {
     await expect(page.getByText("Grant org members access")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("columnheader", { name: "Member" })).toBeVisible();
   });
+
+  test("Integrations tab — adapter registry", async ({ page }) => {
+    await goto(page, "/settings?tab=integrations");
+    await expect(page.getByRole("tab", { name: "Integrations", selected: true })).toBeVisible();
+    await expect(page.getByText("Adapter registry", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("(generic_webhook)", { exact: true })).toBeVisible();
+    await expect(page.getByText("(ota_inquiry)", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Add connection" })).toBeVisible();
+  });
 });

@@ -78,6 +78,11 @@ import {
   resetNotificationPreferenceState,
   updateNotificationPreference,
 } from "./notification-preference-state";
+import {
+  handleIntegrationsMutation,
+  handleIntegrationWebhook,
+  resetIntegrationsState,
+} from "./integrations-state";
 
 /** Nest API on port 3001 (localhost or 127.0.0.1). */
 export function isBackendApiUrl(url: string): boolean {
@@ -349,6 +354,7 @@ export async function mockApiRoutes(page: Page) {
   resetAuditState();
   resetNotificationState();
   resetNotificationPreferenceState();
+  resetIntegrationsState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -470,6 +476,47 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, {
       count: unreadNotificationCount(String(orgId), notificationUserId),
     });
+  });
+
+  await page.route(/\/api\/integrations\/webhooks\/([^/]+)$/, async (route) => {
+    if (route.request().method() !== "POST") return fulfillJson(route, {});
+    const secret = route.request().headers()["x-webhook-secret"];
+    const body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
+    const match = route.request().url().match(/\/webhooks\/([^/]+)/);
+    const connectionId = match?.[1];
+    if (!connectionId) {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Not found" }),
+      });
+    }
+    const result = handleIntegrationWebhook(connectionId, secret, body);
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
+    return fulfillJson(route, result);
+  });
+
+  await page.route(backendApiRoute("integrations/"), async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    if (url.includes("/webhooks/")) return route.continue();
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleIntegrationsMutation(method, url, String(orgId), body ?? undefined);
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
+    return fulfillJson(route, result);
   });
 
   await page.route(backendApiRoute("audit/logs"), async (route) => {

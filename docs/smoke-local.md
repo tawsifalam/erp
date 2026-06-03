@@ -68,12 +68,84 @@ pnpm --filter @erp/web test:smoke-local:headless
 
 ---
 
+## Reset data before smoke (clean run)
+
+Smoke tests assume **seed data** (demo org, room 103 INQUIRY, chart of accounts, vendors, etc.). Leftover rows from earlier runs (extra branches, journals, integrations, smoke-created POs) can cause flaky or strict-mode failures.
+
+### Standard reset (PostgreSQL only)
+
+With Postgres/Redis/MinIO containers running:
+
+```bash
+docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+pnpm db:reset
+```
+
+`pnpm db:reset` runs `prisma migrate reset --force`, which:
+
+1. **Drops** the application database
+2. **Reapplies** all migrations
+3. **Runs** `apps/api/prisma/seed.ts` (fresh demo data)
+
+Then re-link your smoke user and run tests:
+
+```bash
+pnpm smoke:local:setup   # refreshes .playwright/smoke-auth.json
+pnpm smoke:local
+```
+
+**One-liner** (reset DB + setup + full smoke suite):
+
+```bash
+pnpm db:reset && pnpm smoke:local
+```
+
+(`smoke:local` already invokes `smoke:local:setup` after the reset.)
+
+Stop the API (or let `db:reset` run while the API is stopped) if you see connection errors during reset — Playwright’s smoke project can start API/web for you, or run `pnpm dev` in another terminal after reset.
+
+### Full wipe (Postgres + Redis + MinIO volumes)
+
+Use when `db:reset` is not enough (stale Docker volumes, old report files in MinIO, stuck BullMQ jobs):
+
+```bash
+# Optional: stop pnpm dev / API first
+docker compose -f infra/docker/docker-compose.yml down -v
+docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+pnpm db:reset
+pnpm smoke:local
+```
+
+`-v` removes named volumes, so Redis queues and MinIO buckets start empty.
+
+### What is cleared vs not
+
+| Data | `pnpm db:reset` | `docker compose down -v` |
+|------|-----------------|---------------------------|
+| PostgreSQL (all app tables) | Yes | Yes (volume removed) |
+| Redis (BullMQ jobs) | No | Yes |
+| MinIO (report PDFs, payslips) | No | Yes |
+| `.playwright/smoke-auth.json` | No | No — run `pnpm smoke:local:setup` |
+| PropelAuth users/orgs | No | No (external service) |
+
+PropelAuth accounts are unchanged; setup only adds/syncs your test user into the **new** seed organization in Postgres.
+
+### When to reset
+
+- Before a full smoke run you want comparable to CI
+- After failed smoke left extra branches, journals, or integrations
+- Troubleshooting: `Seed org not found`, room 103 lifecycle, duplicate UI text from accumulated data
+
+See also [local-setup.md § Database](./local-setup.md#4-database).
+
+---
+
 ## Automated coverage matrix
 
 | Runbook | Spec file | Steps automated |
 |---------|-----------|-----------------|
 | P0–P2 | `smoke-local-00-prereq` | API health, dashboard KPIs, all module shells |
-| §1 Settings | `smoke-local-01-settings` | Org/branches, team, pools, audit, notifications, **branch access** |
+| §1 Settings | `smoke-local-01-settings` | Org/branches, team, pools, audit, notifications, branch access, **integrations** |
 | §6 PMS | `smoke-local-02-pms` | Room types, rooms, guests, packages, rates; new reservation + quote; 103 lifecycle; payment drawer; inclusions |
 | §3 Procurement | `smoke-local-03-procurement` | Vendor drawer, PO create/submit/receive, **vendor payment** (Dr AP / Cr Bank), inventory stock, accounting journals |
 | §4 Inventory & POS | `smoke-local-04-inventory-pos` | New item, movement, BOM; POS kitchen send, complete & pay drawer, menu category; kitchen display |
@@ -109,6 +181,7 @@ Training screenshots (mocked E2E): [visual-guide.md](./visual-guide.md) · `pnpm
 | Middleware redirect to login | Re-run setup; token may have expired (24h) |
 | PMS lifecycle / room 103 | Re-run `pnpm db:reset` to restore INQUIRY seed |
 | Report notification timeout | Ensure Redis is up; wait and re-run `07-notifications` |
+| Stale data / odd smoke failures | [Reset data before smoke](#reset-data-before-smoke-clean-run) |
 
 ---
 

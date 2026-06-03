@@ -111,6 +111,8 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get notification() { return this._client.notification; }
   get notificationPreference() { return this._client.notificationPreference; }
   get userBranch() { return this._client.userBranch; }
+  get integrationConnection() { return this._client.integrationConnection; }
+  get integrationWebhookEvent() { return this._client.integrationWebhookEvent; }
   get reportJob() { return this._client.reportJob; }
   get vendor() { return this._client.vendor; }
   get purchaseOrder() { return this._client.purchaseOrder; }

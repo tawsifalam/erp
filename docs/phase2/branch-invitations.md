@@ -68,4 +68,4 @@ Returns **403** otherwise.
 
 ## Next
 
-**Channel manager** or **integrations module** — see [README](./README.md) suggested order.
+**Channel manager** — builds on [integrations.md](./integrations.md) — see [README](./README.md).

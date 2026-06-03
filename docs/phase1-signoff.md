@@ -64,7 +64,7 @@ A property group can run **without spreadsheets** for:
 
 | Item | Notes |
 |------|--------|
-| `integrations` module | Health check only; OTAs in Phase 2 |
+| `integrations` module | Shipped (Phase 2 Sprint 7) — [integrations.md](./phase2/integrations.md); channel manager next |
 | Fiscal periods / period close | Deferred |
 | Journal reversal | Deferred |
 | Vendor payment (Dr AP / Cr Cash) | Receipt accrues AP only |
@@ -99,6 +99,7 @@ cd apps/api && pnpm prisma migrate deploy
 | `20260612100000_journal_reversal` | Journal reversal links (`reversesEntryId`, `reversedAt`) |
 | `20260613100000_notification_preferences` | Per-user notification channel preferences |
 | `20260614100000_user_branch` | Branch-scoped membership grants |
+| `20260615100000_integration_connections` | Integration connections + webhook events |
 
 Optional seed for local/demo: `pnpm db:seed`
 

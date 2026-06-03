@@ -1,4 +1,20 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type TraceMode } from "@playwright/test";
+
+type ScreenshotMode = "off" | "on" | "only-on-failure";
+
+function traceFromEnv(): TraceMode {
+  const v = process.env.PLAYWRIGHT_TRACE;
+  if (v === "on" || v === "off" || v === "on-first-retry" || v === "retain-on-failure") {
+    return v;
+  }
+  return "on-first-retry";
+}
+
+function screenshotFromEnv(): ScreenshotMode {
+  const v = process.env.PLAYWRIGHT_SCREENSHOT;
+  if (v === "off" || v === "on" || v === "only-on-failure") return v;
+  return "only-on-failure";
+}
 
 export default defineConfig({
   testDir: "./e2e",
@@ -9,8 +25,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
-    trace: process.env.PLAYWRIGHT_TRACE ?? "on-first-retry",
-    screenshot: process.env.PLAYWRIGHT_SCREENSHOT ?? "only-on-failure",
+    trace: traceFromEnv(),
+    screenshot: screenshotFromEnv(),
   },
   projects: [
     {

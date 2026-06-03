@@ -452,7 +452,7 @@ export function IntegrationsSection({ tenant }: { tenant: TenantHeaders | undefi
               aria-label="Adapter"
               items={adapters.map((a) => ({ value: a.key, label: a.name }))}
               value={form.adapterKey}
-              onChange={(v) =>
+              onValueChange={(v: string) =>
                 setForm((f) => ({
                   ...f,
                   adapterKey: v,
@@ -477,7 +477,7 @@ export function IntegrationsSection({ tenant }: { tenant: TenantHeaders | undefi
                 ...branches.map((b) => ({ value: b.id, label: b.name })),
               ]}
               value={form.branchId}
-              onChange={(v) => setForm((f) => ({ ...f, branchId: v }))}
+              onValueChange={(v: string) => setForm((f) => ({ ...f, branchId: v }))}
             />
           </FormField>
           {selectedAdapter?.credentialFields.map((field) => (

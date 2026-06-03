@@ -415,6 +415,8 @@ git pull
 PUPPETEER_SKIP_DOWNLOAD=true pnpm install && pnpm db:generate
 docker compose -f infra/docker/docker-compose.yml build api web
 pnpm --filter @erp/api exec prisma migrate deploy   # with production DATABASE_URL
+#DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/hospitality_erp?sslmode=require" \
+#  pnpm --filter @erp/api exec prisma migrate deploy
 docker compose -f infra/docker/docker-compose.yml up -d api web
 ```
 

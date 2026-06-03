@@ -41,6 +41,8 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.api
+      args:
+        SOURCE_REV: ${SOURCE_REV:-unknown}
     env_file:
       - path: ../../.env
         required: false
@@ -71,6 +73,7 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile.web
       args:
+        SOURCE_REV: ${SOURCE_REV:-unknown}
         # Rebuild web when these change (baked into Next.js). Loaded from repo root .env.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
         NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-https://your-project.propelauth.com}

@@ -437,13 +437,27 @@ Example cron (Postgres on VPS):
 
 UI code is **compiled into the `web` image** at `docker compose build` time (`NEXT_PUBLIC_*` are baked in then too). `up -d` alone does not pick up `git pull`.
 
+**Recommended** — script sets `SOURCE_REV` from git so Docker cannot reuse a stale compile layer:
+
+```bash
+cd /opt/erp
+git pull   # get scripts/docker-rebuild-prod.sh + Dockerfile SOURCE_REV support
+chmod +x scripts/docker-rebuild-prod.sh
+./scripts/docker-rebuild-prod.sh all
+docker compose \
+  -f /opt/erp/infra/docker/docker-compose.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod.yml \
+  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
+  exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+```
+
+Manual equivalent (must run from `/opt/erp`; Compose reads `.env` for `NEXT_PUBLIC_*` — do not `source .env`):
+
 ```bash
 cd /opt/erp
 git pull
-git log -1 --oneline
-
-# .env must have production NEXT_PUBLIC_* before building web (do not `source .env` if PROPELAUTH_VERIFIER_KEY has spaces — Compose reads the file directly)
-PUPPETEER_SKIP_DOWNLOAD=true pnpm install && pnpm db:generate
+export SOURCE_REV="$(git rev-parse HEAD)"
+echo "Building $SOURCE_REV"
 
 docker compose \
   -f /opt/erp/infra/docker/docker-compose.yml \
@@ -455,13 +469,14 @@ docker compose \
   -f /opt/erp/infra/docker/docker-compose.yml \
   -f /opt/erp/infra/docker/docker-compose.prod.yml \
   -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
-  exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
-
-docker compose \
-  -f /opt/erp/infra/docker/docker-compose.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
   up -d --force-recreate api web
+```
+
+**Verify the image matches git:** during build you should see `web build SOURCE_REV=<full sha>` in the log. After deploy:
+
+```bash
+docker compose ... images
+docker inspect "$(docker compose ... images -q web)" --format '{{.Created}}'
 ```
 
 Omit `docker-compose.prod-host-nginx.yml` and add `nginx` to `up` if using Docker nginx instead of host nginx.
@@ -528,7 +543,8 @@ Duplicate Steps 1–11 with:
 | Reports stuck PENDING | Redis down | Check `REDIS_URL`; `docker compose ps redis` |
 | Payroll no file | MinIO/S3 unavailable | Check API logs; storage disables gracefully |
 | Blank API calls from browser | Wrong `NEXT_PUBLIC_API_URL` | Rebuild web with correct public URL |
-| Web UI missing new screens (e.g. Integrations) | Old `web` image still running | `git pull` on server, `build --no-cache web`, `up -d --force-recreate web`; hard-refresh browser / purge Cloudflare cache |
+| Web UI missing new screens (e.g. Integrations) | Old `web` image still running | `git pull`, `export SOURCE_REV=$(git rev-parse HEAD)`, `build --no-cache web`, `up -d --force-recreate web`; hard-refresh / purge Cloudflare |
+| `docker build` uses old code | No `git pull`, cached layers, or `up` without rebuild | Use `./scripts/docker-rebuild-prod.sh`; confirm build log shows correct `SOURCE_REV` |
 
 ---
 

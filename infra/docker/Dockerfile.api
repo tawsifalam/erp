@@ -14,9 +14,11 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
+ARG SOURCE_REV=unknown
 ENV DATABASE_URL=postgresql://erp:erp@localhost:5432/hospitality_erp
-RUN pnpm db:generate
-RUN pnpm --filter @erp/api... build
+RUN echo "api build SOURCE_REV=${SOURCE_REV}" \
+  && pnpm db:generate \
+  && pnpm --filter @erp/api... build
 
 FROM node:20-alpine AS runner
 WORKDIR /app/apps/api

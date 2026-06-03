@@ -32,7 +32,7 @@ test.describe("Integrations", () => {
       timeout: 5000,
     });
     await expect(page.getByText("(generic_webhook)", { exact: true })).toBeVisible();
-    await expect(page.getByText("(ota_inquiry)", { exact: true })).toBeVisible();
+    await expect(page.getByText("(channel_manager)", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "+ Add connection" }).click();
     await expect(page.getByRole("dialog", { name: "Add integration connection" })).toBeVisible();

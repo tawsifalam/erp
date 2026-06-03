@@ -115,6 +115,7 @@ From [erp-completeness-roadmap.md](../erp-completeness-roadmap.md) — large or 
 | 5 | Notification preferences | [notification-preferences.md](./notification-preferences.md) | Shipped |
 | 6 | Branch invitations | [branch-invitations.md](./branch-invitations.md) | Shipped |
 | 7 | Integrations platform | [integrations.md](./integrations.md) | Shipped |
+| 8 | Channel manager | [channel-manager.md](./channel-manager.md) | Shipped |
 
 ## Suggested build order
 
@@ -122,7 +123,7 @@ After **production soak** on Phase 1:
 
 1. **Finance gaps** — fiscal periods + vendor payment (closes AP loop) — **done**
 2. **`integrations` module** — credentials + adapter framework for OTAs — **done**
-3. **Channel manager** — OTA sync (rates/availability already in ERP)
+3. **Channel manager** — OTA sync (rates/availability already in ERP) — **done**
 4. **Notification preferences** + PDF reports (quick UX wins)
 5. **Branch invitations** — if multi-branch permissions become painful
 6. **Offline POS / mobile / QR** — per property demand

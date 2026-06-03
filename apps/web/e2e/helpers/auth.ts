@@ -507,8 +507,15 @@ export async function mockApiRoutes(page: Page) {
     const url = route.request().url();
     if (url.includes("/webhooks/")) return route.continue();
     const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
-    const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleIntegrationsMutation(method, url, String(orgId), body ?? undefined);
+    let body: Record<string, unknown> | undefined;
+    if (method !== "GET" && method !== "DELETE") {
+      try {
+        body = (route.request().postDataJSON() ?? undefined) as Record<string, unknown> | undefined;
+      } catch {
+        body = undefined;
+      }
+    }
+    const result = handleIntegrationsMutation(method, url, String(orgId), body);
     if (isMockApiError(result)) {
       return route.fulfill({
         status: result.status,

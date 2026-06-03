@@ -14,7 +14,8 @@ Built-in adapters (code constants in `integration-adapters.constants.ts`):
 | Key | Name | Webhook events | Behavior |
 |-----|------|----------------|----------|
 | `generic_webhook` | Generic webhook | `*` | Log payload only |
-| `ota_inquiry` | OTA inquiry (stub) | `booking.import` | Create PMS `INQUIRY` reservation |
+| `channel_manager` | Channel manager | `booking.import` | Export availability + import `INQUIRY` — [channel-manager.md](./channel-manager.md) |
+| `ota_inquiry` | OTA inquiry (legacy) | `booking.import` | Same as `channel_manager` |
 
 ## Data model
 
@@ -98,4 +99,4 @@ Creates or reuses guest by email, then `PmsService.createReservation` with `INQU
 
 ## Next
 
-**Channel manager** — availability export, rate parity, full OTA adapters on top of connections — [channel-manager.md](./channel-manager.md).
+**Channel manager** (Sprint 8) — [channel-manager.md](./channel-manager.md). Future: OTA push, rate parity, iCal export.

@@ -73,7 +73,25 @@ test.describe("Smoke — Settings", () => {
       timeout: 15_000,
     });
     await expect(page.getByText("(generic_webhook)", { exact: true })).toBeVisible();
-    await expect(page.getByText("(ota_inquiry)", { exact: true })).toBeVisible();
+    await expect(page.getByText("(channel_manager)", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "+ Add connection" })).toBeVisible();
+  });
+
+  test("Channel manager — export availability on connection", async ({ page }) => {
+    await goto(page, "/settings?tab=integrations");
+    await page.getByRole("button", { name: "+ Add connection" }).click();
+    await expect(page.getByRole("dialog", { name: "Add integration connection" })).toBeVisible();
+    await page.getByPlaceholder("Booking.com — Main").fill(`Smoke Channel ${smokeSuffix()}`);
+    await page.getByLabel("Branch (optional)").selectOption({ label: "Main Branch" });
+    const adapterSelect = page.getByLabel("Adapter");
+    await adapterSelect.selectOption({ label: "Channel manager" });
+    await page.getByRole("button", { name: "Create connection" }).click();
+    await expect(page.getByText(/Integration connection created/i)).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    await expect(
+      page.getByText("Channel manager", { exact: true }).first(),
+    ).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Export availability" }).click();
+    await expect(page.getByText(/Availability exported/i)).toBeVisible({ timeout: 15_000 });
   });
 });

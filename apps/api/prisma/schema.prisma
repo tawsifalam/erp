@@ -52,6 +52,7 @@ model Organization {
   inclusionPackages InclusionPackage[]
   fiscalPeriods   FiscalPeriod[]
   integrationConnections IntegrationConnection[]
+  channelAvailabilityBlocks ChannelAvailabilityBlock[]
 }
 
 model UserOrganization {
@@ -128,6 +129,7 @@ model Branch {
   vendorPayments   VendorPayment[]
   userAccess       UserBranch[]
   integrationConnections IntegrationConnection[]
+  channelAvailabilityBlocks ChannelAvailabilityBlock[]
 }
 
 model RoomType {
@@ -189,6 +191,7 @@ model Room {
   branch        Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
   roomType      RoomType       @relation(fields: [roomTypeId], references: [id])
   reservations  Reservation[]
+  channelBlocks ChannelAvailabilityBlock[]
 
   @@unique([branchId, roomNumber])
 }
@@ -595,9 +598,31 @@ model IntegrationConnection {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
   webhookEvents IntegrationWebhookEvent[]
+  availabilityBlocks ChannelAvailabilityBlock[]
 
   @@index([organizationId, status])
   @@index([branchId])
+}
+
+model ChannelAvailabilityBlock {
+  id             String   @id @default(uuid())
+  organizationId String
+  branchId       String
+  connectionId   String?
+  roomId         String?
+  roomTypeId     String?
+  startDate      DateTime @db.Date
+  endDate        DateTime @db.Date
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  connection   IntegrationConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, startDate, endDate])
+  @@index([connectionId])
 }
 
 model IntegrationWebhookEvent {

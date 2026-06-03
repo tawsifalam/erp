@@ -19,6 +19,7 @@ import {
   IntegrationConnectionStatus,
   IntegrationWebhookEventStatus,
 } from "./integration-connection.constants";
+import { isChannelAdapter } from "./channel-manager.constants";
 
 export type IntegrationConnectionView = {
   id: string;
@@ -309,13 +310,13 @@ export class IntegrationsService {
       return;
     }
 
-    if (connection.adapterKey === "ota_inquiry" && eventType === "booking.import") {
+    if (isChannelAdapter(connection.adapterKey) && eventType === "booking.import") {
       await this.importOtaInquiry(connection, payload);
       return;
     }
 
-    if (connection.adapterKey === "ota_inquiry") {
-      throw new BadRequestException(`Unsupported event for OTA adapter: ${eventType}`);
+    if (isChannelAdapter(connection.adapterKey)) {
+      throw new BadRequestException(`Unsupported event for channel adapter: ${eventType}`);
     }
   }
 

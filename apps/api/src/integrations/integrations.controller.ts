@@ -17,10 +17,14 @@ import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
 import { IntegrationsService } from "./integrations.service";
+import { ChannelManagerService } from "./channel-manager.service";
 
 @Controller("integrations")
 export class IntegrationsController {
-  constructor(private readonly integrations: IntegrationsService) {}
+  constructor(
+    private readonly integrations: IntegrationsService,
+    private readonly channelManager: ChannelManagerService,
+  ) {}
 
   @Get("health")
   health() {
@@ -100,5 +104,53 @@ export class IntegrationsController {
   ) {
     const parsed = limit ? Number.parseInt(limit, 10) : 50;
     return this.integrations.listWebhookEvents(t.organizationId, id, parsed);
+  }
+
+  @Get("connections/:id/availability-export")
+  @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  exportAvailability(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Query("from") from: string,
+    @Query("to") to: string,
+  ) {
+    return this.channelManager.exportAvailability(t.organizationId, id, from, to);
+  }
+
+  @Get("connections/:id/availability-blocks")
+  @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  listAvailabilityBlocks(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.channelManager.listBlocks(t.organizationId, id);
+  }
+
+  @Post("connections/:id/availability-blocks")
+  @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  createAvailabilityBlock(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Body()
+    body: {
+      roomId?: string | null;
+      roomTypeId?: string | null;
+      startDate: string;
+      endDate: string;
+      reason?: string;
+    },
+  ) {
+    return this.channelManager.createBlock(t.organizationId, id, t.userId, body);
+  }
+
+  @Delete("connections/:id/availability-blocks/:blockId")
+  @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  deleteAvailabilityBlock(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Param("blockId") blockId: string,
+  ) {
+    return this.channelManager.deleteBlock(t.organizationId, id, t.userId, blockId);
   }
 }

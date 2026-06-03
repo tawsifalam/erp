@@ -1,7 +1,9 @@
 /** Integration connections and webhooks for Playwright API mocks. */
 
 import { getTenantBranches } from "./tenant-state";
-import { handlePmsReservationMutation } from "./pms-state";
+import { getPmsRooms, handlePmsReservationMutation } from "./pms-state";
+
+const CHANNEL_KEYS = new Set(["channel_manager", "ota_inquiry"]);
 
 export type MockIntegrationAdapter = {
   key: string;
@@ -49,9 +51,19 @@ const ADAPTERS: MockIntegrationAdapter[] = [
     supportedEvents: ["*"],
   },
   {
+    key: "channel_manager",
+    name: "Channel manager",
+    description: "Export availability and import INQUIRY bookings.",
+    credentialFields: [
+      { key: "partnerId", label: "Partner ID" },
+      { key: "apiKey", label: "API key", secret: true },
+    ],
+    supportedEvents: ["booking.import"],
+  },
+  {
     key: "ota_inquiry",
-    name: "OTA inquiry (stub)",
-    description: "Import bookings as INQUIRY reservations.",
+    name: "OTA inquiry (legacy)",
+    description: "Alias for channel manager.",
     credentialFields: [
       { key: "partnerId", label: "Partner ID" },
       { key: "apiKey", label: "API key", secret: true },
@@ -60,16 +72,30 @@ const ADAPTERS: MockIntegrationAdapter[] = [
   },
 ];
 
+type MockAvailabilityBlock = {
+  id: string;
+  connectionId: string;
+  branchId: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  roomId: string | null;
+};
+
 let connections: MockIntegrationConnection[] = [];
 let webhookEvents: MockWebhookEvent[] = [];
+let availabilityBlocks: MockAvailabilityBlock[] = [];
 let nextConn = 1;
 let nextEvent = 1;
+let nextBlock = 1;
 
 export function resetIntegrationsState() {
   connections = [];
   webhookEvents = [];
+  availabilityBlocks = [];
   nextConn = 1;
   nextEvent = 1;
+  nextBlock = 1;
 }
 
 function previewSecret(secret: string) {
@@ -194,7 +220,7 @@ export function handleIntegrationWebhook(
   let errorMessage: string | null = null;
 
   try {
-    if (conn.adapterKey === "ota_inquiry" && eventType === "booking.import") {
+    if (CHANNEL_KEYS.has(conn.adapterKey) && eventType === "booking.import") {
       if (!conn.branchId) throw new Error("OTA inquiry connection requires a branch");
       const roomId = typeof body.roomId === "string" ? body.roomId : undefined;
       const checkIn = typeof body.checkIn === "string" ? body.checkIn : undefined;
@@ -209,8 +235,8 @@ export function handleIntegrationWebhook(
         checkOut,
         status: "INQUIRY",
       });
-    } else if (conn.adapterKey === "ota_inquiry" && eventType !== "booking.import") {
-      throw new Error(`Unsupported event for OTA adapter: ${eventType}`);
+    } else if (CHANNEL_KEYS.has(conn.adapterKey) && eventType !== "booking.import") {
+      throw new Error(`Unsupported event for channel adapter: ${eventType}`);
     }
   } catch (err) {
     status = "FAILED";
@@ -287,7 +313,142 @@ export function handleIntegrationsMutation(
     return listWebhookEvents(orgId, eventsMatch[1]);
   }
 
+  const exportMatch =
+    method === "GET" && pathname.includes("/integrations/connections/") && pathname.endsWith("/availability-export")
+      ? pathname.match(/\/integrations\/connections\/([^/]+)\/availability-export/)
+      : null;
+  if (exportMatch) {
+    const parsed = new URL(url);
+    return exportAvailability(
+      orgId,
+      exportMatch[1],
+      parsed.searchParams.get("from") ?? "",
+      parsed.searchParams.get("to") ?? "",
+    );
+  }
+
+  const blocksListMatch = pathname.match(/\/integrations\/connections\/([^/]+)\/availability-blocks$/);
+  if (blocksListMatch && method === "GET") {
+    return listAvailabilityBlocks(orgId, blocksListMatch[1]);
+  }
+  if (blocksListMatch && method === "POST") {
+    return createAvailabilityBlock(orgId, blocksListMatch[1], body as { startDate: string; endDate: string; reason?: string });
+  }
+
+  const blockDeleteMatch = pathname.match(
+    /\/integrations\/connections\/([^/]+)\/availability-blocks\/([^/]+)$/,
+  );
+  if (blockDeleteMatch && method === "DELETE") {
+    return deleteAvailabilityBlock(orgId, blockDeleteMatch[1], blockDeleteMatch[2]);
+  }
+
   return { status: 404, message: "Not found" };
+}
+
+function requireChannelConnection(orgId: string, connectionId: string) {
+  const conn = connections.find((c) => c.id === connectionId && c.organizationId === orgId);
+  if (!conn) return { status: 404, message: "Integration connection not found" };
+  if (!CHANNEL_KEYS.has(conn.adapterKey)) {
+    return { status: 400, message: "Connection adapter does not support channel manager" };
+  }
+  if (!conn.branchId) return { status: 400, message: "Channel manager requires a branch on the connection" };
+  return conn;
+}
+
+function exportAvailability(orgId: string, connectionId: string, from: string, to: string) {
+  const conn = requireChannelConnection(orgId, connectionId);
+  if ("status" in conn) return conn;
+  const rooms = getPmsRooms();
+  const byType = new Map<string, { roomTypeName: string; totalRooms: number }>();
+  for (const room of rooms) {
+    const name = room.roomType?.name ?? "Room";
+    const cur = byType.get(room.roomTypeId) ?? { roomTypeName: name, totalRooms: 0 };
+    cur.totalRooms += 1;
+    byType.set(room.roomTypeId, cur);
+  }
+  const nights: string[] = [];
+  if (from && to) {
+    const cur = new Date(`${from}T00:00:00.000Z`);
+    const end = new Date(`${to}T00:00:00.000Z`);
+    while (cur < end) {
+      nights.push(cur.toISOString().slice(0, 10));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+  return {
+    connectionId,
+    branchId: conn.branchId,
+    from,
+    to,
+    exportedAt: new Date().toISOString(),
+    roomTypes: [...byType.entries()].map(([roomTypeId, meta]) => ({
+      roomTypeId,
+      roomTypeName: meta.roomTypeName,
+      inventory: nights.map((date) => ({
+        date,
+        totalRooms: meta.totalRooms,
+        availableCount: meta.totalRooms,
+        blockedCount: 0,
+      })),
+    })),
+  };
+}
+
+function listAvailabilityBlocks(orgId: string, connectionId: string) {
+  const conn = requireChannelConnection(orgId, connectionId);
+  if ("status" in conn) return conn;
+  return availabilityBlocks
+    .filter((b) => b.connectionId === connectionId)
+    .map((b) => ({
+      id: b.id,
+      branchId: b.branchId,
+      connectionId: b.connectionId,
+      roomId: b.roomId,
+      roomTypeId: null,
+      startDate: b.startDate,
+      endDate: b.endDate,
+      reason: b.reason,
+      createdAt: new Date().toISOString(),
+    }));
+}
+
+function createAvailabilityBlock(
+  orgId: string,
+  connectionId: string,
+  body: { startDate: string; endDate: string; reason?: string },
+) {
+  const conn = requireChannelConnection(orgId, connectionId);
+  if ("status" in conn) return conn;
+  const id = `cab-e2e-${nextBlock++}`;
+  availabilityBlocks.push({
+    id,
+    connectionId,
+    branchId: conn.branchId!,
+    startDate: body.startDate,
+    endDate: body.endDate,
+    reason: body.reason ?? null,
+    roomId: null,
+  });
+  return {
+    id,
+    branchId: conn.branchId,
+    connectionId,
+    roomId: null,
+    roomTypeId: null,
+    startDate: body.startDate,
+    endDate: body.endDate,
+    reason: body.reason ?? null,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function deleteAvailabilityBlock(orgId: string, connectionId: string, blockId: string) {
+  const conn = requireChannelConnection(orgId, connectionId);
+  if ("status" in conn) return conn;
+  const idx = availabilityBlocks.findIndex((b) => b.id === blockId && b.connectionId === connectionId);
+  if (idx < 0) return { status: 404, message: "Availability block not found" };
+  availabilityBlocks.splice(idx, 1);
+  return { ok: true };
 }
 
 /** For assertions in E2E */

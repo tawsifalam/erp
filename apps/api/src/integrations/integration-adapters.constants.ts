@@ -23,10 +23,20 @@ export const INTEGRATION_ADAPTERS: IntegrationAdapterDefinition[] = [
     supportedEvents: ["*"],
   },
   {
-    key: "ota_inquiry",
-    name: "OTA inquiry (stub)",
+    key: "channel_manager",
+    name: "Channel manager",
     description:
-      "Import channel bookings as PMS INQUIRY reservations. MVP stub for channel manager.",
+      "Export nightly availability by room type and import OTA bookings as INQUIRY reservations.",
+    credentialFields: [
+      { key: "partnerId", label: "Partner ID", secret: false, required: false },
+      { key: "apiKey", label: "API key", secret: true, required: false },
+    ],
+    supportedEvents: ["booking.import"],
+  },
+  {
+    key: "ota_inquiry",
+    name: "OTA inquiry (legacy)",
+    description: "Alias for channel manager — use channel_manager for new connections.",
     credentialFields: [
       { key: "partnerId", label: "Partner ID", secret: false, required: false },
       { key: "apiKey", label: "API key", secret: true, required: false },

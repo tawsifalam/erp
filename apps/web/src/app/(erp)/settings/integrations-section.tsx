@@ -18,6 +18,7 @@ import { apiFetch } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
 import type { TenantHeaders } from "@/lib/api-client";
 import { useConfirmDialog } from "@/lib/use-confirm-dialog";
+import { ChannelManagerPanel, isChannelAdapterKey } from "./channel-manager-panel";
 
 type Adapter = {
   key: string;
@@ -310,6 +311,12 @@ export function IntegrationsSection({ tenant }: { tenant: TenantHeaders | undefi
         )}
       </ContentCard>
 
+      {selectedConnection &&
+        tenant &&
+        isChannelAdapterKey(selectedConnection.adapterKey) && (
+          <ChannelManagerPanel tenant={tenant} connectionId={selectedConnection.id} />
+        )}
+
       {selectedConnection && (
         <ContentCard mb={6}>
           <Text fontWeight="semibold" mb={2}>
@@ -442,6 +449,7 @@ export function IntegrationsSection({ tenant }: { tenant: TenantHeaders | undefi
         <Stack gap={4}>
           <FormField label="Adapter">
             <AppSelect
+              aria-label="Adapter"
               items={adapters.map((a) => ({ value: a.key, label: a.name }))}
               value={form.adapterKey}
               onChange={(v) =>
@@ -463,6 +471,7 @@ export function IntegrationsSection({ tenant }: { tenant: TenantHeaders | undefi
           </FormField>
           <FormField label="Branch (optional)">
             <AppSelect
+              aria-label="Branch (optional)"
               items={[
                 { value: "", label: "Organization-wide" },
                 ...branches.map((b) => ({ value: b.id, label: b.name })),

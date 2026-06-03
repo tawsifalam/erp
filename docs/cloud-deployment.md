@@ -259,7 +259,7 @@ From repo root:
 
 ```bash
 cd /opt/erp
-pnpm install
+pnpm install   # .npmrc sets PUPPETEER_SKIP_DOWNLOAD=true (md-to-pdf; no bundled Chromium)
 pnpm db:generate
 
 docker compose -f infra/docker/docker-compose.yml build api web
@@ -412,7 +412,7 @@ Example cron (Postgres on VPS):
 ```bash
 cd /opt/erp
 git pull
-pnpm install && pnpm db:generate
+PUPPETEER_SKIP_DOWNLOAD=true pnpm install && pnpm db:generate
 docker compose -f infra/docker/docker-compose.yml build api web
 pnpm --filter @erp/api exec prisma migrate deploy   # with production DATABASE_URL
 docker compose -f infra/docker/docker-compose.yml up -d api web

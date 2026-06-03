@@ -14,6 +14,14 @@ cp apps/web/.env.example apps/web/.env.local
 pnpm install
 ```
 
+If install fails on **puppeteer** downloading Chrome (common in minimal Linux without `tar`/`unzip`), the repo sets `PUPPETEER_SKIP_DOWNLOAD=true` in [`.npmrc`](../.npmrc). You can also run:
+
+```bash
+PUPPETEER_SKIP_DOWNLOAD=true pnpm install
+```
+
+`pnpm generate:visual-guide-pdf` still needs Chrome or Playwright browsers (`pnpm test:e2e:install`), not Puppeteer’s bundled Chromium.
+
 ## 2. PropelAuth
 
 1. Create a project at [PropelAuth](https://www.propelauth.com).

@@ -2,7 +2,7 @@
 
 Use this checklist before go-live or after each major deploy. It validates **Phase 1** on a **real stack** (PropelAuth, PostgreSQL, Redis, MinIO, optional Resend) — not the mocked E2E suite.
 
-**Authority:** [phase1-signoff.md](./phase1-signoff.md) · **Workflow detail:** [app-workflow-guide.md](./app-workflow-guide.md) · **Deploy:** [cloud-deployment.md](./cloud-deployment.md)
+**Authority:** [phase1-signoff.md](./phase1-signoff.md) · **Workflow detail:** [app-workflow-guide.md](./app-workflow-guide.md) · **Deploy:** [cloud-deployment.md](./cloud-deployment.md) · **VPS stop/inspect:** [vps-docker-operations.md](./vps-docker-operations.md)
 
 **Automated locally (subset):** [smoke-local.md](./smoke-local.md) — `pnpm smoke:local` with real PropelAuth + DB on localhost (no deploy required).
 

@@ -2,6 +2,8 @@
 
 For a **full step-by-step cloud deployment plan** (DNS, Docker, PropelAuth, TLS, migrations, Phase 1 smoke tests), see **[cloud-deployment.md](./cloud-deployment.md)**.
 
+For **VPS day-two ops** (inspect running containers, stop the stack completely, fix `compose down` / wrong project), see **[vps-docker-operations.md](./vps-docker-operations.md)**.
+
 ## Recommended topology
 
 - **nginx** — TLS termination, routes `/` → web, `/api/` → API, `/socket.io/` → API

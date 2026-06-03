@@ -412,6 +412,8 @@ curl -s https://app.yourdomain.com/api/health
 
 ## Step 11 — Production operations
 
+**Stop, inspect, and force-remove containers on the VPS:** [vps-docker-operations.md](./vps-docker-operations.md).
+
 ### Backups
 
 | Asset | Method |
@@ -545,6 +547,9 @@ Duplicate Steps 1–11 with:
 | Blank API calls from browser | Wrong `NEXT_PUBLIC_API_URL` | Rebuild web with correct public URL |
 | Web UI missing new screens (e.g. Integrations) | Old `web` image still running | `git pull`, `export SOURCE_REV=$(git rev-parse HEAD)`, `build --no-cache web`, `up -d --force-recreate web`; hard-refresh / purge Cloudflare |
 | `docker build` uses old code | No `git pull`, cached layers, or `up` without rebuild | Use `./scripts/docker-rebuild-prod.sh`; confirm build log shows correct `SOURCE_REV` |
+| `docker compose ps` empty but site still up | Wrong cwd/project, or checking laptop while VPS runs `erp` | `cd /opt/erp`; see [vps-docker-operations.md](./vps-docker-operations.md) |
+| `docker compose down` but `ls` still shows `erp` `running(6)` | `down` did not target project `erp`, or second project | `docker compose -p erp … down --remove-orphans`; force-remove; [vps-docker-operations.md § Stop](./vps-docker-operations.md#stop-the-application-completely-vps) |
+| `no such file or directory` for `-f infra/docker/...` | Not in `/opt/erp`, typo, or incomplete clone | `cd /opt/erp` and `ls infra/docker/`; `git pull` |
 
 ---
 
@@ -580,6 +585,7 @@ Add CI/CD (GitHub Actions → build images → deploy) once pilots are stable.
 
 ## Related docs
 
+- [vps-docker-operations.md](./vps-docker-operations.md) — stop stack, `compose ls` vs `ps`, project `erp`
 - [deployment.md](./deployment.md) — topology summary
 - [local-setup.md](./local-setup.md) — development environment
 - [propelauth.md](./propelauth.md) — authentication

@@ -1,38 +1,37 @@
 # Cloud deployment guide (Phase 1)
 
-Step-by-step plan to deploy the hospitality ERP to production in the cloud. Covers everything in **Phase 1**: PMS, POS, kitchen, inventory, accounting, HR, payroll, reporting, and settings.
+Step-by-step plan to deploy the hospitality ERP to production. Covers **Phase 1** modules (PMS, POS, kitchen, inventory, accounting, HR, payroll, reporting, settings).
 
-**Related:** [deployment.md](./deployment.md) (summary), [local-setup.md](./local-setup.md) (dev), [propelauth.md](./propelauth.md) (auth), [saas-launch-guide.md](./saas-launch-guide.md) (go-live checklist).
+**Related:** [deployment.md](./deployment.md) (summary), [vps-docker-operations.md](./vps-docker-operations.md) (stop/inspect/rebuild), [local-setup.md](./local-setup.md) (dev), [propelauth.md](./propelauth.md) (auth).
 
 ---
 
-## What you are deploying
+## Production architecture (this project)
 
-| Component | Role | Phase 1 usage |
-|-----------|------|----------------|
-| **web** | Next.js (standalone) | All UI: dashboard, PMS, POS, kitchen, inventory, accounting, HR, reports, settings |
-| **api** | NestJS | REST + Socket.IO (kitchen, room status) |
-| **postgres** | PostgreSQL 16 | All tenant and module data |
-| **redis** | Redis 7 | BullMQ: payroll jobs, report exports |
-| **minio / S3** | Object storage | Payroll artifacts, CSV report files |
-| **nginx** | Reverse proxy | TLS, route `/` → web, `/api/` + `/socket.io/` → api |
-| **PropelAuth** | SaaS (external) | Login, orgs, JWT validation |
+| Layer | Component | Notes |
+|-------|-----------|--------|
+| Edge | **Host nginx** (systemd) | TLS on 80/443, proxies to localhost |
+| App | **web**, **api** (Docker) | Published on `127.0.0.1:3000` / `3001` only |
+| Data | **postgres**, **redis**, **minio** (Docker) | Not published on host in prod (`docker-compose.prod.yml`) |
+| Auth | **PropelAuth** (SaaS) | External |
+
+We do **not** run nginx in Docker for production. Certbot and `/etc/nginx` own the public ports. App containers stay on the internal Compose network plus localhost bindings.
 
 ```mermaid
 flowchart TB
   User[Browser]
   PA[PropelAuth]
-  NGINX[nginx + TLS]
-  WEB[web :3000]
-  API[api :3001]
+  HN[Host nginx TLS]
+  WEB[web 127.0.0.1:3000]
+  API[api 127.0.0.1:3001]
   PG[(PostgreSQL)]
   RD[(Redis)]
-  S3[(MinIO / S3)]
+  S3[(MinIO)]
 
-  User --> NGINX
+  User --> HN
   User --> PA
-  NGINX --> WEB
-  NGINX --> API
+  HN --> WEB
+  HN --> API
   WEB --> API
   API --> PG
   API --> RD
@@ -40,16 +39,51 @@ flowchart TB
   API --> PA
 ```
 
-**Recommended URL layout (single domain):**
+**Single-domain URLs** (recommended):
 
 | URL | Target |
 |-----|--------|
 | `https://app.yourdomain.com/` | Next.js |
-| `https://app.yourdomain.com/api/*` | NestJS API |
-| `https://app.yourdomain.com/socket.io/*` | WebSocket (kitchen, rooms) |
-| `https://app.yourdomain.com/api/auth/*` | PropelAuth Next.js routes (login callback) |
+| `https://app.yourdomain.com/api/*` | NestJS (except `/api/auth/*` handled by Next — see nginx example) |
+| `https://app.yourdomain.com/socket.io/*` | WebSocket |
+| `https://app.yourdomain.com/api/auth/callback` | PropelAuth (Next.js route) |
 
-Using one domain avoids extra CORS complexity and matches [infra/nginx/nginx.conf](../infra/nginx/nginx.conf).
+Reference config: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.example). Route rules match the legacy [infra/nginx/nginx.conf](../infra/nginx/nginx.conf) (Docker upstream names `api`/`web` → use `127.0.0.1` on the host).
+
+---
+
+## Standard Compose command (use everywhere)
+
+From `/opt/erp`, use the **same** invocation for `up`, `ps`, `logs`, `exec`, `down`, and rebuilds:
+
+```bash
+cd /opt/erp
+COMPOSE=(
+  --env-file /opt/erp/.env
+  -f /opt/erp/docker-compose.yml
+  -f /opt/erp/infra/docker/docker-compose.prod.yml
+  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml
+)
+```
+
+- Root [docker-compose.yml](../docker-compose.yml) includes [infra/docker/docker-compose.yml](../infra/docker/docker-compose.yml).
+- `--env-file` supplies secrets and `NEXT_PUBLIC_*` **build args** (do **not** `source .env` — PEM keys break the shell).
+- `prod` hides Postgres/Redis/MinIO ports on the host.
+- `prod-host-nginx` binds api/web to **localhost only**.
+
+**Automated deploys** (same Compose files as above):
+
+| Command | When |
+|---------|------|
+| `./scripts/deploy-prod.sh initial` | First deploy on a VPS |
+| `./scripts/deploy-prod.sh update` | After `git pull` / code changes (default: rebuild all, `--no-cache`) |
+| `./scripts/deploy-prod.sh update --migrate` | Update + Prisma migrations |
+| `./scripts/deploy-prod.sh migrate` | Migrations only |
+| `./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com` | Install host nginx site file |
+
+Legacy alias: `./scripts/docker-rebuild-prod.sh` → `deploy-prod.sh update`.
+
+**Do not** run only `-f infra/docker/docker-compose.yml` from `/opt/erp` without `--env-file` — Compose may use the wrong project directory and miss `.env`.
 
 ---
 
@@ -57,527 +91,300 @@ Using one domain avoids extra CORS complexity and matches [infra/nginx/nginx.con
 
 ### Path A — Single VPS + Docker Compose (recommended for first production)
 
-**Best for:** 1–5 pilot customers, low cost, fast setup.
+**Best for:** 1–5 pilot customers, low cost.
 
 | Provider | Example |
 |----------|---------|
-| DigitalOcean | Droplet 4 GB RAM / 2 vCPU (~$24/mo) |
 | Hetzner | CX31 or similar |
+| DigitalOcean | Droplet 4 GB RAM |
 | AWS | EC2 `t3.medium` |
-| Linode / Akamai | Shared CPU 4 GB |
 
-Postgres, Redis, MinIO run on the same VM via [docker-compose.yml](../infra/docker/docker-compose.yml), or use managed DB (Path B hybrid).
+Bundled Postgres, Redis, MinIO on the VM; **host nginx** in front.
 
-### Path B — Managed services (recommended before many tenants)
+### Path B — Managed PostgreSQL / Redis / S3
 
-**Best for:** SaaS with backups, less ops on DB/cache.
+**Best for:** Less DB ops before many tenants.
 
-| Service | Examples |
-|---------|----------|
-| PostgreSQL | RDS, Cloud SQL, DigitalOcean Managed DB, Supabase |
-| Redis | ElastiCache, Upstash, DigitalOcean Managed Redis |
-| Object storage | AWS S3, Cloudflare R2, DO Spaces |
-| Compute | ECS Fargate, Railway, Render, Fly.io, same VPS for app only |
+Skip `postgres`, `redis`, `minio` in `docker compose up`. Set connection strings in `/opt/erp/.env`.
 
-Path B steps differ only in **Steps 3–4** (connection strings instead of local containers). App containers and env vars stay the same.
+**Important:** The default `api` service in [docker-compose.yml](../infra/docker/docker-compose.yml) sets in-container `DATABASE_URL` / `REDIS_URL` / `MINIO_*` for the **bundled** stack. For Path B you must supply a compose override that removes those keys or sets managed URLs — `.env` alone is not enough (`environment` wins over `env_file`). Path A steps below assume bundled data services.
 
 ---
 
 ## Prerequisites
 
-Before starting:
-
-- [ ] Domain name (e.g. `app.yourdomain.com`)
-- [ ] [PropelAuth](https://www.propelauth.com) project (free tier works for pilots)
-- [ ] Git repo access on the server or CI
-- [ ] Docker 24+ and Docker Compose v2 on the server (Path A)
-- [ ] `pnpm` 9+ locally or in CI for migrations (optional on server)
+- [ ] Domain (e.g. `app.yourdomain.com`)
+- [ ] [PropelAuth](https://www.propelauth.com) project
+- [ ] VPS with Docker 24+ and Compose v2
+- [ ] **nginx** and **certbot** on the host (`apt install nginx certbot python3-certbot-nginx`)
+- [ ] Git clone at `/opt/erp`
 
 ---
 
 ## Step 1 — Domain and DNS
 
-1. Create an **A record** pointing to your server public IP:
-   ```
-   app.yourdomain.com  →  <SERVER_IP>
-   ```
-2. Wait for DNS propagation (often 5–30 minutes).
-3. Optional: second record for staging:
-   ```
-   staging.yourdomain.com  →  <STAGING_IP>
-   ```
+```
+app.yourdomain.com  A  →  <SERVER_IP>
+```
+
+Wait for propagation (often 5–30 minutes). Optional staging: `staging.yourdomain.com`.
 
 ---
 
-## Step 2 — Server hardening (Path A)
-
-SSH into the VPS:
+## Step 2 — Server setup
 
 ```bash
-# Create deploy user (optional but recommended)
-adduser deploy
-usermod -aG docker deploy
-
-# Firewall — allow SSH, HTTP, HTTPS only
+# Firewall
 ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw enable
-```
 
-Install Docker:
-
-```bash
+# Docker
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker $USER
-```
 
-Clone the repo:
+# Host nginx + TLS tooling
+apt update
+apt install -y nginx certbot python3-certbot-nginx
 
-```bash
+# App code
 git clone <your-repo-url> /opt/erp
 cd /opt/erp
 ```
 
+Do **not** disable host nginx for this deployment model.
+
 ---
 
-## Step 3 — Provision data stores
-
-### Option 3A — All on VPS (docker-compose)
-
-Start only infrastructure first:
+## Step 3 — Data stores (Path A)
 
 ```bash
 cd /opt/erp
-docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
-docker compose -f infra/docker/docker-compose.yml ps
+docker compose "${COMPOSE[@]}" up -d postgres redis minio
+docker compose "${COMPOSE[@]}" ps
 ```
 
-Default credentials match [.env.example](../.env.example) (`erp` / `erp`). **Change passwords in production** by editing `docker-compose.yml` and `DATABASE_URL`.
+Default DB credentials are in [docker-compose.yml](../infra/docker/docker-compose.yml) (`erp` / `erp`). **Change** `POSTGRES_PASSWORD` in compose and matching URL in `api.environment` before real customers.
 
-Create MinIO bucket (optional — API creates `erp-files` on startup if missing):
-
-- Console: `http://<SERVER_IP>:9001` (do not expose publicly in prod; use SSH tunnel or remove port mapping)
-
-### Option 3B — Managed PostgreSQL + Redis + S3
-
-1. Create PostgreSQL 16 database; note connection string:
-   ```
-   postgresql://USER:PASSWORD@host:5432/hospitality_erp?sslmode=require
-   ```
-2. Create Redis instance; note URL:
-   ```
-   rediss://default:PASSWORD@host:6379
-   ```
-3. Create S3 bucket (e.g. `erp-files-prod`) and IAM keys.
-
-For S3, set API env (MinIO client is S3-compatible):
-
-```env
-MINIO_ENDPOINT=s3.amazonaws.com
-MINIO_PORT=443
-MINIO_USE_SSL=true
-MINIO_ACCESS_KEY=<AWS_ACCESS_KEY>
-MINIO_SECRET_KEY=<AWS_SECRET_KEY>
-MINIO_BUCKET=erp-files-prod
-```
-
-Skip `postgres`, `redis`, `minio` services in compose when using managed services; run only `api` and `web`.
+MinIO console: use SSH tunnel to port 9001 — do not expose 9000/9001 publicly in prod (`prod.yml` resets those ports).
 
 ---
 
-## Step 4 — PropelAuth (production)
+## Step 4 — PropelAuth
 
-In the [PropelAuth dashboard](https://app.propelauth.com):
+In the PropelAuth dashboard:
 
-1. **Frontend integration**
-   - Allowed redirect URLs: `https://app.yourdomain.com/api/auth/callback`
-   - Default redirect after login: `/dashboard`
-   - Logout redirect: `/`
+1. Redirect URL: `https://app.yourdomain.com/api/auth/callback`
+2. Copy auth URL → `PROPELAUTH_AUTH_URL` / `NEXT_PUBLIC_AUTH_URL`
+3. API key → `PROPELAUTH_API_KEY`
+4. Verifier key (single line) → `PROPELAUTH_VERIFIER_KEY` (web)
 
-2. **Backend integration** — copy:
-   - Auth URL → `PROPELAUTH_AUTH_URL` / `NEXT_PUBLIC_AUTH_URL`
-   - API key → `PROPELAUTH_API_KEY`
-   - Verifier key (single line) → `PROPELAUTH_VERIFIER_KEY` (web)
-
-3. If using **PropelAuth organizations**, ensure org creation aligns with your signup flow ([propelauth.md](./propelauth.md)).
-
-See [propelauth.md](./propelauth.md) for sync behavior (`POST /api/auth/sync` on first dashboard visit).
-
-After deploy, run [production-smoke-runbook.md](./production-smoke-runbook.md) on the new environment before directing users.
+See [propelauth.md](./propelauth.md). After deploy, run [production-smoke-runbook.md](./production-smoke-runbook.md).
 
 ---
 
-## Step 5 — Production environment variables
+## Step 5 — `/opt/erp/.env`
 
-Create `/opt/erp/.env` on the server (never commit this file):
+Create once (never commit):
 
 ```env
-# --- Database & queue (adjust for managed services) ---
-DATABASE_URL=postgresql://erp:STRONG_PASSWORD@postgres:5432/hospitality_erp
-REDIS_URL=redis://redis:6379
-
-# --- Object storage ---
-MINIO_ENDPOINT=minio
-MINIO_PORT=9000
-MINIO_ACCESS_KEY=STRONG_MINIO_USER
-MINIO_SECRET_KEY=STRONG_MINIO_PASSWORD
-MINIO_BUCKET=erp-files
-MINIO_USE_SSL=false
-
-# --- API ---
-API_PORT=3001
+# --- App secrets & public URLs (required) ---
 CORS_ORIGIN=https://app.yourdomain.com
 PROPELAUTH_AUTH_URL=https://YOUR_PROJECT.propelauth.com
 PROPELAUTH_API_KEY=your-production-api-key
-
-# --- Web (build-time + runtime for Next.js) ---
 NEXT_PUBLIC_API_URL=https://app.yourdomain.com
 NEXT_PUBLIC_AUTH_URL=https://YOUR_PROJECT.propelauth.com
 NEXT_PUBLIC_APP_URL=https://app.yourdomain.com
 PROPELAUTH_REDIRECT_URI=https://app.yourdomain.com/api/auth/callback
 PROPELAUTH_VERIFIER_KEY=-----BEGIN PUBLIC KEY-----\n...
+
+API_PORT=3001
 ```
 
-**Important:**
+**Bundled Postgres/Redis/MinIO (Path A):** Compose injects in-container `DATABASE_URL`, `REDIS_URL`, and `MINIO_*` for service hostnames `postgres`, `redis`, `minio`. You do **not** need `localhost` in `.env` for the API container. Optional duplicates in `.env` for `pg_dump` cron on the host:
 
-- `NEXT_PUBLIC_*` values are **baked into the web image at build time**. Rebuild `web` after changing them.
-- Browser calls the API at `NEXT_PUBLIC_API_URL` + `/api/...`. With nginx on one domain, set it to `https://app.yourdomain.com` (not `:3001`).
+```env
+DATABASE_URL=postgresql://erp:STRONG_PASSWORD@127.0.0.1:5432/hospitality_erp
+```
+
+(Only if you expose Postgres to localhost for backups — default prod overlay does **not** publish 5432.)
+
+**Rules:**
+
+- `NEXT_PUBLIC_*` are **baked in at `docker compose build`** — rebuild `web` after changes.
+- `NEXT_PUBLIC_API_URL` = public app origin (same domain as nginx), not `:3001`.
 - `CORS_ORIGIN` must match `NEXT_PUBLIC_APP_URL`.
-
-Export for compose:
-
-```bash
-set -a && source /opt/erp/.env && set +a
-```
+- Do **not** `source .env` for deploy scripts; they use `--env-file` via [scripts/lib/compose-prod.sh](../scripts/lib/compose-prod.sh).
 
 ---
 
-## Step 6 — Build Docker images
+## Step 6–8 — Deploy application (automated)
 
-From repo root:
-
-```bash
-cd /opt/erp
-pnpm install   # .npmrc sets PUPPETEER_SKIP_DOWNLOAD=true (md-to-pdf; no bundled Chromium)
-pnpm db:generate
-
-docker compose -f infra/docker/docker-compose.yml build api web
-```
-
-Build `web` with public env args (if not using compose `environment` at runtime only):
+From `/opt/erp` after `.env` is ready:
 
 ```bash
-docker build -f infra/docker/Dockerfile.web \
-  --build-arg NEXT_PUBLIC_API_URL=https://app.yourdomain.com \
-  --build-arg NEXT_PUBLIC_APP_URL=https://app.yourdomain.com \
-  -t erp-web:latest .
+chmod +x scripts/deploy-prod.sh scripts/deploy-prod-initial.sh scripts/deploy-prod-update.sh
+./scripts/deploy-prod.sh initial
 ```
+
+This runs: `pnpm install` → `db:generate` → start postgres/redis/minio → build api+web → start api+web → `prisma migrate deploy` → local health check.
+
+**Updates** (routine deploy after code changes):
+
+```bash
+./scripts/deploy-prod.sh update              # git pull + rebuild all + recreate
+./scripts/deploy-prod.sh update --migrate   # + migrations when schema changed
+./scripts/deploy-prod.sh update web          # UI / NEXT_PUBLIC_* only
+```
+
+Manual equivalent:
+
+```bash
+docker compose "${COMPOSE[@]}" build api web
+docker compose "${COMPOSE[@]}" up -d api web
+```
+
+Expected containers (project `erp`): **postgres, redis, minio, api, web** — five services.
+
+```bash
+./scripts/deploy-prod.sh health
+./scripts/deploy-prod.sh logs
+```
+
+**Do not** run `pnpm db:seed` in production unless you want demo data.
 
 ---
 
-## Step 7 — Run database migrations
+## Step 9 — Host nginx and TLS
 
-**Before** starting the API against production data:
+1. Copy and edit the example:
 
-One migration applies the full Phase 1 schema: `20260101000000_init`.
+   ```bash
+   sudo cp /opt/erp/infra/nginx/host-nginx.conf.example /etc/nginx/sites-available/erp
+   sudo sed -i 's/app.yourdomain.com/<your-domain>/g' /etc/nginx/sites-available/erp
+   sudo ln -sf /etc/nginx/sites-available/erp /etc/nginx/sites-enabled/
+   sudo rm -f /etc/nginx/sites-enabled/default   # if it conflicts
+   ```
 
-```bash
-# From your laptop or CI — recommended
-DATABASE_URL="postgresql://..." pnpm --filter @erp/api exec prisma migrate deploy
-```
+2. Or use the install helper (copies the example and substitutes domain from `--domain` or `.env`):
 
-Or from repo on server (with Node/pnpm installed):
+   ```bash
+   ./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
+   sudo certbot --nginx -d app.yourdomain.com
+   ```
 
-```bash
-cd /opt/erp
-DATABASE_URL="postgresql://..." pnpm db:migrate
-# Uses: prisma migrate dev — use migrate deploy in production:
-pnpm --filter @erp/api exec prisma migrate deploy
-```
+   Or use Cloudflare origin certificates — adjust `ssl_certificate` paths in the site file.
 
-**Do not run `pnpm db:seed` in production** unless you want demo data. Real customers: create orgs via **Settings** after login.
+4. Confirm WebSocket routes: `/socket.io/` must have `Upgrade` headers (included in the example).
 
-If a database was created with an older migration chain, drop and recreate it (empty DB) before `migrate deploy`.
-
----
-
-## Step 8 — Start application services
-
-On a VPS, host Postgres/Redis often already listen on **5432** / **6379**. Use the production overlay so those services are **not** published on the host (API still reaches them as `postgres` and `redis` on the Compose network):
-
-```bash
-COMPOSE="-f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml"
-
-docker compose $COMPOSE up -d postgres redis minio
-```
-
-**Reverse proxy (pick one — not both):**
-
-| Setup | When | Start command |
-|-------|------|----------------|
-| **Docker nginx** | Nothing else uses 80/443 on the host | `docker compose $COMPOSE up -d api web nginx` |
-| **Host nginx** | `certbot --nginx` or system nginx already on 80/443 | Add [docker-compose.prod-host-nginx.yml](../infra/docker/docker-compose.prod-host-nginx.yml); **omit** `nginx` from `up` |
-
-Host nginx (second row):
-
-```bash
-COMPOSE_HOST="$COMPOSE -f infra/docker/docker-compose.prod-host-nginx.yml"
-docker compose $COMPOSE_HOST up -d api web
-# Configure /etc/nginx on the VPS to proxy to 127.0.0.1:3000 and 127.0.0.1:3001
-```
-
-Docker nginx (first row) — free ports 80/443 first:
-
-```bash
-sudo systemctl stop nginx apache2 2>/dev/null || true
-docker compose $COMPOSE up -d api web nginx
-```
-
-```bash
-docker compose $COMPOSE logs -f api web
-```
-
-Set `CORS_ORIGIN`, `NEXT_PUBLIC_*`, and PropelAuth vars in `.env` before building `web`.
-
-**Do not** set `DATABASE_URL` or `REDIS_URL` in `.env` to `127.0.0.1` when the API runs in Docker — use the compose defaults (`postgres:5432`, `redis:6379`) or omit those keys so the service `environment` block wins.
-
-Verify internally:
-
-```bash
-curl -s http://localhost:3001/api/health
-# {"status":"ok"}
-```
-
----
-
-## Step 9 — nginx and TLS
-
-### Add nginx to Compose (recommended)
-
-Extend compose or run nginx container mounting [infra/nginx/nginx.conf](../infra/nginx/nginx.conf):
-
-```yaml
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      - api
-      - web
-```
-
-For TLS, use **Certbot** on the host or **nginx-proxy + acme-companion**.
-
-### Quick TLS with Certbot (host nginx)
-
-1. Install certbot: `apt install certbot python3-certbot-nginx`
-2. Point nginx at `app.yourdomain.com` → proxy to `127.0.0.1:3000` and `127.0.0.1:3001` per [nginx.conf](../infra/nginx/nginx.conf)
-3. Run: `certbot --nginx -d app.yourdomain.com`
-
-Ensure **WebSocket** headers for `/socket.io/` (already in nginx.conf) — required for kitchen display and PMS room updates.
-
----
-
-## Step 10 — Smoke test (Phase 1 modules)
-
-Use `https://app.yourdomain.com` in a browser.
-
-| # | Test | Pass criteria |
-|---|------|----------------|
-| 1 | **Auth** | Login via PropelAuth → land on `/dashboard` |
-| 2 | **Sync** | First visit creates user/org in DB |
-| 3 | **Settings** | Create branch; inventory pools `guest` / `staff` visible |
-| 4 | **PMS** | Create guest, room, reservation; check-in/out |
-| 5 | **POS** | Create order, send to kitchen, complete & pay |
-| 6 | **Kitchen** | `/pos/kitchen` — ticket appears; mark preparing → ready |
-| 7 | **Inventory** | Item list, record movement, recipe saves |
-| 8 | **Accounting** | Journals visible after POS complete (if CoA seeded) |
-| 9 | **HR** | Employee, staff meal recipe, payroll run queues |
-| 10 | **Reports** | Export CSV; job completes; download works |
-| 11 | **Realtime** | PMS room status updates without refresh (Socket.IO) |
-| 12 | **Health** | `GET /api/health` returns 200 |
-
-API check:
+Public check:
 
 ```bash
 curl -s https://app.yourdomain.com/api/health
 ```
 
+**Optional — nginx in Docker:** for local all-in-docker demos only, [docker-compose.nginx.yml](../infra/docker/docker-compose.nginx.yml) + [nginx.conf](../infra/nginx/nginx.conf). Not used on the production VPS.
+
 ---
 
-## Step 11 — Production operations
+## Step 10 — Smoke test (Phase 1)
 
-**Stop, inspect, and force-remove containers on the VPS:** [vps-docker-operations.md](./vps-docker-operations.md).
+Browser: `https://app.yourdomain.com`
+
+| # | Test | Pass |
+|---|------|------|
+| 1 | Auth | PropelAuth login → `/dashboard` |
+| 2 | Sync | First visit creates user/org |
+| 3 | Settings | Branch + inventory pools |
+| 4 | PMS | Guest, room, reservation, check-in/out |
+| 5 | POS | Order → kitchen → pay |
+| 6 | Kitchen | Ticket flow |
+| 7 | Inventory | Items, movements |
+| 8 | Accounting | Journals after POS |
+| 9 | HR | Employee, payroll queue |
+| 10 | Reports | CSV export completes |
+| 11 | Realtime | PMS room updates (Socket.IO) |
+| 12 | Health | `GET /api/health` → 200 |
+
+---
+
+## Step 11 — Operations
+
+See [vps-docker-operations.md](./vps-docker-operations.md) for stop/start, `compose ls` vs `ps`, and force-remove.
+
+### Deploy code changes
+
+```bash
+cd /opt/erp
+./scripts/deploy-prod.sh update
+./scripts/deploy-prod.sh update --migrate   # when prisma/migrations changed
+./scripts/deploy-prod.sh update web         # frontend only
+```
 
 ### Backups
 
-| Asset | Method |
-|-------|--------|
-| PostgreSQL | Daily `pg_dump` or managed automatic backups |
-| MinIO/S3 | Versioning + lifecycle rules on bucket |
-| Redis | Ephemeral OK for queues; no critical long-term state |
-
-Example cron (Postgres on VPS):
-
 ```bash
-0 2 * * * pg_dump "$DATABASE_URL" | gzip > /backups/erp-$(date +\%F).sql.gz
+# Example cron — use a URL that reaches Postgres from the host
+0 2 * * * pg_dump "postgresql://erp:PASS@127.0.0.1:5432/hospitality_erp" | gzip > /backups/erp-$(date +\%F).sql.gz
 ```
 
 ### Monitoring
 
-- Uptime: ping `https://app.yourdomain.com/api/health`
-- Logs: `docker compose logs -f api web`
-- Errors: Sentry (optional) on API + web
-- Redis queue depth: monitor if payroll/report jobs stall
-
-### Updates (deploy new version)
-
-UI code is **compiled into the `web` image** at `docker compose build` time (`NEXT_PUBLIC_*` are baked in then too). `up -d` alone does not pick up `git pull`.
-
-**Recommended** — script sets `SOURCE_REV` from git so Docker cannot reuse a stale compile layer:
-
-```bash
-cd /opt/erp
-git pull   # get scripts/docker-rebuild-prod.sh + Dockerfile SOURCE_REV support
-chmod +x scripts/docker-rebuild-prod.sh
-./scripts/docker-rebuild-prod.sh all
-docker compose \
-  -f /opt/erp/infra/docker/docker-compose.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
-  exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
-```
-
-Manual equivalent (must run from `/opt/erp`; Compose reads `.env` for `NEXT_PUBLIC_*` — do not `source .env`):
-
-```bash
-cd /opt/erp
-git pull
-export SOURCE_REV="$(git rev-parse HEAD)"
-echo "Building $SOURCE_REV"
-
-docker compose \
-  -f /opt/erp/infra/docker/docker-compose.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
-  build --no-cache web api
-
-docker compose \
-  -f /opt/erp/infra/docker/docker-compose.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod.yml \
-  -f /opt/erp/infra/docker/docker-compose.prod-host-nginx.yml \
-  up -d --force-recreate api web
-```
-
-**Verify the image matches git:** during build you should see `web build SOURCE_REV=<full sha>` in the log. After deploy:
-
-```bash
-docker compose ... images
-docker inspect "$(docker compose ... images -q web)" --format '{{.Created}}'
-```
-
-Omit `docker-compose.prod-host-nginx.yml` and add `nginx` to `up` if using Docker nginx instead of host nginx.
-
-Zero-downtime: run two API replicas behind nginx (Phase 2 ops).
-
-### Secrets
-
-- Store `.env` outside git; use provider secret manager at scale
-- Rotate PropelAuth API key and DB password periodically
+- Uptime: `https://app.yourdomain.com/api/health`
+- Logs: `docker compose "${COMPOSE[@]}" logs -f api web`
+- Host nginx: `sudo journalctl -u nginx -f`
 
 ---
 
 ## Environment reference
 
-### API (required)
-
-| Variable | Example (production) |
-|----------|----------------------|
-| `DATABASE_URL` | `postgresql://user:pass@host:5432/hospitality_erp` |
-| `REDIS_URL` | `redis://redis:6379` or managed URL |
-| `CORS_ORIGIN` | `https://app.yourdomain.com` |
-| `PROPELAUTH_AUTH_URL` | `https://xxx.propelauth.com` |
-| `PROPELAUTH_API_KEY` | From PropelAuth dashboard |
-| `MINIO_*` | See Step 5 |
-
-### Web (required at build)
-
-| Variable | Example |
-|----------|---------|
+| Variable | Production example |
+|----------|-------------------|
 | `NEXT_PUBLIC_API_URL` | `https://app.yourdomain.com` |
-| `NEXT_PUBLIC_AUTH_URL` | `https://xxx.propelauth.com` |
 | `NEXT_PUBLIC_APP_URL` | `https://app.yourdomain.com` |
-| `PROPELAUTH_REDIRECT_URI` | `https://app.yourdomain.com/api/auth/callback` |
-| `PROPELAUTH_API_KEY` | Same as API |
-| `PROPELAUTH_VERIFIER_KEY` | Single-line public key |
+| `CORS_ORIGIN` | Same as app URL |
+| `PROPELAUTH_*` | From dashboard |
+| In-container DB (Path A) | Set by compose `api.environment`, not `.env` |
 
-Validated by `packages/config/src/env.ts`.
+Validated in `packages/config/src/env.ts`.
 
 ---
 
-## Staging environment (recommended)
+## Staging
 
-Duplicate Steps 1–11 with:
-
-- `staging.yourdomain.com`
-- Separate PropelAuth test project or staging org
-- Separate database (never share prod DB)
-- Run `db:seed` on staging only for QA
+Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db:seed` on staging only.
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| `Bind for :::6379 failed: port is already allocated` (5432, 9000, 9001) | Host or another container uses that port | Use `docker-compose.prod.yml` with `ports: !reset []`; confirm with `docker compose … config \| grep -A2 'minio:'`; or stop conflict: `sudo ss -tlnp \| grep -E '6379\|5432\|9000\|9001'` |
-| `Bind for 0.0.0.0:80 failed` | Host nginx (or another proxy) already on 80/443 | **Either** stop host nginx and use compose `nginx`, **or** use `docker-compose.prod-host-nginx.yml` and do not start compose `nginx` |
-| API `EAI_AGAIN redis` / can't reach `postgres:5432` | `redis`/`postgres` containers not running (often failed bind) or wrong URLs in `.env` | `docker compose … ps`; fix ports; ensure `REDIS_URL`/`DATABASE_URL` use service names inside Docker, not `127.0.0.1` |
-| Login loop | Wrong `PROPELAUTH_REDIRECT_URI` | Match PropelAuth dashboard exactly |
-| API 401 | Token not sent | Check `/api/auth/access_token`; user logged in |
-| CORS errors | `CORS_ORIGIN` mismatch | Set to exact web origin (scheme + host) |
-| Kitchen not updating | WebSocket blocked | nginx `/socket.io/` upgrade headers |
-| Reports stuck PENDING | Redis down | Check `REDIS_URL`; `docker compose ps redis` |
-| Payroll no file | MinIO/S3 unavailable | Check API logs; storage disables gracefully |
-| Blank API calls from browser | Wrong `NEXT_PUBLIC_API_URL` | Rebuild web with correct public URL |
-| Web UI missing new screens (e.g. Integrations) | Old `web` image still running | `git pull`, `export SOURCE_REV=$(git rev-parse HEAD)`, `build --no-cache web`, `up -d --force-recreate web`; hard-refresh / purge Cloudflare |
-| `docker build` uses old code | No `git pull`, cached layers, or `up` without rebuild | Use `./scripts/docker-rebuild-prod.sh`; confirm build log shows correct `SOURCE_REV` |
-| `docker compose ps` empty but site still up | Wrong cwd/project, or checking laptop while VPS runs `erp` | `cd /opt/erp`; see [vps-docker-operations.md](./vps-docker-operations.md) |
-| `docker compose down` but `ls` still shows `erp` `running(6)` | `down` did not target project `erp`, or second project | `docker compose -p erp … down --remove-orphans`; force-remove; [vps-docker-operations.md § Stop](./vps-docker-operations.md#stop-the-application-completely-vps) |
-| `no such file or directory` for `-f infra/docker/...` | Not in `/opt/erp`, typo, or incomplete clone | `cd /opt/erp` and `ls infra/docker/`; `git pull` |
-
----
-
-## Phase 1 vs later phases
-
-This guide covers **Phase 1 only**. Not required for initial deploy:
-
-- Stripe billing ([saas-launch-guide.md](./saas-launch-guide.md))
-- Procurement, GL reports ([erp-completeness-roadmap.md](./erp-completeness-roadmap.md))
-- Channel manager, offline POS ([phase2/README.md](./phase2/README.md))
-
-Add CI/CD (GitHub Actions → build images → deploy) once pilots are stable.
+| Symptom | Cause | Fix |
+|---------|--------|-----|
+| `Can't reach database server at localhost:5432` in **api** container | `.env` has localhost; overrides missing or api not recreated | Recreate api after pull; bundled stack uses compose `api.environment` |
+| `Bind for :::6379` / `5432` | Host services conflict | Use `docker-compose.prod.yml`; `ss -tlnp` |
+| `Bind for 0.0.0.0:80 failed` | Starting compose **nginx** (removed from default) | Use host nginx only; do not add `docker-compose.nginx.yml` on VPS |
+| 502 from public URL | Host nginx up, api/web down | `curl 127.0.0.1:3001/api/health`; `docker compose "${COMPOSE[@]}" ps` |
+| Login loop | `PROPELAUTH_REDIRECT_URI` mismatch | Match dashboard exactly |
+| CORS errors | `CORS_ORIGIN` ≠ app URL | Align with `NEXT_PUBLIC_APP_URL` |
+| Kitchen not updating | WebSocket blocked | Check `/socket.io/` in host nginx config |
+| Old UI after `git pull` | Image not rebuilt | `./scripts/deploy-prod.sh update web` |
+| `compose ps` empty, site works | Wrong cwd/project | `cd /opt/erp`; see [vps-docker-operations.md](./vps-docker-operations.md) |
+| `SOURCE_REV` warning | Harmless on `ps` | Export for builds: `export SOURCE_REV=$(git rev-parse HEAD)` |
 
 ---
 
 ## Quick checklist
 
 ```
-[ ] DNS → server
-[ ] Postgres + Redis + storage ready
-[ ] PropelAuth production URLs configured
-[ ] .env production values set
-[ ] docker build api + web
-[ ] prisma migrate deploy
-[ ] compose up with docker-compose.prod.yml (+ postgres redis minio nginx)
-[ ] TLS certificate active
-[ ] /api/health OK
-[ ] Login + Phase 1 smoke tests pass
+[ ] DNS → VPS
+[ ] nginx + certbot installed on host
+[ ] /opt/erp/.env (PropelAuth, NEXT_PUBLIC_*, CORS)
+[ ] ./scripts/deploy-prod.sh initial (or manual compose up + migrate)
+[ ] host-nginx.conf.example installed under /etc/nginx
+[ ] certbot / TLS active
+[ ] curl https://app.yourdomain.com/api/health
+[ ] Phase 1 smoke tests
 [ ] Backups scheduled
 ```
 
@@ -585,9 +392,6 @@ Add CI/CD (GitHub Actions → build images → deploy) once pilots are stable.
 
 ## Related docs
 
-- [vps-docker-operations.md](./vps-docker-operations.md) — stop stack, `compose ls` vs `ps`, project `erp`
-- [deployment.md](./deployment.md) — topology summary
-- [local-setup.md](./local-setup.md) — development environment
-- [propelauth.md](./propelauth.md) — authentication
-- [saas-launch-guide.md](./saas-launch-guide.md) — pilots and billing
-- [app-workflow-guide.md](./app-workflow-guide.md) — module behavior after deploy
+- [vps-docker-operations.md](./vps-docker-operations.md)
+- [deployment.md](./deployment.md)
+- [saas-launch-guide.md](./saas-launch-guide.md)

@@ -32,6 +32,8 @@ pnpm db:reset
 
 Use the root [docker-compose.yml](docker-compose.yml) (do **not** pass `-f infra/docker/...` alone — that makes Compose look for `.env` under `infra/docker/`).
 
+**Production VPS:** [docs/cloud-deployment.md](docs/cloud-deployment.md) — `./scripts/deploy-prod.sh initial` then `./scripts/deploy-prod.sh update`.
+
 Equivalent with an explicit env file:
 
 ```bash

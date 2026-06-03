@@ -1,28 +1,38 @@
-# Docker-only upstreams (api/web service names). Production uses host-nginx.conf.example on the VPS.
-upstream api {
-  server api:3001;
+# Production reverse proxy — install on the VPS host (not in Docker).
+# Copy to /etc/nginx/sites-available/erp (adjust server_name and SSL paths), then:
+#   sudo ln -sf /etc/nginx/sites-available/erp /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Compose must publish api/web on localhost only (docker-compose.prod-host-nginx.yml).
+# TLS: use certbot --nginx (paths below) or Cloudflare origin certs (see infra/nginx/nginx.conf).
+
+upstream erp_api {
+  server 127.0.0.1:3001;
+  keepalive 8;
 }
 
-upstream web {
-  server web:3000;
+upstream erp_web {
+  server 127.0.0.1:3000;
+  keepalive 8;
 }
 
 server {
   listen 80;
-  server_name app.one-venue.com;
+  server_name app.yourdomain.com;
   return 301 https://$host$request_uri;
 }
 
 server {
-  listen 443 ssl;
-  server_name app.one-venue.com;
+  listen 443 ssl http2;
+  server_name app.yourdomain.com;
 
-  ssl_certificate     /etc/ssl/cloudflare/origin.pem;
-  ssl_certificate_key /etc/ssl/cloudflare/origin.key;
+  # Let's Encrypt (certbot --nginx)
+  ssl_certificate     /etc/letsencrypt/live/app.yourdomain.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/app.yourdomain.com/privkey.pem;
 
   # NestJS auth endpoints (same-origin API when NEXT_PUBLIC_API_URL is the app domain)
   location /api/auth/sync {
-    proxy_pass http://api/api/auth/sync;
+    proxy_pass http://erp_api/api/auth/sync;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -31,7 +41,7 @@ server {
   }
 
   location /api/auth/me {
-    proxy_pass http://api/api/auth/me;
+    proxy_pass http://erp_api/api/auth/me;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -41,7 +51,7 @@ server {
 
   # PropelAuth Next.js SDK: login, signup, callback, logout, userinfo
   location /api/auth/ {
-    proxy_pass http://web;
+    proxy_pass http://erp_web;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -50,7 +60,7 @@ server {
   }
 
   location /api/ {
-    proxy_pass http://api/api/;
+    proxy_pass http://erp_api/api/;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -59,7 +69,7 @@ server {
   }
 
   location /socket.io/ {
-    proxy_pass http://api/socket.io/;
+    proxy_pass http://erp_api/socket.io/;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -68,7 +78,7 @@ server {
   }
 
   location / {
-    proxy_pass http://web;
+    proxy_pass http://erp_web;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;

@@ -1,50 +1,35 @@
 #!/usr/bin/env bash
-# Rebuild api/web images from /opt/erp source and recreate containers.
-# Usage: ./scripts/docker-rebuild-prod.sh [api|web|all]
+# Backward-compatible alias for deploy-prod update.
+# Usage: ./scripts/docker-rebuild-prod.sh [api|web|all] [--migrate]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+TARGET="${1:-all}"
+shift || true
 
-COMPOSE=(
-  -f "$ROOT/infra/docker/docker-compose.yml"
-  -f "$ROOT/infra/docker/docker-compose.prod.yml"
-)
-if [[ -f "$ROOT/infra/docker/docker-compose.prod-host-nginx.yml" ]]; then
-  COMPOSE+=(-f "$ROOT/infra/docker/docker-compose.prod-host-nginx.yml")
+EXTRA=()
+if [[ "${TARGET}" == "--migrate" ]]; then
+  EXTRA+=(--migrate)
+  TARGET="all"
 fi
 
-TARGET="${1:-all}"
-
-echo "==> git pull"
-git pull
-SOURCE_REV="$(git rev-parse HEAD)"
-echo "==> building commit ${SOURCE_REV} ($(git log -1 --oneline))"
-
-export SOURCE_REV
-# Compose loads .env from project directory ($ROOT) for NEXT_PUBLIC_* build args — do not `source .env` (PEM keys break shell).
-
-case "$TARGET" in
-  api)
-    docker compose "${COMPOSE[@]}" build --pull=false --no-cache api
-    docker compose "${COMPOSE[@]}" up -d --force-recreate --no-deps api
-    ;;
-  web)
-    docker compose "${COMPOSE[@]}" build --pull=false --no-cache web
-    docker compose "${COMPOSE[@]}" up -d --force-recreate --no-deps web
-    ;;
-  all)
-    docker compose "${COMPOSE[@]}" build --pull=false --no-cache api web
-    docker compose "${COMPOSE[@]}" up -d --force-recreate api web
+case "${TARGET}" in
+  api|web|all) ;;
+  -h|--help)
+    exec "${ROOT}/scripts/deploy-prod.sh" help
     ;;
   *)
-    echo "Usage: $0 [api|web|all]" >&2
+    echo "Usage: $0 [api|web|all] [--migrate]" >&2
+    echo "Prefer: ./scripts/deploy-prod.sh update [all|api|web] [--migrate]" >&2
     exit 1
     ;;
 esac
 
-echo "==> verify SOURCE_REV inside containers"
-docker compose "${COMPOSE[@]}" logs --tail=5 api 2>/dev/null || true
-docker compose "${COMPOSE[@]}" exec web sh -c 'grep -r "No integrations yet" /app/apps/web/.next/server 2>/dev/null | head -1 || echo "web: search path may differ; check Settings → Integrations UI"' || true
+for arg in "$@"; do
+  if [[ "${arg}" == "--migrate" ]]; then
+    EXTRA+=(--migrate)
+  fi
+done
 
-echo "==> done"
+echo "note: docker-rebuild-prod.sh → deploy-prod.sh update ${TARGET}"
+exec "${ROOT}/scripts/deploy-prod.sh" update "${TARGET}" "${EXTRA[@]}"

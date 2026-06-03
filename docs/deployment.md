@@ -6,22 +6,21 @@ For **VPS day-two ops** (inspect running containers, stop the stack completely, 
 
 ## Recommended topology
 
-- **nginx** — TLS termination, routes `/` → web, `/api/` → API, `/socket.io/` → API
-- **web** — Next.js standalone container
-- **api** — NestJS container
-- **postgres** — managed DB preferred
-- **redis** — managed Redis for BullMQ
-- **minio** — or S3-compatible object storage
+- **Host nginx** — TLS on 80/443, proxies to `127.0.0.1:3000` (web) and `:3001` (api)
+- **web** / **api** — Docker (localhost bindings in prod)
+- **postgres** / **redis** / **minio** — Docker on VPS, or managed services (Path B)
 
-## Build
+Config: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.example)
+
+## Deploy scripts (VPS)
 
 ```bash
-pnpm install
-pnpm db:generate
-docker compose build
+./scripts/deploy-prod.sh initial          # first time
+./scripts/deploy-prod.sh update [--migrate]
+./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
 ```
 
-Run from the **repository root** so `./.env` is loaded (see [docker-compose.yml](../docker-compose.yml)). Do not use `-f infra/docker/docker-compose.yml` alone unless you pass `--env-file .env`.
+See [cloud-deployment.md](./cloud-deployment.md). Local dev: `docker compose up` from repo root with `.env`.
 
 Dockerfiles: [infra/docker/Dockerfile.api](../infra/docker/Dockerfile.api), [infra/docker/Dockerfile.web](../infra/docker/Dockerfile.web).
 
@@ -48,7 +47,7 @@ Do not run `db:seed` in production unless you want demo data.
 
 ## nginx
 
-See [infra/nginx/nginx.conf](../infra/nginx/nginx.conf).
+Production: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.example) on the VPS host. Optional Docker nginx for local demos: [docker-compose.nginx.yml](../infra/docker/docker-compose.nginx.yml).
 
 ## Health checks
 

@@ -1,5 +1,5 @@
-# Use when nginx/apache on the VPS already owns 80/443 (e.g. certbot --nginx).
-# Do NOT start the compose `nginx` service. Point host nginx at these localhost ports.
+# Production default: host nginx (certbot) owns 80/443; api/web bind localhost only.
+# Install config from infra/nginx/host-nginx.conf.example → /etc/nginx/sites-available/erp
 #
 #   docker compose \
 #     -f infra/docker/docker-compose.yml \

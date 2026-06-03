@@ -1,9 +1,8 @@
-# Run from repo root so Compose loads ./.env for ${VAR} substitution:
+# Run from repo root. All api/web config lives in ./.env (see .env.example).
 #   docker compose build
 #   docker compose up -d
 #
-# Do not use -f infra/docker/docker-compose.yml alone — that uses infra/docker as the
-# project directory and will not read the root .env file.
+# With -f infra/docker/... only, pass: docker compose --env-file .env ...
 
 include:
   - path: ./infra/docker/docker-compose.yml

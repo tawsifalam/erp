@@ -304,17 +304,19 @@ If a database was created with an older migration chain, drop and recreate it (e
 
 ## Step 8 — Start application services
 
-Update [docker-compose.yml](../infra/docker/docker-compose.yml) production overrides:
-
-- Set `CORS_ORIGIN`, `NEXT_PUBLIC_*`, PropelAuth vars from `.env`
-- Remove public ports on `postgres` / `redis` / `minio` if only accessed inside Docker network
-
-Start API and web:
+On a VPS, host Postgres/Redis often already listen on **5432** / **6379**. Use the production overlay so those services are **not** published on the host (API still reaches them as `postgres` and `redis` on the Compose network):
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml up -d api web
-docker compose -f infra/docker/docker-compose.yml logs -f api web
+COMPOSE="-f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml"
+
+docker compose $COMPOSE up -d postgres redis minio
+docker compose $COMPOSE up -d api web nginx   # include nginx if configured
+docker compose $COMPOSE logs -f api web
 ```
+
+Set `CORS_ORIGIN`, `NEXT_PUBLIC_*`, and PropelAuth vars in `.env` before building `web`.
+
+**Do not** set `DATABASE_URL` or `REDIS_URL` in `.env` to `127.0.0.1` when the API runs in Docker — use the compose defaults (`postgres:5432`, `redis:6379`) or omit those keys so the service `environment` block wins.
 
 Verify internally:
 
@@ -413,11 +415,10 @@ Example cron (Postgres on VPS):
 cd /opt/erp
 git pull
 PUPPETEER_SKIP_DOWNLOAD=true pnpm install && pnpm db:generate
-docker compose -f infra/docker/docker-compose.yml build api web
-pnpm --filter @erp/api exec prisma migrate deploy   # with production DATABASE_URL
-#DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/hospitality_erp?sslmode=require" \
-#  pnpm --filter @erp/api exec prisma migrate deploy
-docker compose -f infra/docker/docker-compose.yml up -d api web
+COMPOSE="-f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml"
+docker compose $COMPOSE build api web
+docker compose $COMPOSE exec api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+docker compose $COMPOSE up -d postgres redis minio api web nginx
 ```
 
 Zero-downtime: run two API replicas behind nginx (Phase 2 ops).
@@ -472,6 +473,8 @@ Duplicate Steps 1–11 with:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| `Bind for :::6379 failed: port is already allocated` (or 5432) | Host or another container uses that port | Use `docker-compose.prod.yml` (no host publish); or stop conflicting service: `sudo ss -tlnp \| grep -E '6379\|5432'` |
+| API `EAI_AGAIN redis` / can't reach `postgres:5432` | `redis`/`postgres` containers not running (often failed bind) or wrong URLs in `.env` | `docker compose … ps`; fix ports; ensure `REDIS_URL`/`DATABASE_URL` use service names inside Docker, not `127.0.0.1` |
 | Login loop | Wrong `PROPELAUTH_REDIRECT_URI` | Match PropelAuth dashboard exactly |
 | API 401 | Token not sent | Check `/api/auth/access_token`; user logged in |
 | CORS errors | `CORS_ORIGIN` mismatch | Set to exact web origin (scheme + host) |
@@ -503,7 +506,7 @@ Add CI/CD (GitHub Actions → build images → deploy) once pilots are stable.
 [ ] .env production values set
 [ ] docker build api + web
 [ ] prisma migrate deploy
-[ ] compose up api web (+ postgres redis minio nginx)
+[ ] compose up with docker-compose.prod.yml (+ postgres redis minio nginx)
 [ ] TLS certificate active
 [ ] /api/health OK
 [ ] Login + Phase 1 smoke tests pass

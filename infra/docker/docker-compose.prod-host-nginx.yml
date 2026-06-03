@@ -1,0 +1,19 @@
+# Use when nginx/apache on the VPS already owns 80/443 (e.g. certbot --nginx).
+# Do NOT start the compose `nginx` service. Point host nginx at these localhost ports.
+#
+#   docker compose \
+#     -f infra/docker/docker-compose.yml \
+#     -f infra/docker/docker-compose.prod.yml \
+#     -f infra/docker/docker-compose.prod-host-nginx.yml \
+#     up -d postgres redis minio api web
+#
+# Host nginx should proxy to 127.0.0.1:3000 (web) and 127.0.0.1:3001 (api) per infra/nginx/nginx.conf paths.
+
+services:
+  api:
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  web:
+    ports:
+      - "127.0.0.1:3000:3000"

@@ -310,7 +310,31 @@ On a VPS, host Postgres/Redis often already listen on **5432** / **6379**. Use t
 COMPOSE="-f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml"
 
 docker compose $COMPOSE up -d postgres redis minio
-docker compose $COMPOSE up -d api web nginx   # include nginx if configured
+```
+
+**Reverse proxy (pick one — not both):**
+
+| Setup | When | Start command |
+|-------|------|----------------|
+| **Docker nginx** | Nothing else uses 80/443 on the host | `docker compose $COMPOSE up -d api web nginx` |
+| **Host nginx** | `certbot --nginx` or system nginx already on 80/443 | Add [docker-compose.prod-host-nginx.yml](../infra/docker/docker-compose.prod-host-nginx.yml); **omit** `nginx` from `up` |
+
+Host nginx (second row):
+
+```bash
+COMPOSE_HOST="$COMPOSE -f infra/docker/docker-compose.prod-host-nginx.yml"
+docker compose $COMPOSE_HOST up -d api web
+# Configure /etc/nginx on the VPS to proxy to 127.0.0.1:3000 and 127.0.0.1:3001
+```
+
+Docker nginx (first row) — free ports 80/443 first:
+
+```bash
+sudo systemctl stop nginx apache2 2>/dev/null || true
+docker compose $COMPOSE up -d api web nginx
+```
+
+```bash
 docker compose $COMPOSE logs -f api web
 ```
 
@@ -474,6 +498,7 @@ Duplicate Steps 1–11 with:
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `Bind for :::6379 failed: port is already allocated` (5432, 9000, 9001) | Host or another container uses that port | Use `docker-compose.prod.yml` with `ports: !reset []`; confirm with `docker compose … config \| grep -A2 'minio:'`; or stop conflict: `sudo ss -tlnp \| grep -E '6379\|5432\|9000\|9001'` |
+| `Bind for 0.0.0.0:80 failed` | Host nginx (or another proxy) already on 80/443 | **Either** stop host nginx and use compose `nginx`, **or** use `docker-compose.prod-host-nginx.yml` and do not start compose `nginx` |
 | API `EAI_AGAIN redis` / can't reach `postgres:5432` | `redis`/`postgres` containers not running (often failed bind) or wrong URLs in `.env` | `docker compose … ps`; fix ports; ensure `REDIS_URL`/`DATABASE_URL` use service names inside Docker, not `127.0.0.1` |
 | Login loop | Wrong `PROPELAUTH_REDIRECT_URI` | Match PropelAuth dashboard exactly |
 | API 401 | Token not sent | Check `/api/auth/access_token`; user logged in |

@@ -10,6 +10,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDrawer } from "@/components/form-drawer";
@@ -224,15 +225,13 @@ export function RecipesTab({ tenant }: { tenant: TenantHeaders }) {
                   onValueChange={(v) => updateLine(idx, { inventoryItemId: v })}
                   placeholder="Inventory item"
                 />
-                <Input
-                  size="sm"
-                  width="100%"
-                  type="number"
-                  step="0.001"
+                <AppNumberInput
+                  min={0}
+                  step={0.001}
                   placeholder="Qty"
                   value={line.quantity || ""}
-                  onChange={(e) =>
-                    updateLine(idx, { quantity: Number(e.target.value) || 0 })
+                  onValueChange={(v) =>
+                    updateLine(idx, { quantity: Number(v) || 0 })
                   }
                 />
                 <Button

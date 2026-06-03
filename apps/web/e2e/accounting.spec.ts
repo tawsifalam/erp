@@ -42,7 +42,8 @@ test.describe("Accounting", () => {
     await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
     await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
 
-    const numberInputs = page.locator('input[type="number"]');
+    const journalDialog = page.getByRole("dialog", { name: "Post journal entry" });
+    const numberInputs = journalDialog.getByRole("spinbutton");
     await numberInputs.nth(0).fill("5000");
     await numberInputs.nth(3).fill("5000");
 
@@ -73,7 +74,8 @@ test.describe("Accounting", () => {
     await page.getByRole("button", { name: "+ Line" }).click();
     await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
     await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
-    const numberInputs = page.locator('input[type="number"]');
+    const journalDialog = page.getByRole("dialog", { name: "Post journal entry" });
+    const numberInputs = journalDialog.getByRole("spinbutton");
     await numberInputs.nth(0).fill("250");
     await numberInputs.nth(3).fill("250");
     await page.getByRole("button", { name: "Post journal", exact: true }).click();
@@ -100,7 +102,8 @@ test.describe("Accounting", () => {
     await page.getByRole("button", { name: "+ Line" }).click();
     await pickAppSelectInDrawer(page, "Post journal entry", 1, /4000 — Room Revenue/);
 
-    const numberInputs = page.locator('input[type="number"]');
+    const journalDialog = page.getByRole("dialog", { name: "Post journal entry" });
+    const numberInputs = journalDialog.getByRole("spinbutton");
     await numberInputs.nth(0).fill("100");
     await numberInputs.nth(3).fill("50");
 

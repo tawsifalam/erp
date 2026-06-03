@@ -61,7 +61,7 @@ test.describe("Visual guide — step-by-step flows", () => {
 
     const receiveDrawer = page.getByRole("dialog", { name: "Receive goods" });
     await pickAppSelectInDrawer(page, "Receive goods", 0, /Basmati Rice/);
-    await receiveDrawer.locator('input[type="number"]').fill("10");
+    await receiveDrawer.getByRole("spinbutton").fill("10");
     await captureDrawerStep(page, flow, "07-receive-qty-filled", "Receive goods");
   });
 
@@ -83,7 +83,7 @@ test.describe("Visual guide — step-by-step flows", () => {
     await page.getByRole("button", { name: "+ Record movement" }).click();
     await captureDrawerStep(page, flow, "04-movement-drawer", "Record movement");
     await pickAppSelectInDrawer(page, "Record movement", 0, /Basmati Rice/);
-    await page.locator('input[type="number"]').first().fill("5");
+    await page.getByRole("spinbutton").first().fill("5");
     await captureDrawerStep(page, flow, "05-movement-filled", "Record movement");
   });
 
@@ -212,7 +212,7 @@ test.describe("Visual guide — step-by-step flows", () => {
     await page.getByRole("button", { name: "+ Line" }).click();
     await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
     await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
-    const numberInputs = page.locator('input[type="number"]');
+    const numberInputs = page.getByRole("dialog", { name: "Post journal entry" }).getByRole("spinbutton");
     await numberInputs.nth(0).fill("5000");
     await numberInputs.nth(3).fill("5000");
     await expect(page.getByText("Balanced ✓")).toBeVisible();

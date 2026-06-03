@@ -205,7 +205,7 @@ test.describe("Visual guide — PMS flows", () => {
     await clickRowActionOnPage(page, "Fatima Khan", "Payment");
     await captureDrawerStep(page, flow, "02-payment-drawer", "Record payment");
 
-    await page.locator('input[type="number"]').last().fill("5000");
+    await page.getByRole("spinbutton").last().fill("5000");
     await captureDrawerStep(page, flow, "03-amount-entered", "Record payment");
   });
 });

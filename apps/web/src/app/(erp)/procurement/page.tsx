@@ -10,6 +10,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDrawer } from "@/components/form-drawer";
@@ -337,19 +338,17 @@ export default function ProcurementPage() {
             />
           </FormField>
           <FormField label="Quantity" required>
-            <Input
-              size="sm"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={poForm.quantity}
-              onChange={(e) => setPoForm({ ...poForm, quantity: e.target.value })}
+              onValueChange={(v) => setPoForm({ ...poForm, quantity: v })}
             />
           </FormField>
           <FormField label="Unit price" required>
-            <Input
-              size="sm"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={poForm.unitPrice}
-              onChange={(e) => setPoForm({ ...poForm, unitPrice: e.target.value })}
+              onValueChange={(v) => setPoForm({ ...poForm, unitPrice: v })}
             />
           </FormField>
         </Stack>
@@ -379,11 +378,10 @@ export default function ProcurementPage() {
             />
           </FormField>
           <FormField label="Quantity" required>
-            <Input
-              size="sm"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={receiveQty}
-              onChange={(e) => setReceiveQty(e.target.value)}
+              onValueChange={setReceiveQty}
             />
           </FormField>
         </Stack>

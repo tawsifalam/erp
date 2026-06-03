@@ -78,7 +78,7 @@ test.describe("PMS – delete and payment", () => {
     await clickRowAction(row, "Payment");
     await expect(page.getByRole("heading", { name: "Record payment" })).toBeVisible();
 
-    const input = page.locator('input[type="number"]').last();
+    const input = page.getByRole("spinbutton").last();
     await input.fill("10000");
     await page.getByRole("button", { name: "Save" }).click();
 

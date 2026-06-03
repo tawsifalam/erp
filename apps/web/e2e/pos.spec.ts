@@ -69,7 +69,7 @@ test.describe("POS – lifecycle", () => {
     await page.goto("/pos");
     const row = page.getByRole("row").filter({ hasText: "T-3" });
     await row.getByRole("button", { name: "Complete & Pay" }).click();
-    const input = page.locator('input[type="number"]').last();
+    const input = page.getByRole("spinbutton").last();
     await input.fill("300");
     await page.getByRole("button", { name: "Complete" }).click();
     await showAllPosOrders(page);

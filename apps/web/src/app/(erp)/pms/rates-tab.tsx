@@ -10,6 +10,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import {
   ContentCard,
@@ -366,19 +367,18 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
               />
             </FormField>
             <FormField label="Min stay (nights)">
-              <Input
-                size="sm"
-                type="number"
+              <AppNumberInput
+                min={1}
+                step={1}
                 value={ruleForm.minStayNights}
-                onChange={(e) => setRuleForm({ ...ruleForm, minStayNights: e.target.value })}
+                onValueChange={(v) => setRuleForm({ ...ruleForm, minStayNights: v })}
               />
             </FormField>
             <FormField label="Price per night (override)">
-              <Input
-                size="sm"
-                type="number"
+              <AppNumberInput
+                min={0}
                 value={ruleForm.pricePerNight}
-                onChange={(e) => setRuleForm({ ...ruleForm, pricePerNight: e.target.value })}
+                onValueChange={(v) => setRuleForm({ ...ruleForm, pricePerNight: v })}
               />
             </FormField>
           </SimpleGrid>
@@ -430,12 +430,11 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
             </FormField>
           </SimpleGrid>
           <FormField label="Base modifier" help="Multiplies room base price when no rule override applies.">
-            <Input
-              size="sm"
-              type="number"
-              step="0.01"
+            <AppNumberInput
+              min={0}
+              step={0.01}
               value={planForm.baseModifier}
-              onChange={(e) => setPlanForm({ ...planForm, baseModifier: e.target.value })}
+              onValueChange={(v) => setPlanForm({ ...planForm, baseModifier: v })}
             />
           </FormField>
           <FormField
@@ -464,13 +463,11 @@ export function RatesTab({ tenant }: { tenant: TenantHeaders }) {
               label="F&B supplement per guest per night"
               help="Added to room total (e.g. full board meals charge)."
             >
-              <Input
-                size="sm"
-                type="number"
+              <AppNumberInput
                 min={0}
                 value={planForm.fbSupplementPerGuestPerNight}
-                onChange={(e) =>
-                  setPlanForm({ ...planForm, fbSupplementPerGuestPerNight: e.target.value })
+                onValueChange={(v) =>
+                  setPlanForm({ ...planForm, fbSupplementPerGuestPerNight: v })
                 }
               />
             </FormField>

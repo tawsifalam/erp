@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Box, Button, Flex, Input, Stack, Table, Text } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDrawer } from "@/components/form-drawer";
@@ -386,13 +387,11 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
             />
           </FormField>
           <FormField label="Low stock at" help="Alert when on-hand falls below this level.">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={itemForm.lowStockThreshold}
-              onChange={(e) =>
-                setItemForm({ ...itemForm, lowStockThreshold: e.target.value })
+              onValueChange={(v) =>
+                setItemForm({ ...itemForm, lowStockThreshold: v })
               }
             />
           </FormField>
@@ -458,23 +457,19 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
             </FormField>
           )}
           <FormField label="Quantity" required>
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={movForm.quantity}
-              onChange={(e) => setMovForm({ ...movForm, quantity: e.target.value })}
+              onValueChange={(v) => setMovForm({ ...movForm, quantity: v })}
             />
           </FormField>
           {(movForm.movementType === "PURCHASE" ||
             (movForm.movementType === "ADJUSTMENT" && movForm.adjustmentDirection === "IN")) && (
             <FormField label="Unit cost" help="Updates weighted-average cost on inbound movements.">
-              <Input
-                size="sm"
-                width="100%"
-                type="number"
+              <AppNumberInput
+                min={0}
                 value={movForm.unitCost}
-                onChange={(e) => setMovForm({ ...movForm, unitCost: e.target.value })}
+                onValueChange={(v) => setMovForm({ ...movForm, unitCost: v })}
               />
             </FormField>
           )}
@@ -516,13 +511,11 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
             />
           </FormField>
           <FormField label="Low stock threshold">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={editForm.lowStockThreshold}
-              onChange={(e) =>
-                setEditForm({ ...editForm, lowStockThreshold: e.target.value })
+              onValueChange={(v) =>
+                setEditForm({ ...editForm, lowStockThreshold: v })
               }
             />
           </FormField>

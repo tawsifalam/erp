@@ -1,6 +1,7 @@
 "use client";
 
 import { Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { FormSection } from "@/components/form-section";
 import { FormField } from "@erp/ui";
@@ -230,23 +231,19 @@ export function ReservationFormFields({
           <Stack gap={4} width="100%">
             <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} width="100%">
               <FormField label="Adults">
-                <Input
-                  size="sm"
-                  width="100%"
-                  type="number"
+                <AppNumberInput
                   min={1}
+                  step={1}
                   value={form.adultCount}
-                  onChange={(e) => set({ adultCount: e.target.value })}
+                  onValueChange={(v) => set({ adultCount: v })}
                 />
               </FormField>
               <FormField label="Children">
-                <Input
-                  size="sm"
-                  width="100%"
-                  type="number"
+                <AppNumberInput
                   min={0}
+                  step={1}
                   value={form.childCount}
-                  onChange={(e) => set({ childCount: e.target.value })}
+                  onValueChange={(v) => set({ childCount: v })}
                 />
               </FormField>
             </SimpleGrid>
@@ -265,13 +262,11 @@ export function ReservationFormFields({
               />
             </FormField>
             <FormField label="Meals per guest per night (override)" help="Optional.">
-              <Input
-                size="sm"
-                width="100%"
-                type="number"
+              <AppNumberInput
+                min={0}
                 placeholder="Use package default"
                 value={form.mealsPerGuestPerNightOverride}
-                onChange={(e) => set({ mealsPerGuestPerNightOverride: e.target.value })}
+                onValueChange={(v) => set({ mealsPerGuestPerNightOverride: v })}
               />
             </FormField>
           </Stack>
@@ -286,24 +281,20 @@ export function ReservationFormFields({
         )}
         <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} width="100%">
           <FormField label="Total">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               aria-label="Total amount"
               data-testid="reservation-total-amount"
               value={form.totalAmount}
-              onChange={(e) => set({ totalAmount: e.target.value })}
+              onValueChange={(v) => set({ totalAmount: v })}
             />
           </FormField>
           {mode === "create" && (
             <FormField label="Paid">
-              <Input
-                size="sm"
-                width="100%"
-                type="number"
+              <AppNumberInput
+                min={0}
                 value={form.paidAmount}
-                onChange={(e) => set({ paidAmount: e.target.value })}
+                onValueChange={(v) => set({ paidAmount: v })}
               />
             </FormField>
           )}

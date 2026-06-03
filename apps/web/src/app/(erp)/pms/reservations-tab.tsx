@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Box, Button, Flex, Input, Table, Text } from "@chakra-ui/react";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
+import { AppNumberInput } from "@/components/app-number-input";
 import { FormDialog } from "@/components/form-dialog";
 import { FormDrawer } from "@/components/form-drawer";
 import { RowActionsMenu } from "@/components/row-actions-menu";
@@ -484,12 +485,10 @@ export function ReservationsTab({ tenant }: { tenant: TenantHeaders }) {
         onPrimary={savePayment}
       >
         <FormField label="Paid amount">
-          <Input
-            size="sm"
-            width="100%"
-            type="number"
+          <AppNumberInput
+            min={0}
             value={paymentAmount}
-            onChange={(e) => setPaymentAmount(e.target.value)}
+            onValueChange={setPaymentAmount}
           />
         </FormField>
       </FormDialog>

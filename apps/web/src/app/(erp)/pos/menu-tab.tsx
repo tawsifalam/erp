@@ -10,6 +10,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDrawer } from "@/components/form-drawer";
@@ -360,13 +361,11 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
             />
           </FormField>
           <FormField label="Sort order" help="Lower numbers appear first.">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              step={1}
               value={catForm.sortOrder}
-              onChange={(e) =>
-                setCatForm({ ...catForm, sortOrder: Number(e.target.value) || 0 })
+              onValueChange={(v) =>
+                setCatForm({ ...catForm, sortOrder: Number(v) || 0 })
               }
             />
           </FormField>
@@ -405,13 +404,11 @@ export function MenuTab({ tenant }: { tenant: TenantHeaders }) {
             />
           </FormField>
           <FormField label="Price" required>
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               placeholder="Price"
               value={itemForm.price}
-              onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
+              onValueChange={(v) => setItemForm({ ...itemForm, price: v })}
             />
           </FormField>
           <FormField label="Status">

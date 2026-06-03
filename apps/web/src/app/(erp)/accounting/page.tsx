@@ -11,6 +11,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { FormDrawer } from "@/components/form-drawer";
 import { FormSection } from "@/components/form-section";
@@ -368,21 +369,17 @@ export default function AccountingPage() {
                   />
                 </FormField>
                 <FormField label="Debit">
-                  <Input
-                    size="sm"
-                    width="100%"
-                    type="number"
+                  <AppNumberInput
+                    min={0}
                     value={line.debit}
-                    onChange={(e) => updateLine(i, { debit: e.target.value })}
+                    onValueChange={(v) => updateLine(i, { debit: v })}
                   />
                 </FormField>
                 <FormField label="Credit">
-                  <Input
-                    size="sm"
-                    width="100%"
-                    type="number"
+                  <AppNumberInput
+                    min={0}
                     value={line.credit}
-                    onChange={(e) => updateLine(i, { credit: e.target.value })}
+                    onValueChange={(v) => updateLine(i, { credit: v })}
                   />
                 </FormField>
               </Flex>

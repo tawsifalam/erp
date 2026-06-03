@@ -25,7 +25,7 @@ test.describe("Smoke — Notifications", () => {
     if (await row.isVisible().catch(() => false)) {
       await row.getByRole("button", { name: "View" }).click();
       await page.getByRole("button", { name: "Save changes" }).waitFor({ state: "visible" });
-      await page.locator('input[type="number"]').fill("100");
+      await page.getByRole("spinbutton").fill("100");
       await page.getByRole("button", { name: "Save changes" }).click();
       await expect(page.getByText("LOW").first()).toBeVisible({ timeout: 15_000 });
 

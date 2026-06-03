@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Box, Button, Flex, Input, Stack, Table, Text } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDrawer } from "@/components/form-drawer";
@@ -325,13 +326,11 @@ export function RoomsTab({
             />
           </FormField>
           <FormField label="Price per night" help="Base rate for this room.">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               placeholder="Price/night"
               value={form.basePrice}
-              onChange={(e) => setForm({ ...form, basePrice: e.target.value })}
+              onValueChange={(v) => setForm({ ...form, basePrice: v })}
             />
           </FormField>
         </Stack>

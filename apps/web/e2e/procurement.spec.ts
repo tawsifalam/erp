@@ -37,7 +37,7 @@ test.describe("Procurement", () => {
     await page.getByRole("button", { name: "Receive" }).click();
     const receiveDrawer = page.getByRole("dialog", { name: "Receive goods" });
     await pickAppSelectInDrawer(page, "Receive goods", 0, /Basmati Rice/);
-    await receiveDrawer.locator('input[type="number"]').fill("10");
+    await receiveDrawer.getByRole("spinbutton").fill("10");
     await receiveDrawer.getByRole("button", { name: "Receive" }).click();
     await expect(page.getByText(/Goods received/i)).toBeVisible();
     await expect(page.getByRole("cell", { name: "RECEIVED" })).toBeVisible();
@@ -57,7 +57,7 @@ test.describe("Procurement", () => {
     await page.getByRole("button", { name: "Receive" }).click();
     const receiveDrawer = page.getByRole("dialog", { name: "Receive goods" });
     await pickAppSelectInDrawer(page, "Receive goods", 0, /Basmati Rice/);
-    await receiveDrawer.locator('input[type="number"]').fill("10");
+    await receiveDrawer.getByRole("spinbutton").fill("10");
     await receiveDrawer.getByRole("button", { name: "Receive" }).click();
     await page.getByText(/Goods received/i).waitFor({ timeout: 10_000 });
 

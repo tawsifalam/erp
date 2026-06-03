@@ -51,7 +51,7 @@ test.describe("Inventory – Stock", () => {
     await page.getByRole("button", { name: "+ Record movement" }).click();
     await expect(page.getByRole("heading", { name: "Record movement" })).toBeVisible();
     await pickAppSelectInDrawer(page, "Record movement", 0, /Basmati Rice/);
-    await page.locator('input[type="number"]').first().fill("10");
+    await page.getByRole("spinbutton").first().fill("10");
     await page.getByRole("button", { name: "Record", exact: true }).click();
     await expect(page.getByRole("cell", { name: "130.00" })).toBeVisible({ timeout: 5000 });
   });
@@ -61,7 +61,7 @@ test.describe("Inventory – Stock", () => {
     const row = page.getByRole("row").filter({ hasText: "Olive Oil" });
     await row.getByRole("button", { name: "View" }).click();
     await page.getByRole("button", { name: "Save changes" }).waitFor({ state: "visible" });
-    await page.locator('input[type="number"]').fill("100");
+    await page.getByRole("spinbutton").fill("100");
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("LOW").first()).toBeVisible({ timeout: 5000 });
   });

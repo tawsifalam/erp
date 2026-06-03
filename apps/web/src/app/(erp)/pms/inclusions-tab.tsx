@@ -10,6 +10,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDrawer } from "@/components/form-drawer";
@@ -383,15 +384,14 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
                   }}
                   placeholder="Ingredient"
                 />
-                <Input
-                  size="sm"
-                  width="100%"
-                  type="number"
+                <AppNumberInput
+                  min={0}
+                  step={0.001}
                   placeholder="Qty"
                   value={line.quantity}
-                  onChange={(e) => {
+                  onValueChange={(v) => {
                     const lines = [...recipeForm.lines];
-                    lines[idx] = { ...lines[idx], quantity: e.target.value };
+                    lines[idx] = { ...lines[idx], quantity: v };
                     setRecipeForm({ ...recipeForm, lines });
                   }}
                 />
@@ -442,13 +442,12 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
           </Flex>
           <FormSection title="Meal allowance">
             <FormField label="Meals per guest per night">
-              <Input
-                size="sm"
-                width="100%"
-                type="number"
+              <AppNumberInput
+                min={0}
+                step={1}
                 value={pkgForm.mealsPerGuestPerNight}
-                onChange={(e) =>
-                  setPkgForm({ ...pkgForm, mealsPerGuestPerNight: e.target.value })
+                onValueChange={(v) =>
+                  setPkgForm({ ...pkgForm, mealsPerGuestPerNight: v })
                 }
               />
             </FormField>
@@ -466,13 +465,12 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
           </FormSection>
           <FormSection title="Amenity kit">
             <FormField label="Kits per guest per stay">
-              <Input
-                size="sm"
-                width="100%"
-                type="number"
+              <AppNumberInput
+                min={0}
+                step={1}
                 value={pkgForm.amenityPerGuestPerStay}
-                onChange={(e) =>
-                  setPkgForm({ ...pkgForm, amenityPerGuestPerStay: e.target.value })
+                onValueChange={(v) =>
+                  setPkgForm({ ...pkgForm, amenityPerGuestPerStay: v })
                 }
               />
             </FormField>

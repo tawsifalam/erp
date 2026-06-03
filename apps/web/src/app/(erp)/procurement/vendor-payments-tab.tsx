@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Flex, Input, Stack, Table, Text } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { FormDrawer } from "@/components/form-drawer";
 import { ContentCard, EmptyState, FormField, MoneyText, TableScrollArea } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
-import type { TenantHeaders } from "@/lib/tenant-context";
+import type { TenantHeaders } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
 import { formatDateTime } from "@/lib/format";
 
@@ -221,11 +222,10 @@ export function VendorPaymentsTab({
             />
           </FormField>
           <FormField label="Amount" required>
-            <Input
-              size="sm"
-              type="number"
+            <AppNumberInput
+              min={0}
               value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              onValueChange={(v) => setForm({ ...form, amount: v })}
             />
           </FormField>
           <FormField label="Payment date" required>

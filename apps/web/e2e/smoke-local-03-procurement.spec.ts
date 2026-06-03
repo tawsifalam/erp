@@ -31,7 +31,7 @@ test.describe("Smoke — Procurement", () => {
     await page.getByRole("button", { name: "Receive" }).first().click();
     const receiveDrawer = page.getByRole("dialog", { name: "Receive goods" });
     await pickAppSelectInDrawer(page, "Receive goods", 0, /Rice \(remaining/);
-    await receiveDrawer.locator('input[type="number"]').fill("5");
+    await receiveDrawer.getByRole("spinbutton").fill("5");
     await receiveDrawer.getByRole("button", { name: "Receive" }).click();
     await expect(page.getByText(/Goods received/i)).toBeVisible({ timeout: 15_000 });
   });

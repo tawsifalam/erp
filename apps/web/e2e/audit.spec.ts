@@ -58,7 +58,7 @@ test.describe("Audit log", () => {
     await page.goto("/inventory");
     await page.getByRole("button", { name: "+ Record movement" }).click();
     await pickAppSelectInDrawer(page, "Record movement", 0, /Basmati Rice/);
-    await page.locator('input[type="number"]').first().fill("5");
+    await page.getByRole("spinbutton").first().fill("5");
     await page.getByRole("button", { name: "Record", exact: true }).click();
     await expect(page.getByRole("cell", { name: "125.00" })).toBeVisible({ timeout: 10_000 });
 

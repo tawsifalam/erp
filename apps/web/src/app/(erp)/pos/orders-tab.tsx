@@ -12,6 +12,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
+import { AppNumberInput } from "@/components/app-number-input";
 import { FormDialog } from "@/components/form-dialog";
 import { FormDrawer } from "@/components/form-drawer";
 import { RowActionsMenu } from "@/components/row-actions-menu";
@@ -500,12 +501,10 @@ export function OrdersTab({ tenant }: { tenant: TenantHeaders }) {
           Enter amount received (defaults to full total).
         </Text>
         <FormField label="Paid amount">
-          <Input
-            size="sm"
-            width="100%"
-            type="number"
+          <AppNumberInput
+            min={0}
             value={paymentAmount}
-            onChange={(e) => setPaymentAmount(e.target.value)}
+            onValueChange={setPaymentAmount}
           />
         </FormField>
       </FormDialog>

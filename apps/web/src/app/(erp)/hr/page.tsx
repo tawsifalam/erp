@@ -11,6 +11,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { AppNumberInput } from "@/components/app-number-input";
 import { AppSelect } from "@/components/app-select";
 import { BranchRequiredNotice } from "@/components/branch-required-notice";
 import { FormDialog } from "@/components/form-dialog";
@@ -773,13 +774,11 @@ export default function HrPage() {
             label="Salary"
             help="Base monthly gross pay before meal deductions and payroll adjustments."
           >
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
               placeholder="Salary"
               value={empForm.salary}
-              onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })}
+              onValueChange={(v) => setEmpForm({ ...empForm, salary: v })}
             />
           </FormField>
         </Stack>
@@ -866,16 +865,14 @@ export default function HrPage() {
                   }}
                   placeholder="Select ingredient"
                 />
-                <Input
-                  size="sm"
-                  width="100%"
-                  type="number"
-                  step="0.001"
+                <AppNumberInput
+                  min={0}
+                  step={0.001}
                   placeholder="Qty per meal"
                   value={line.quantity}
-                  onChange={(e) => {
+                  onValueChange={(v) => {
                     const lines = [...recipeForm.lines];
-                    lines[idx] = { ...lines[idx], quantity: e.target.value };
+                    lines[idx] = { ...lines[idx], quantity: v };
                     setRecipeForm({ ...recipeForm, lines });
                   }}
                 />
@@ -938,15 +935,12 @@ export default function HrPage() {
             label="Meals consumed"
             help="Inventory is deducted by recipe × count."
           >
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
               min={1}
               step={1}
               placeholder="Meals consumed"
               value={mealForm.mealCount}
-              onChange={(e) => setMealForm({ ...mealForm, mealCount: e.target.value })}
+              onValueChange={(v) => setMealForm({ ...mealForm, mealCount: v })}
             />
           </FormField>
           <FormField label="Payroll deduction" help="Optionally deduct meal cost from next payroll.">

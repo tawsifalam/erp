@@ -34,7 +34,8 @@ test.describe("Smoke — Accounting", () => {
     await page.getByRole("button", { name: "+ Line" }).click();
     await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
     await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
-    const numberInputs = page.locator('input[type="number"]');
+    const journalDialog = page.getByRole("dialog", { name: "Post journal entry" });
+    const numberInputs = journalDialog.getByRole("spinbutton");
     await numberInputs.nth(0).fill("100");
     await numberInputs.nth(3).fill("100");
     await expect(page.getByText("Balanced ✓")).toBeVisible();
@@ -50,7 +51,8 @@ test.describe("Smoke — Accounting", () => {
     await page.getByRole("button", { name: "+ Line" }).click();
     await pickAppSelectInDrawer(page, "Post journal entry", 0, /5200 — Utilities Expense/);
     await pickAppSelectInDrawer(page, "Post journal entry", 1, /1100 — Bank Account/);
-    const numberInputs = page.locator('input[type="number"]');
+    const journalDialog = page.getByRole("dialog", { name: "Post journal entry" });
+    const numberInputs = journalDialog.getByRole("spinbutton");
     await numberInputs.nth(0).fill("50");
     await numberInputs.nth(3).fill("50");
     await page.getByRole("button", { name: "Post journal", exact: true }).click();

@@ -9,6 +9,7 @@ import {
   TableScrollArea,
   TableSkeleton,
 } from "@erp/ui";
+import { AppNumberInput } from "@/components/app-number-input";
 import { FormDrawer } from "@/components/form-drawer";
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
@@ -196,21 +197,23 @@ export function RoomTypesTab({ tenant }: { tenant: TenantHeaders }) {
         </FormField>
         <SimpleGrid columns={{ base: 1, sm: 2 }} gap={4} width="100%">
           <FormField label="Max adults">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={1}
+              step={1}
               value={form.maxAdults}
-              onChange={(e) => setForm({ ...form, maxAdults: Number(e.target.value) || 1 })}
+              onValueChange={(v) =>
+                setForm({ ...form, maxAdults: Number(v) || 1 })
+              }
             />
           </FormField>
           <FormField label="Max children">
-            <Input
-              size="sm"
-              width="100%"
-              type="number"
+            <AppNumberInput
+              min={0}
+              step={1}
               value={form.maxChildren}
-              onChange={(e) => setForm({ ...form, maxChildren: Number(e.target.value) || 0 })}
+              onValueChange={(v) =>
+                setForm({ ...form, maxChildren: Number(v) || 0 })
+              }
             />
           </FormField>
         </SimpleGrid>

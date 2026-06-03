@@ -146,8 +146,8 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 
 | Runbook / area | Spec file | Steps automated |
 |----------------|-----------|-----------------|
-| Prerequisites P0–P2 | `smoke-local-00-prereq` | API health, dashboard KPIs, all module shells |
-| Prereq P6, P8 + Settings module | `smoke-local-01-settings` | Org rename, add/edit branch, guest/staff pools, custom pool, team join code UI, audit, notification toggle, branch access list, integrations, **channel export** |
+| Prerequisites P0, P3, P1, P7, P8, P2 | `smoke-local-00-prereq` | API health, seed tenant header, dashboard KPIs, COA codes, guest/staff pools, all module shells |
+| Prereq P6 + Settings module | `smoke-local-01-settings` | Org rename, add/edit branch, custom pool, team join code UI, audit, notification toggle, branch access list, integrations, **channel export** |
 | §6 PMS | `smoke-local-02-pms` | Room types, rooms, guests, packages, rates; new reservation + quote; 103 lifecycle; payment drawer; inclusions |
 | §3 Procurement | `smoke-local-03-procurement` | Vendor drawer, PO create/submit/receive, **vendor payment** (Dr AP / Cr Bank), inventory stock, accounting journals |
 | §4 Inventory & POS | `smoke-local-04-inventory-pos` | New item, movement, BOM; POS kitchen send, complete & pay drawer, menu category; kitchen display |
@@ -165,6 +165,7 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 | §5.5 Payslip PDF download | Optional deep check; payroll job must complete + MinIO |
 | §7.2 CSV open / debits=credits | Verify downloaded files by hand |
 | P4–P5 Redis/MinIO reachability | Assumed via Docker; not asserted in UI |
+| P7 COA codes / P8 pools | Automated in `smoke-local-00-prereq` (production: verify in Accounting + Settings) |
 | RBAC / Socket.IO deep checks | Optional runbook appendix |
 
 Training screenshots (mocked E2E): [visual-guide.md](./visual-guide.md) · `pnpm visual-guide`.

@@ -39,8 +39,10 @@ PROPELAUTH_REDIRECT_URI=http://localhost:3000/api/auth/callback
 
 ## 3. Infrastructure
 
+Run from the **repo root** (uses root `.env`):
+
 ```bash
-docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+docker compose up -d postgres redis minio
 ```
 
 ## 4. Database
@@ -63,8 +65,8 @@ pnpm db:seed
 **If you previously ran older migrations locally**, reset Postgres first:
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml down -v   # removes volumes
-docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
+docker compose down -v   # removes volumes
+docker compose up -d postgres redis minio
 pnpm db:reset
 ```
 
@@ -88,6 +90,7 @@ pnpm test:e2e:install        # Once: Playwright browser
 pnpm db:reset && pnpm test:e2e   # Mocked API browser tests (web only)
 
 # Real stack smoke (PropelAuth token + Postgres) — see docs/smoke-local.md
+pnpm smoke:local:setup   # after db:reset or when switching orgs
 pnpm smoke:local
 ```
 

@@ -49,8 +49,8 @@ Permissions: `PMS_READ` / `PMS_WRITE`.
 
 - **PMS → Guest packages** — recipes and packages admin.
 - **PMS → Reservations** — adults, children, package, meal override; **Inclusions** panel when checked in.
-- **POS → Menu** — “Guest inclusion meal” flag on items.
-- **POS → Orders** — optional **Charge to room** for checked-in stays.
+- **POS → Menu** — “Guest inclusion meal” flag on items ([app-workflow-guide §3 Step 1b](./app-workflow-guide.md#step-1b-guest-inclusion-meal-flag-menu)).
+- **POS → Orders** — optional **Charge to room** for checked-in stays; completing the order consumes MEAL allowance for flagged lines.
 
 ## Reservation fields
 

@@ -903,7 +903,7 @@ curl -s "$BASE/pos/menu/categories?branchId=$BRANCH_ID" \
     "name": "Mains",
     "sortOrder": 2,
     "items": [
-      { "id": "mi-biryani-uuid", "name": "Chicken Biryani", "price": "320" },
+      { "id": "mi-biryani-uuid", "name": "Chicken Biryani", "price": "320", "isGuestInclusionMeal": true },
       { "id": "mi-fish-uuid", "name": "Grilled Fish", "price": "450" },
       { "id": "mi-sandwich-uuid", "name": "Club Sandwich", "price": "250" },
       { "id": "mi-beef-uuid", "name": "Beef Curry with Rice", "price": "350" }
@@ -922,9 +922,68 @@ curl -s "$BASE/pos/menu/categories?branchId=$BRANCH_ID" \
 ]
 ```
 
+Seed data marks **Chicken Biryani** as a guest inclusion meal (`isGuestInclusionMeal: true`).
+
+### Step 1b: Guest inclusion meal flag (Menu)
+
+Use this for **complimentary board meals** (full/half board packages from [§2](#step-4b-guest-packages)). The flag does not change menu price at the till — it tells the system which POS line items count against the guest’s **MEAL** allowance when the order is tied to a checked-in stay.
+
+| Requirement | Why |
+|-------------|-----|
+| Menu item `isGuestInclusionMeal: true` | Line counts toward meal consumption |
+| Order `reservationId` set | Links sale to an in-house stay |
+| Reservation `CHECKED_IN` | Allowances exist (snapshotted at check-in) |
+| Guest package with MEAL rules | Entitled qty per night × party size |
+
+**Web UI:** **POS → Menu** → edit item → **Guest inclusion meal** = Yes. Flagged items show a badge in the menu list.
+
+**Create a new inclusion meal item:**
+
+```bash
+CAT_ID="<mains-category-uuid-from-step-1>"
+
+curl -s -X POST "$BASE/pos/menu/items" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "categoryId": "'$CAT_ID'",
+    "name": "Board breakfast",
+    "price": 0,
+    "isActive": true,
+    "isGuestInclusionMeal": true
+  }' | jq
+```
+
+**Enable the flag on an existing item** (seed Biryani example):
+
+```bash
+MENU_ITEM_ID="<mi-biryani-uuid>"
+
+curl -s -X PATCH "$BASE/pos/menu/items/$MENU_ITEM_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"isGuestInclusionMeal": true}' | jq
+```
+
+**Turn off** the flag with `"isGuestInclusionMeal": false`. Items already on old orders keep their stored line prices; the flag only affects future orders.
+
+**On `order.completed`** (after [Step 6](#step-6-complete-the-order-with-payment)), when `reservationId` is set and the stay is `CHECKED_IN`:
+
+1. Sum `quantity` on order lines whose menu item has `isGuestInclusionMeal: true`.
+2. Increment **consumed** on the stay’s MEAL allowance (same recipe as the package snapshot).
+3. Post **GUEST_INCLUSION** inventory movements from the inclusion recipe BOM (guest pool).
+
+If consumed would exceed **entitled**, complete fails with `400` (e.g. guest already used nightly meals). Use **PMS → Reservations → Inclusions** to review balances ([§2 Step 12](#step-12-guest-inclusions-checked-in-stays)).
+
+Non-inclusion lines on the same order still run normal F&B revenue, payment, and recipe COGS. Beverages and à la carte items should stay **`isGuestInclusionMeal: false`**.
+
+> See [guest-inclusions-module.md](guest-inclusions-module.md) for allowance formulas and manual consume/reconcile.
+
 ### Step 2: Create an Order
 
-Use menu item IDs from Step 1. An order starts in `DRAFT` status. For in-house guests, pass `reservationId` of a **CHECKED_IN** stay to **charge to room** (links order to PMS; inclusion meals consume allowances on complete).
+Use menu item IDs from Step 1. An order starts in `DRAFT` status. For in-house guests, pass `reservationId` of a **CHECKED_IN** stay to **charge to room** (links order to PMS). Include at least one line with an inclusion meal item ([Step 1b](#step-1b-guest-inclusion-meal-flag-menu)) if you want POS to deduct board meals on complete.
 
 ```bash
 curl -s -X POST "$BASE/pos/orders" \
@@ -1029,7 +1088,8 @@ Allowed from **SUBMITTED**, **PREPARING**, or **READY** (kitchen prep steps are 
 1. Order status changes to `COMPLETED`
 2. Payment status set: `PAID` (if `paidAmount >= totalAmount`), `PARTIAL`, or `UNPAID`
 3. Event `order.completed` is emitted, which triggers:
-   - **Inventory deduction** — recipe/BOM ingredients are deducted (see [Section 4](#4-inventory-management))
+   - **Guest inclusion meals** — if `reservationId` + inclusion-flagged lines ([Step 1b](#step-1b-guest-inclusion-meal-flag-menu)), MEAL allowance + `GUEST_INCLUSION` stock
+   - **Inventory deduction** — menu recipe/BOM (SALE) for all lines with recipes
    - **Accounting entries** — revenue journal entry + COGS entry (see [Section 5](#5-accounting))
 4. Socket.IO emits `order.updated` (order leaves the kitchen queue)
 

@@ -26,7 +26,7 @@ Select **organization** and **branch** in the header first.
 | Tab | Features |
 |-----|----------|
 | **Orders** | List orders; **new order** cart; optional **Charge to room** (checked-in reservation); table #, notes; Send to Kitchen; Complete & Pay; Cancel; Delete |
-| **Menu** | Categories and items; **Guest inclusion meal** flag for comp board items linked to stay allowances |
+| **Menu** | Categories and items; **Guest inclusion meal** flag for comp board items linked to stay allowances — see [app-workflow-guide §3 Step 1b](./app-workflow-guide.md#step-1b-guest-inclusion-meal-flag-menu) |
 
 ### `/pos/kitchen` (Kitchen display)
 
@@ -104,13 +104,13 @@ curl -s -X POST "$BASE/pos/menu/items" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
-  -d "{\"categoryId\":\"$CAT_ID\",\"name\":\"Chicken Biryani\",\"price\":320}" | jq
+  -d "{\"categoryId\":\"$CAT_ID\",\"name\":\"Chicken Biryani\",\"price\":320,\"isGuestInclusionMeal\":true}" | jq
 
 curl -s -X PATCH "$BASE/pos/menu/items/$ITEM_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
-  -d '{"price":350}' | jq
+  -d '{"price":350,"isGuestInclusionMeal":true}' | jq
 
 curl -s -X DELETE "$BASE/pos/menu/items/$ITEM_ID" \
   -H "Authorization: Bearer $TOKEN" \

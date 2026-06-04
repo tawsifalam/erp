@@ -217,6 +217,32 @@ DATABASE_URL=postgresql://erp:STRONG_PASSWORD@127.0.0.1:5432/hospitality_erp
 - `CORS_ORIGIN` must match `NEXT_PUBLIC_APP_URL`.
 - Do **not** `source .env` for deploy scripts; they use `--env-file` via [scripts/lib/compose-prod.sh](../scripts/lib/compose-prod.sh).
 
+Optional notification email (API container reads these from the same `.env`):
+
+```env
+RESEND_API_KEY=re_...
+EMAIL_FROM=ERP <notifications@yourdomain.com>
+```
+
+See [Email (Resend + PropelAuth)](#email-resend--propelauth) below.
+
+---
+
+## Email (Resend + PropelAuth)
+
+Two providers, two jobs:
+
+| Mail | Provider | Configuration |
+|------|----------|----------------|
+| Login, signup, **Settings → Team invite** | **PropelAuth** | PropelAuth dashboard (sender, branding, redirect URLs) |
+| ERP alerts (low stock, payroll complete/failed) | **Resend** | `RESEND_API_KEY` + `EMAIL_FROM` in `/opt/erp/.env` |
+
+**Resend setup:** Create an API key at [resend.com](https://resend.com), verify your sending domain (DNS), set `EMAIL_FROM` to an address on that domain. Without `RESEND_API_KEY`, in-app notifications still work; the API logs email bodies instead of sending.
+
+**Production check:** [production-smoke-runbook.md](./production-smoke-runbook.md) — §1 (PropelAuth invite), §8.3 (low stock or payroll email when Resend is set). Recipients are the user’s **PropelAuth-synced email** in the ERP; low-stock email goes to Owner/Admin/Accountant roles with **Low stock alerts → Email** enabled in Settings.
+
+**Local test:** Add keys to repo root `.env`, restart `pnpm dev`, ensure Redis is up, record a large **OUT** adjustment on seed item Rice (`INV-001`, threshold 10 kg) while logged in as an admin on the seed org.
+
 ---
 
 ## Step 6–8 — Deploy application (automated)
@@ -383,7 +409,7 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 ```
 [ ] DNS → VPS
 [ ] nginx + certbot installed on host
-[ ] /opt/erp/.env (PropelAuth, NEXT_PUBLIC_*, CORS)
+[ ] /opt/erp/.env (PropelAuth, NEXT_PUBLIC_*, CORS; optional Resend — see Email section)
 [ ] ./scripts/deploy-prod.sh initial (or manual compose up + migrate)
 [ ] host-nginx.conf.example installed under /etc/nginx
 [ ] certbot / TLS active

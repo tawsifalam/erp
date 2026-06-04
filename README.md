@@ -143,6 +143,8 @@ pnpm test:e2e          # E2E (Playwright; mocked API routes + seed data)
 pnpm smoke:local       # Real-stack smoke (PropelAuth + DB; see docs/smoke-local.md)
 ```
 
+Coverage checklist and remaining gaps: [test-coverage-gaps.md](docs/test-coverage-gaps.md).
+
 E2E expects Postgres/Redis running and seed data (`pnpm db:reset`). Playwright starts `pnpm dev` from the repo root unless `CI` is set.
 
 Local smoke (`pnpm smoke:local`) also needs Docker infra, a PropelAuth test user, and `SMOKE_PROPELAUTH_USER_ID` in `.env` — see [smoke-local.md](docs/smoke-local.md).

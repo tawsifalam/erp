@@ -273,6 +273,69 @@ describe("InventoryService", () => {
         },
       });
     });
+
+    it("sets averageUnitCost to unitCost when stock is zero", async () => {
+      mockPrisma.inventoryMovement.findMany.mockResolvedValue([]);
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({
+        id: "item-1",
+        averageUnitCost: 0,
+      });
+      mockPrisma.inventoryMovement.create.mockResolvedValue({});
+
+      await service.createMovement({
+        itemId: "item-1",
+        branchId: "branch-1",
+        movementType: MovementType.PURCHASE,
+        quantity: 10,
+        unitCost: 12.5,
+      });
+
+      expect(mockPrisma.inventoryItem.update).toHaveBeenCalledWith({
+        where: { id: "item-1" },
+        data: { averageUnitCost: 12.5 },
+      });
+    });
+
+    it("updates weighted average when stock and unitCost are present", async () => {
+      mockPrisma.inventoryMovement.findMany.mockResolvedValue([
+        { quantity: 20, direction: MovementDirection.IN },
+      ]);
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({
+        id: "item-1",
+        averageUnitCost: 10,
+      });
+      mockPrisma.inventoryMovement.create.mockResolvedValue({});
+
+      await service.createMovement({
+        itemId: "item-1",
+        branchId: "branch-1",
+        movementType: MovementType.PURCHASE,
+        quantity: 10,
+        unitCost: 16,
+      });
+
+      // (20 * 10 + 10 * 16) / 30 = 12
+      expect(mockPrisma.inventoryItem.update).toHaveBeenCalledWith({
+        where: { id: "item-1" },
+        data: { averageUnitCost: 12 },
+      });
+      expect(mockPrisma.inventoryMovement.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ unitCost: 16 }),
+      });
+    });
+
+    it("does not update averageUnitCost when unitCost is omitted", async () => {
+      mockPrisma.inventoryMovement.create.mockResolvedValue({});
+
+      await service.createMovement({
+        itemId: "item-1",
+        branchId: "branch-1",
+        movementType: MovementType.PURCHASE,
+        quantity: 5,
+      });
+
+      expect(mockPrisma.inventoryItem.update).not.toHaveBeenCalled();
+    });
   });
 
   describe("listItems", () => {

@@ -129,4 +129,95 @@ test.describe("Role-based navigation", () => {
     await page.goto("/hr");
     await expect(page).toHaveURL(/\/pms/, { timeout: 10000 });
   });
+
+  test("CASHIER user sees POS in sidebar and not dashboard link", async ({ page }) => {
+    await mockAuth(page);
+    await mockApiRoutes(page);
+
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              organizationId: "org-test-001",
+              role: "CASHIER",
+              organization: {
+                id: "org-test-001",
+                name: "Test Hotel",
+                branches: [{ id: "branch-test-001", name: "Main" }],
+              },
+            },
+          ]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto("/pos");
+    await expect(page.getByRole("link", { name: "POS" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Accounting" })).toHaveCount(0);
+  });
+
+  test("CASHIER navigating to /dashboard is redirected to /pos", async ({ page }) => {
+    await mockAuth(page);
+    await mockApiRoutes(page);
+
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              organizationId: "org-test-001",
+              role: "CASHIER",
+              organization: {
+                id: "org-test-001",
+                name: "Test Hotel",
+                branches: [{ id: "branch-test-001", name: "Main" }],
+              },
+            },
+          ]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/pos/, { timeout: 10000 });
+  });
+
+  test("KITCHEN user navigating to /dashboard is redirected to kitchen display", async ({
+    page,
+  }) => {
+    await mockAuth(page);
+    await mockApiRoutes(page);
+
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              organizationId: "org-test-001",
+              role: "KITCHEN",
+              organization: {
+                id: "org-test-001",
+                name: "Test Hotel",
+                branches: [{ id: "branch-test-001", name: "Main" }],
+              },
+            },
+          ]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/pos\/kitchen/, { timeout: 10000 });
+  });
 });

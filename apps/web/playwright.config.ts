@@ -80,14 +80,12 @@ export default defineConfig({
       },
     },
   ],
-  // E2E mocks API on :3001 — only Next.js is required locally.
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: "pnpm --filter @erp/web dev",
-        cwd: "../../",
-        url: "http://localhost:3000",
-        reuseExistingServer: true,
-        timeout: 120_000,
-      },
+  // E2E mocks API on :3001 — only Next.js is required (local and CI).
+  webServer: {
+    command: "pnpm --filter @erp/web dev",
+    cwd: "../../",
+    url: "http://localhost:3000",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });

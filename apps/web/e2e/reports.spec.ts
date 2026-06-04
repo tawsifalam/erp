@@ -52,4 +52,19 @@ test.describe("Reports", () => {
     await page.goto("/reports");
     await expect(page.getByRole("button", { name: "Export PDF" })).toHaveCount(0);
   });
+
+  test("queues general ledger export with account code", async ({ page }) => {
+    await page.goto("/reports");
+    const typeSelect = page.locator("select").filter({
+      has: page.locator('option[value="general_ledger"]'),
+    });
+    await typeSelect.selectOption("general_ledger", { force: true });
+    await expect(page.getByText("Account code")).toBeVisible();
+    await page.getByLabel("Account code").fill("1100");
+    await page.getByRole("button", { name: "Export CSV" }).click();
+    await expect(page.getByText(/Export queued/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("cell", { name: "general_ledger" }).first()).toBeVisible({
+      timeout: 10_000,
+    });
+  });
 });

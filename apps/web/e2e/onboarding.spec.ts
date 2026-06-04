@@ -220,4 +220,66 @@ test.describe("Role-based navigation", () => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/pos\/kitchen/, { timeout: 10000 });
   });
+
+  test("ACCOUNTANT user navigating to /settings is redirected to /accounting", async ({
+    page,
+  }) => {
+    await mockAuth(page);
+    await mockApiRoutes(page);
+
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              organizationId: "org-test-001",
+              role: "ACCOUNTANT",
+              organization: {
+                id: "org-test-001",
+                name: "Test Hotel",
+                branches: [{ id: "branch-test-001", name: "Main" }],
+              },
+            },
+          ]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto("/settings");
+    await expect(page).toHaveURL(/\/accounting/, { timeout: 10000 });
+  });
+
+  test("HR user sees HR link and not settings or PMS in sidebar", async ({ page }) => {
+    await mockAuth(page);
+    await mockApiRoutes(page);
+
+    await page.route(backendApiListRoute("tenants/organizations"), (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              organizationId: "org-test-001",
+              role: "HR",
+              organization: {
+                id: "org-test-001",
+                name: "Test Hotel",
+                branches: [{ id: "branch-test-001", name: "Main" }],
+              },
+            },
+          ]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto("/hr");
+    await expect(page.getByRole("link", { name: "HR" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "PMS" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
+  });
 });

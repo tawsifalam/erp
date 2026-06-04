@@ -82,4 +82,17 @@ test.describe("HR", () => {
     await acceptConfirmDialog(page);
     await expect(page.getByText(/Payroll run queued/i)).toBeVisible({ timeout: 5000 });
   });
+
+  test("downloads payslip PDF for completed payroll run", async ({ page }) => {
+    await page.goto("/hr");
+    await page.getByRole("tab", { name: /Payroll/i }).click();
+    await expect(page.getByTestId("download-payslip")).toBeVisible();
+
+    const payslipResponse = page.waitForResponse(
+      (r) => r.url().includes("/payslip") && r.request().method() === "GET" && r.ok(),
+    );
+    await page.getByTestId("download-payslip").click();
+    const res = await payslipResponse;
+    expect(res.headers()["content-type"]).toContain("application/pdf");
+  });
 });

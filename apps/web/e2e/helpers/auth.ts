@@ -83,6 +83,11 @@ import {
   handleIntegrationWebhook,
   resetIntegrationsState,
 } from "./integrations-state";
+import {
+  handleJoinRequestMutation,
+  lookupOrgByJoinCode,
+  resetJoinRequestState,
+} from "./join-request-state";
 
 /** Nest API on port 3001 (localhost or 127.0.0.1). */
 export function isBackendApiUrl(url: string): boolean {
@@ -355,6 +360,7 @@ export async function mockApiRoutes(page: Page) {
   resetNotificationState();
   resetNotificationPreferenceState();
   resetIntegrationsState();
+  resetJoinRequestState();
 
   const fulfillJson = (route: import("@playwright/test").Route, body: unknown) =>
     route.fulfill({
@@ -554,8 +560,19 @@ export async function mockApiRoutes(page: Page) {
 
   await page.route(backendApiRoute("tenants/join-requests"), async (route) => {
     const method = route.request().method();
-    if (method === "GET") return fulfillJson(route, []);
-    return fulfillJson(route, {});
+    const url = route.request().url();
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const result = handleJoinRequestMutation(method, url, body, "test-user-id", String(orgId));
+    if (result === null) return fulfillJson(route, {});
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
+    return fulfillJson(route, result);
   });
 
   await page.route(backendApiRoute("tenants/invites"), async (route) => {
@@ -575,9 +592,12 @@ export async function mockApiRoutes(page: Page) {
     fulfillJson(route, []),
   );
 
-  await page.route(backendApiRoute("tenants/organizations/by-join-code/"), (route) =>
-    fulfillJson(route, null),
-  );
+  await page.route(backendApiRoute("tenants/organizations/by-join-code/"), (route) => {
+    const code = decodeURIComponent(
+      route.request().url().split("/by-join-code/")[1]?.split("?")[0] ?? "",
+    );
+    return fulfillJson(route, lookupOrgByJoinCode(code));
+  });
 
   await page.route(backendApiRoute("tenants/organizations/current"), async (route) => {
     const method = route.request().method();
@@ -867,6 +887,13 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("payroll/runs"), async (route) => {
     const method = route.request().method();
     const url = route.request().url();
+    if (method === "GET" && url.includes("/payslip")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/pdf",
+        body: Buffer.from("%PDF-1.4\n% Mock payslip"),
+      });
+    }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleHrMutation(method, url, body);
     return fulfillJson(route, result);

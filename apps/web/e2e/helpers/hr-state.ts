@@ -23,6 +23,7 @@ type MockAttendance = {
 type MockPayrollRun = {
   id: string;
   status: string;
+  payslipKey?: string | null;
   periodStart: string;
   periodEnd: string;
   createdAt: string;
@@ -64,6 +65,7 @@ const INITIAL_PAYROLL: MockPayrollRun[] = [
   {
     id: "pr_001",
     status: "COMPLETED",
+    payslipKey: "payroll/pr_001.pdf",
     periodStart: "2026-05-01T00:00:00Z",
     periodEnd: "2026-05-31T00:00:00Z",
     createdAt: "2026-05-28T12:00:00Z",

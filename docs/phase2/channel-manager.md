@@ -78,7 +78,7 @@ All routes require `ADMIN` and `X-Organization-Id`. Connection must use a channe
 
 ## UI
 
-**Settings → Integrations** — when a **channel** connection is selected:
+**Settings → Integrations** — when a **channel** connection is selected. API walkthrough: [app-workflow-guide §13](../app-workflow-guide.md#13-integrations-channel-manager).
 
 - Date range + **Export availability** (preview table)
 - **Manual availability blocks** (add / remove)

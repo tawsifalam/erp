@@ -10,14 +10,14 @@ Path from **Phase 1 hospitality operations platform** (current) to a **complete 
 | PMS | Rooms, guests, reservations, rates, housekeeping | [pms-module.md](./pms-module.md) |
 | POS | Menu, orders, kitchen, payments | [pos-module.md](./pos-module.md) |
 | Inventory | Ledger, movements, weighted-average costing, recipes/BOM, pools | [inventory-module.md](./inventory-module.md) |
-| Procurement | Vendors, POs, receive → stock + AP journal | — |
+| Procurement | Vendors, POs, receive → stock + AP journal | [app-workflow-guide §11](./app-workflow-guide.md#11-procurement) |
 | Accounting | CoA, manual journals, PMS/POS/payroll auto-posting | [accounting-module.md](./accounting-module.md) |
 | HR | Employees, attendance, staff meals, payroll runs | [hr-module.md](./hr-module.md) |
 | Payroll | Async runs, GL journals, PDF payslip | [hr-module.md](./hr-module.md) § Payroll |
 | Reporting | Dashboard metrics, operational + financial CSV exports | [reporting-module.md](./reporting-module.md) |
 | Notifications | In-app bell; email via Resend when `RESEND_API_KEY` is set | — |
 
-**Still a stub:** `integrations` (health check only).
+**Integrations:** Channel manager connections, webhooks, availability export/blocks — [phase2/channel-manager.md](./phase2/channel-manager.md), Settings UI.
 
 **Phase 1 sign-off:** [phase1-signoff.md](./phase1-signoff.md) (Feb 2026).
 

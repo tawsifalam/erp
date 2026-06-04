@@ -112,6 +112,7 @@ Successful delete cascades rooms, reservations, POS, inventory, and related bran
 
 - [Tenant model](tenant-model.md) — hierarchy, headers, RBAC
 - [App Workflow Guide §1b](app-workflow-guide.md#1b-organization--branch-management) — curl examples
+- [App Workflow Guide §13](app-workflow-guide.md#13-integrations-channel-manager) — OTA connections, webhooks, availability
 - [Inventory module](inventory-module.md) — pools, items, movements
 
 ## Tests

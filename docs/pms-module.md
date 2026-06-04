@@ -39,11 +39,12 @@ Lists use **`ContentCard`** + **`TableScrollArea`**; non-critical columns hide o
 
 | Tab | Features |
 |-----|----------|
-| **Reservations** | List stays; create CONFIRMED/INQUIRY; **adults/children**, **guest package**, optional **meals/night override**; **Inclusions** panel when CHECKED_IN; edit; confirm; check-in/out; cancel; payment; delete |
-| **Guest packages** | Inclusion recipes (meal + amenity BOM) and org packages — see [Guest inclusions](./guest-inclusions-module.md) |
+| **Reservations** | List stays; create CONFIRMED/INQUIRY; **adults/children**, **guest package**, optional **meals/night override**; **pricing quote**; **Inclusions** panel when CHECKED_IN; edit; confirm; check-in/out; cancel; payment; delete |
 | **Rooms** | List rooms; create room; **edit** room number, type, price; **delete** (not OCCUPIED / active reservations); housekeeping status buttons; live updates via Socket.IO `room.status` |
 | **Room types** | Create/edit/**delete** types (`maxAdults`, `maxChildren`; delete blocked if rooms use type) |
 | **Guests** | Create/edit/delete guests (delete blocked if active reservations exist) |
+| **Guest packages** | Inclusion recipes (meal + amenity BOM) and org packages — see [Guest inclusions](./guest-inclusions-module.md) |
+| **Rates** | Rate plans per room type + date range; optional guest package + F&B supplement; pricing rules — see [App workflow guide §2](./app-workflow-guide.md#2-property-management-system-pms) |
 
 Branch setup (create branches) is under **Settings** (`/tenants/branches`). `POST /pms/branches` remains for API/scripts.
 
@@ -233,6 +234,20 @@ curl -s -X DELETE "$BASE/pms/reservations/$RES_ID?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
 ```
+
+### Rate plans and pricing
+
+```bash
+curl -s "$BASE/pms/rate-plans" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s "$BASE/pms/pricing/quote?roomId=$ROOM_ID&checkIn=2026-06-01T14:00:00Z&checkOut=2026-06-03T11:00:00Z&adultCount=2&childCount=0" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Guest packages and inclusion recipes: `/inclusions/*` — see [guest-inclusions-module.md](./guest-inclusions-module.md) and [app-workflow-guide §2](./app-workflow-guide.md#2-property-management-system-pms).
 
 ## Realtime
 

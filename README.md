@@ -153,7 +153,7 @@ Local smoke (`pnpm smoke:local`) also needs Docker infra, a PropelAuth test user
 
 - [Local Setup](docs/local-setup.md) — full environment configuration
 - [PropelAuth](docs/propelauth.md) — authentication integration
-- [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with examples ([§1b org & branch management](docs/app-workflow-guide.md#1b-organization--branch-management))
+- [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with curl examples ([PMS](docs/app-workflow-guide.md#2-property-management-system-pms), [procurement](docs/app-workflow-guide.md#11-procurement), [integrations](docs/app-workflow-guide.md#13-integrations-channel-manager))
 - [PMS Module](docs/pms-module.md) — property management (rooms, reservations, housekeeping)
 - [POS Module](docs/pos-module.md) — point of sale (menu, orders, kitchen, payments)
 - [Inventory Module](docs/inventory-module.md) — stock ledger, movements, recipes/BOM

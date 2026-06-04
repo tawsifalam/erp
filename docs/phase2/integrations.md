@@ -78,7 +78,7 @@ Creates or reuses guest by email, then `PmsService.createReservation` with `INQU
 
 ## UI
 
-**Settings → Integrations** (admin):
+**Settings → Integrations** (admin). Step-by-step curls: [app-workflow-guide §13](../app-workflow-guide.md#13-integrations-channel-manager).
 
 - Connections table (enable/disable, rotate secret, delete)
 - Webhook URL + secret preview for selected connection

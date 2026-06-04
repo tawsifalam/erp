@@ -18,6 +18,9 @@
 - [7. Reporting & Dashboard](#7-reporting--dashboard)
 - [8. Event-Driven Architecture](#8-event-driven-architecture)
 - [9. Realtime (Socket.IO)](#9-realtime-socketio)
+- [11. Procurement](#11-procurement)
+- [12. Notifications](#12-notifications)
+- [13. Integrations (Channel Manager)](#13-integrations-channel-manager)
 - [10. Testing](#10-testing)
 
 ---
@@ -78,6 +81,9 @@ The seed script creates a fully functional demo environment:
 | Menu Items      |    10 | Biryani, Fish, Tea, Coffee, etc.          |
 | Inventory Items |    12 | Rice, Chicken, Oil, Eggs, etc.            |
 | Recipes (BOM)   |     8 | Linked to menu items                      |
+| Guest packages  |     2 | Full board (3 meals), Budget (1 meal)     |
+| Inclusion recipes |   2 | Standard guest meal, Standard amenity kit |
+| Vendors         |     1 | Fresh Foods Ltd (procurement)             |
 | Employees       |     5 | Chef, Front Desk, Waiter, etc.            |
 
 #### Key Seed IDs
@@ -118,8 +124,10 @@ Every curl example in this guide assumes these shell variables are set:
 TOKEN="your-propelauth-access-token"
 ORG_ID="00000000-0000-0000-0000-000000000100"
 BRANCH_ID="00000000-0000-0000-0000-000000000001"
-BASE="http://localhost:3001"
+BASE="http://localhost:3001/api"
 ```
+
+All API paths in this guide are relative to `$BASE` (NestJS global prefix `api`).
 
 ---
 
@@ -193,6 +201,7 @@ Prefixed IDs (e.g. `org_…`, `br_…`) make it easy to recognize entity types i
          ├── PMS ──────── reservations, rooms, guests (branch)
          ├── POS ──────── orders, menu (branch)
          ├── Inventory ─ items, movements (branch)
+         ├── Procurement ─ vendors, POs (branch)
          ├── Accounting ─ accounts, journals (organization)
          ├── HR ───────── employees (org; optional branch)
          └── Reporting ─ dashboard metrics (org + branch)
@@ -214,10 +223,49 @@ Open **Settings** (`/settings`) in the sidebar (OWNER / ADMIN only for managemen
 | **Add branch** | Creates a new `Branch` under the current organization. |
 | **Edit branch** | Updates branch `name` and `timezone`. |
 | **Delete branch** | Removes a branch after confirmation; cannot delete the only branch or one with active reservations. |
-| **Team & access** | Approve join requests (with role), manage members, copy join code. |
-| **Inventory pools** | View/edit guest & staff pools; add custom pools (codes as text slugs). |
+| **Team & access** | Invite by email, revoke invites, approve/reject join requests, change roles, remove members, copy join code. |
+| **Audit log** | Filterable list of create/update/delete actions (who, what, when). |
+| **Inventory pools** | View/edit guest, staff, and housekeeping pools; add custom pools (codes as text slugs). |
+| **Branch access** | Restrict which branches a member can select in the header (empty = all branches). |
+| **Integrations** | OTA/channel connections — see [§13 Integrations](#13-integrations-channel-manager) |
+| **Notifications** | Per-type in-app and email preferences (all users). |
 
 After changes, the app refreshes memberships so the header **Organization / Branch** dropdowns stay in sync.
+
+> **References:** [settings-module.md](settings-module.md), [organization-onboarding.md](organization-onboarding.md), [phase2/channel-manager.md](phase2/channel-manager.md).
+
+### Team & access API (invite / join)
+
+```bash
+# List pending email invites (admin)
+curl -s "$BASE/tenants/invites" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+# Send invite
+curl -s -X POST "$BASE/tenants/invites" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"staff@example.com","role":"FRONT_DESK"}' | jq
+
+# List pending join requests (admin)
+curl -s "$BASE/tenants/join-requests" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+# Approve join request with role
+curl -s -X POST "$BASE/tenants/join-requests/$REQUEST_ID/approve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"CASHIER"}' | jq
+
+# Audit log (admin)
+curl -s "$BASE/audit/logs?limit=50" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
 
 ### API: Tenant management (`/api/tenants`)
 
@@ -305,9 +353,9 @@ curl -s -X POST "$BASE/tenants/organizations" \
 
 ## 2. Property Management System (PMS)
 
-The PMS module handles room types, rooms, guests, reservations, availability, housekeeping, and realtime room status per branch.
+The PMS module handles room types, rooms, guests, **guest packages**, **rate plans**, reservations, availability, housekeeping, stay **inclusions**, and realtime room status per branch.
 
-> **Full reference:** [docs/pms-module.md](pms-module.md) — API tables, Web UI tabs, state machines, payments, and testing.
+> **Full references:** [pms-module.md](pms-module.md), [guest-inclusions-module.md](guest-inclusions-module.md), [visual-guide.md § PMS setup](./visual-guide.md#pms--recommended-setup-order).
 
 ### Web UI (`/pms`)
 
@@ -315,12 +363,29 @@ After selecting **organization** and **branch** in the header, open **PMS** in t
 
 | Tab | Features |
 |-----|----------|
-| **Reservations** | List stays; create CONFIRMED/INQUIRY; **edit** (guest, dates, room, total); confirm inquiry; check-in/out; cancel; record `paidAmount` via Payment modal; **delete** (not while CHECKED_IN) |
-| **Rooms** | List rooms; create room; **edit** room number, type, price; **delete** (not OCCUPIED / active reservations); housekeeping status buttons; live updates via Socket.IO `room.status` |
-| **Room types** | Create/edit/**delete** types (`maxAdults`, `maxChildren`; delete blocked if rooms use type) |
-| **Guests** | Create/edit/**delete** guests (delete blocked if active reservations exist) |
+| **Reservations** | Create CONFIRMED/INQUIRY; **adults/children**, **guest package**, optional **meals/night override**; **pricing quote** in drawer; confirm; check-in/out; cancel; **Payment**; **Inclusions** panel when CHECKED_IN; edit; delete (not while CHECKED_IN) |
+| **Rooms** | CRUD rooms; housekeeping **VACANT** / **DIRTY** / **MAINTENANCE**; Socket.IO `room.status` |
+| **Room types** | CRUD types (`maxAdults`, `maxChildren`) |
+| **Guests** | CRUD org-wide guest book |
+| **Guest packages** | **Inclusion recipes** (meal/amenity BOM) and **packages** (meals per night, kits per stay) |
+| **Rates** | **Rate plans** per room type + date range; optional **guest package** + F&B supplement; **rules** (day of week, min stay, price override) |
 
 Branch creation is under **Settings** (`/tenants/branches`). Use `POST /pms/branches` only for API/scripts.
+
+### Recommended setup order
+
+Create master data **before** reservations. Rate plans need a **room type**; packages need **inclusion recipes** (inventory items in guest/housekeeping pools).
+
+| Order | Tab | Action |
+|------:|-----|--------|
+| 1 | Room types | + Add room type |
+| 2 | Rooms | + Add room (type, base price) |
+| 3 | Guests | + Add guest |
+| 4a | Guest packages | + New recipe (meal or amenity BOM) |
+| 4b | Guest packages | + New package (link recipes, meals/night) |
+| 5 | Rates | + Add rate plan (+ rules on plan row) |
+| 6 | Reservations | + New reservation (quote → total) |
+| 7+ | Reservations / Rooms | Confirm → check-in → inclusions → payment → check-out → housekeeping |
 
 ### Step 1: List Branches
 
@@ -482,6 +547,106 @@ curl -s -X DELETE "$BASE/pms/guests/$GUEST_ID" \
   -H "X-Organization-Id: $ORG_ID" | jq
 ```
 
+### Step 4a: Guest inclusion recipes
+
+Recipes are branch-scoped BOMs for one **meal** (guest pool) or **amenity kit** (housekeeping pool).
+
+```bash
+# List recipes for branch
+curl -s "$BASE/inclusions/recipes?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+
+# Create meal recipe (use inventory item IDs from /inventory/items)
+curl -s -X POST "$BASE/inclusions/recipes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branchId": "'$BRANCH_ID'",
+    "name": "Standard guest meal",
+    "inclusionType": "MEAL",
+    "lines": [
+      { "inventoryItemId": "<rice-inv-id>", "quantity": 0.15 },
+      { "inventoryItemId": "<chicken-inv-id>", "quantity": 0.1 }
+    ]
+  }' | jq
+```
+
+Seed includes **Standard guest meal** and **Standard amenity kit** on the main branch.
+
+### Step 4b: Guest packages
+
+Packages are organization-scoped bundles (meals per guest per night, amenity kits per stay).
+
+```bash
+curl -s "$BASE/inclusions/packages" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/inclusions/packages" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Full board (3 meals)",
+    "isDefault": true,
+    "rules": [
+      {
+        "inclusionType": "MEAL",
+        "inclusionRecipeId": "<meal-recipe-id>",
+        "quantityPerGuestPerNight": 3
+      },
+      {
+        "inclusionType": "AMENITY_KIT",
+        "inclusionRecipeId": "<amenity-recipe-id>",
+        "quantityPerGuestPerStay": 1,
+        "autoIssueOnCheckIn": true
+      }
+    ]
+  }' | jq
+```
+
+Save `PACKAGE_ID` from the list response (seed default: **Full board (3 meals)**).
+
+### Step 4c: Rate plans and rules
+
+Rate plans apply to a **room type** and date range. Optionally attach a **guest package** and **F&B supplement per guest per night** (added to the stay quote).
+
+```bash
+ROOM_TYPE_ID="00000000-0000-0000-0000-000000000010"
+
+curl -s "$BASE/pms/rate-plans" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/pms/rate-plans" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "roomTypeId": "'$ROOM_TYPE_ID'",
+    "name": "Summer standard",
+    "validFrom": "2026-01-01T00:00:00Z",
+    "validTo": "2026-12-31T23:59:59Z",
+    "baseModifier": 1,
+    "isActive": true,
+    "inclusionPackageId": "'$PACKAGE_ID'",
+    "fbSupplementPerGuestPerNight": 800
+  }' | jq
+
+# Add rule: Saturday nights at fixed price
+curl -s -X POST "$BASE/pms/rate-plans/$RATE_PLAN_ID/rules" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"dayOfWeek": 6, "pricePerNight": 5000}' | jq
+```
+
+Pricing uses each room's `basePrice` × plan `baseModifier`, then rule overrides (day of week, min stay). F&B supplement = `fbSupplementPerGuestPerNight × nights × (adults + children)` when a package is linked.
+
 ### Step 5: Check Room Availability
 
 Optional: `roomTypeId`, `excludeReservationId` (when changing dates on an existing booking).
@@ -513,9 +678,19 @@ curl -s "$BASE/pms/availability?branchId=$BRANCH_ID&checkIn=2026-06-01T14:00:00Z
 ]
 ```
 
+### Step 5b: Pricing quote (before booking)
+
+```bash
+curl -s "$BASE/pms/pricing/quote?roomId=$ROOM_ID&checkIn=2026-06-01T14:00:00Z&checkOut=2026-06-03T11:00:00Z&adultCount=2&childCount=0" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Response includes `roomTotal`, optional `fbSupplement`, and `total` — use `total` as `totalAmount` on create/update when rate plans apply.
+
 ### Step 6: Create a Reservation
 
-Use the guest ID from Step 4 and a room ID from Step 5:
+Use the guest ID from Step 4 and a room ID from Step 5. Omit `totalAmount` to auto-calculate from rate plans when configured.
 
 ```bash
 GUEST_ID="00000000-0000-0000-0000-000000000301"   # Rahim Ahmed (seed)
@@ -532,6 +707,9 @@ curl -s -X POST "$BASE/pms/reservations" \
     \"roomId\": \"$ROOM_ID\",
     \"checkIn\": \"2026-06-01T14:00:00Z\",
     \"checkOut\": \"2026-06-03T11:00:00Z\",
+    \"adultCount\": 2,
+    \"childCount\": 0,
+    \"packageId\": \"$PACKAGE_ID\",
     \"totalAmount\": 7000
   }" | jq
 ```
@@ -613,18 +791,43 @@ Create inquiries with `"status":"INQUIRY"` on `POST /pms/reservations` — they 
 ### Step 11: Edit and delete reservations
 
 ```bash
-# Edit guest, dates, room, or total (availability re-checked for CONFIRMED)
+# Edit guest, dates, room, party, package, or total (availability re-checked for CONFIRMED)
 curl -s -X PATCH "$BASE/pms/reservations/$RESERVATION_ID?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" \
   -H "Content-Type: application/json" \
-  -d '{"guestId":"'$GUEST_ID'","roomId":"'$ROOM_ID'","totalAmount":8000}' | jq
+  -d '{"guestId":"'$GUEST_ID'","roomId":"'$ROOM_ID'","adultCount":2,"totalAmount":8000}' | jq
 
 # Delete reservation (not while CHECKED_IN — check out first)
 curl -s -X DELETE "$BASE/pms/reservations/$RESERVATION_ID?branchId=$BRANCH_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
 ```
+
+### Step 12: Guest inclusions (checked-in stays)
+
+On **check-in**, allowances are snapshotted (meals and kits entitled vs consumed). Amenity kits with `autoIssueOnCheckIn` deduct housekeeping stock.
+
+```bash
+# Entitled vs consumed (also shown in Reservations → Inclusions drawer)
+curl -s "$BASE/inclusions/reservations/$RESERVATION_ID/allowances?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+# Manual meal or kit issue
+curl -s -X POST "$BASE/inclusions/reservations/$RESERVATION_ID/consume?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"inclusionType":"MEAL","inclusionRecipeId":"<meal-recipe-id>","quantity":1}' | jq
+
+# Refresh snapshot after package/rule changes (checked-in only)
+curl -s -X POST "$BASE/inclusions/reservations/$RESERVATION_ID/reconcile?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**POS:** Menu items flagged **Guest inclusion meal** consume meal allowance on `order.completed` when the order has `reservationId` (charge to room). See [Section 3](#3-point-of-sale-pos).
 
 ### Accounting integration (folio)
 
@@ -638,21 +841,18 @@ On **check-out**, if `paidAmount < totalAmount`, emits `reservation.checked_out`
 
 Requires chart of accounts from seed or Settings. If accounts are missing, payment/check-out still succeed; journal entries are skipped. View resulting journals under **Accounting** → Journals.
 
-`reservation.checked_in` is emitted on check-in for integrations (room status + Socket.IO); it does not post journals in phase 1.
+`reservation.checked_in` also triggers the **inclusions** listener (allowance snapshot, auto-issue amenity kits). It does not post GL journals.
 
 ### Room Status State Machine
 
 ```
-                  ┌──────────────────┐
-                  │                  │
-                  ▼                  │
- ┌─────────┐  check-in   ┌──────────┴──┐  check-out   ┌─────────┐
- │  VACANT  │ ──────────► │  OCCUPIED   │ ───────────► │  DIRTY  │
- └─────────┘              └─────────────┘              └────┬────┘
-      ▲                                                     │
-      │                  housekeeping                       │
-      └─────────────────────────────────────────────────────┘
+VACANT ◄── housekeeping ── DIRTY ◄── check-out ── OCCUPIED ◄── check-in
+  ▲                                                      │
+  └──────── MAINTENANCE ◄────────────────────────────────┘
 ```
+
+- **MAINTENANCE** rooms are excluded from availability.
+- Housekeeping API: `DIRTY→VACANT`, `VACANT↔MAINTENANCE` (not `OCCUPIED` — only check-in sets that).
 
 **Reservation statuses:** `INQUIRY` → (confirm) → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT`; cancel from `INQUIRY` or `CONFIRMED` only.
 
@@ -670,8 +870,8 @@ The POS module handles menu management, order lifecycle, kitchen ticket flow, an
 
 | Route | Purpose |
 |-------|---------|
-| **`/pos` → Orders tab** | List orders (filter active/all/status); new order cart (table, notes, qty); submit to kitchen; complete & pay (full/partial); cancel; **delete** (DRAFT/CANCELLED only); link to Accounting journals |
-| **`/pos` → Menu tab** | CRUD categories and menu items; **active/inactive** toggle on items |
+| **`/pos` → Orders tab** | New order cart; optional **Charge to room** (`reservationId` for CHECKED_IN stays); submit to kitchen; complete & pay (full/partial/unpaid); cancel; delete (DRAFT/CANCELLED); link to Accounting journals |
+| **`/pos` → Menu tab** | CRUD categories and items; **Guest inclusion meal** flag (board meals tied to stay allowances) |
 | **`/pos/kitchen`** | Kitchen display (FIFO queue): SUBMITTED → PREPARING → READY; org/branch selector; Socket.IO live queue; link back to POS |
 
 Select **organization** and **branch** in the header before using POS or the kitchen display.
@@ -724,7 +924,7 @@ curl -s "$BASE/pos/menu/categories?branchId=$BRANCH_ID" \
 
 ### Step 2: Create an Order
 
-Use menu item IDs from Step 1. An order starts in `DRAFT` status.
+Use menu item IDs from Step 1. An order starts in `DRAFT` status. For in-house guests, pass `reservationId` of a **CHECKED_IN** stay to **charge to room** (links order to PMS; inclusion meals consume allowances on complete).
 
 ```bash
 curl -s -X POST "$BASE/pos/orders" \
@@ -735,6 +935,7 @@ curl -s -X POST "$BASE/pos/orders" \
   -d '{
     "branchId": "00000000-0000-0000-0000-000000000001",
     "tableNumber": "T7",
+    "reservationId": "<checked-in-reservation-id>",
     "notes": "Guest allergic to nuts",
     "lines": [
       { "menuItemId": "<mi-biryani-uuid>", "quantity": 2, "unitPrice": 320 },
@@ -878,8 +1079,8 @@ The inventory system uses a **ledger model** — current stock is never stored d
 
 | Route | Purpose |
 |-------|---------|
-| **`/inventory` → Items tab** | List items with on-hand stock and LOW/OK status; **create** item; **edit** (click row: name, unit, low-stock threshold); **record movements** (purchase, waste, adjustment IN/OUT, etc.); movement history |
-| **`/inventory` → Recipes (BOM) tab** | Select a menu item; edit bill-of-materials lines; save via recipe API |
+| **`/inventory` → Items tab** | Filter by **pool** (guest, staff, housekeeping, custom); on-hand stock; create/edit item; record movements; history |
+| **`/inventory` → Recipes (BOM) tab** | Guest-pool menu item BOM; POS completion deducts stock (weighted-average COGS) |
 
 > **Full reference:** [docs/inventory-module.md](inventory-module.md) — API tables, Web UI, movement types, recipe deduction, and testing.
 
@@ -1028,11 +1229,16 @@ There is no `currentStock` column in the database. Every stock query aggregates 
 
 | Type          | Direction | When Used                                  |
 |---------------|-----------|--------------------------------------------|
-| `PURCHASE`    | IN        | Goods bought from supplier                 |
+| `PURCHASE`    | IN        | Manual purchase or **procurement receive** |
 | `ADJUSTMENT`  | IN or OUT | Correction — pass `"direction":"IN"` or `"OUT"` in API body |
 | `SALE`        | OUT       | Deducted when a POS order is completed     |
 | `WASTE`       | OUT       | Spoiled or damaged goods                   |
 | `STAFF_MEAL`  | OUT       | Employee meals (linked to HR module)       |
+| `GUEST_INCLUSION` | OUT   | Guest package meal/kit (check-in or manual)  |
+
+**Costing:** IN movements update per-item `averageUnitCost` (weighted average). COGS uses `qty × averageUnitCost`.
+
+**Pools:** `guest`, `staff`, `housekeeping` (system) + custom pools in **Settings**. API: `GET/POST/PATCH /inventory/pools`.
 
 ### Recipe/BOM Auto-Deduction
 
@@ -1078,11 +1284,12 @@ The accounting module implements strict **double-entry bookkeeping**. Every jour
 
 | Route | Purpose |
 |-------|---------|
-| **`/accounting` → Journal entries** | List recent journals with debit/credit lines |
-| **`/accounting` → Chart of accounts** | List accounts; add new account (code, name, type) |
-| **`/accounting` → New journal** | Manual multi-line entry with running balance check |
+| **`/accounting` → Journal entries** | List journals; **Reverse** balanced entries |
+| **`/accounting` → Chart of accounts** | List accounts; add account (code, name, type) |
+| **`/accounting` → Post journal** | Manual multi-line entry (must balance; requires open fiscal period) |
+| **`/accounting` → Fiscal periods** | Create periods; close/reopen (blocks posting outside open periods) |
 
-Accounting is **organization-scoped** (not branch). POS links here via “View journals →”.
+Accounting is **organization-scoped** (not branch). Auto-posting also runs for PMS folio, POS, **procurement receive**, **vendor payments**, and **payroll runs**.
 
 ### Step 1: List Chart of Accounts
 
@@ -1175,6 +1382,37 @@ This records: `Utilities Expense Dr 12,000 / Bank Account Cr 12,000`.
 **Validation rules:**
 - `total debits` must equal `total credits` — otherwise returns `400 Bad Request`
 - At least 2 journal lines are required
+- `entryDate` must fall in an **open** fiscal period (create periods under **Fiscal periods** tab)
+
+### Fiscal periods
+
+```bash
+curl -s "$BASE/accounting/fiscal-periods" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/accounting/fiscal-periods" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"May 2026","startDate":"2026-05-01","endDate":"2026-05-31"}' | jq
+
+curl -s -X PATCH "$BASE/accounting/fiscal-periods/$PERIOD_ID/close" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### Journal reversal
+
+```bash
+curl -s -X POST "$BASE/accounting/journals/$JOURNAL_ID/reverse" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"entryDate":"2026-05-15"}' | jq
+```
+
+Creates an offsetting entry linked to the original (`reversesEntryId`).
 
 ### Auto-Posting on PMS Folio
 
@@ -1225,6 +1463,19 @@ A guest orders 2× Chicken Biryani (₹320 each) and 1× Tea (₹50). Total = �
   Cost of Goods Sold  Dr  180
   Inventory               Cr  180
 ```
+
+### Auto-Posting on Procurement
+
+| Event | Journal |
+|-------|---------|
+| Goods receipt | Inventory (1200) Dr / Accounts Payable (2000) Cr |
+| Vendor payment | AP (2000) Dr / Cash (1000) or Bank (1100) Cr |
+
+See [Section 11](#11-procurement).
+
+### Auto-Posting on Payroll
+
+When a payroll run **completes**, `PayrollJournalService` posts salary expense / salary payable for net pay. See [Section 6](#step-6-view-payroll-runs).
 
 ---
 
@@ -1420,7 +1671,24 @@ curl -s -X POST "$BASE/hr/payroll/runs" \
 curl -s "$BASE/payroll/runs" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s "$BASE/payroll/runs/$PAYROLL_RUN_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
 ```
+
+### Step 7: Download payslip PDF
+
+When the run status is `COMPLETED`, download the per-employee payslip (stored in object storage):
+
+```bash
+curl -s "$BASE/payroll/runs/$PAYROLL_RUN_ID/payslip?employeeId=$EMPLOYEE_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -o payslip.pdf
+```
+
+In the UI: **HR → Payroll** → download icon on a completed run row.
 
 ### BullMQ Background Processing
 
@@ -1435,6 +1703,8 @@ POST /hr/payroll/runs
     → Sum pending staff meals (deductFromPayroll, not yet payrollDeducted)
     → Create PayrollLine for each employee (gross, deductions, net)
     → Mark staff meals payrollDeducted
+    → Upload payslip PDF to storage
+    → Post payroll GL journal (Salary Expense / Salary Payable)
     → Update PayrollRun status → COMPLETED
 ```
 
@@ -1492,7 +1762,42 @@ curl -s -X POST "$BASE/reporting/export" \
   -d '{ "type": "branch_summary", "branchId": "'$BRANCH_ID'" }' | jq
 ```
 
-**Report types:** `branch_summary`, `low_stock`, `revenue_today` (alias: `summary` → `branch_summary`). List via `GET /reporting/types`.
+**Branch report types:** `branch_summary`, `low_stock`, `revenue_today` (alias: `summary` → `branch_summary`).
+
+**Financial report types** (organization-wide; CSV or PDF):
+
+| Type | Params | Formats |
+|------|--------|---------|
+| `trial_balance` | `asOf` | csv, pdf |
+| `profit_and_loss` | `from`, `to` | csv, pdf |
+| `balance_sheet` | `asOf` | csv, pdf |
+| `general_ledger` | `from`, `to`, `accountCode` | csv, pdf |
+
+List all types: `GET /reporting/types`.
+
+```bash
+curl -s -X POST "$BASE/reporting/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "trial_balance",
+    "asOf": "2026-05-31",
+    "format": "pdf"
+  }' | jq
+
+curl -s -X POST "$BASE/reporting/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "profit_and_loss",
+    "from": "2026-05-01",
+    "to": "2026-05-31",
+    "format": "csv"
+  }' | jq
+```
 
 **Expected response:**
 ```json
@@ -1530,6 +1835,15 @@ The application uses `@nestjs/event-emitter` (EventEmitter2) for internal event-
 | `reservation.payment_recorded` | `PmsService`     | `{ organizationId, reservationId, deltaPaid }`           |
 | `reservation.checked_out`  | `PmsService`         | `{ organizationId, reservationId, unpaidAmount }`      |
 | `payroll.run_requested`    | `HrService`          | `{ payrollRunId }`                                     |
+
+**Listeners (not separate events):**
+
+| Trigger | Listener | Effect |
+|---------|----------|--------|
+| `reservation.checked_in` | `InclusionsListeners` | Snapshot allowances; auto-issue amenity kits |
+| `order.completed` | `InclusionsListeners` | Consume meal allowance for inclusion menu lines + `reservationId` |
+| `order.completed` | `OrderEventsListener` | Inventory deduction + F&B revenue + COGS journals |
+| Goods receipt / vendor payment | `AccountingListenersService` | AP / Inventory journals (procurement) |
 
 ### Event Flow Diagrams
 
@@ -1672,6 +1986,320 @@ socket.on("room.status", ({ roomId, status }) => {
 
 ---
 
+## 11. Procurement
+
+Vendors, purchase orders, goods receipt into inventory, and vendor payments. Scoped by **branch** (header required).
+
+> **UI:** `/procurement` — **Vendors**, **Purchase orders**, **Vendor payments** tabs.
+
+### Step 1: List or create a vendor
+
+```bash
+VENDOR_ID="00000000-0000-0000-0000-000000000001"   # Fresh Foods Ltd (seed)
+
+curl -s "$BASE/procurement/vendors" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/procurement/vendors" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Metro Supplies","contactName":"Ali","email":"buy@metro.example"}' | jq
+```
+
+### Step 2: Create and submit a purchase order
+
+```bash
+curl -s -X POST "$BASE/procurement/purchase-orders" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendorId": "'$VENDOR_ID'",
+    "expectedDate": "2026-06-10",
+    "lines": [
+      { "inventoryItemId": "<rice-inv-id>", "quantity": 50, "unitPrice": 80 }
+    ]
+  }' | jq
+
+curl -s -X POST "$BASE/procurement/purchase-orders/$PO_ID/submit" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+```
+
+Statuses: `DRAFT` → `SUBMITTED` → `PARTIALLY_RECEIVED` → `RECEIVED`.
+
+### Step 3: Receive goods
+
+```bash
+curl -s -X POST "$BASE/procurement/purchase-orders/$PO_ID/receive" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"purchaseOrderLineId": "<line-id>", "quantity": 50}' | jq
+```
+
+**What happens:**
+
+1. `PURCHASE` inventory movement (IN) for the line qty
+2. Updates `receivedQty` on the PO line
+3. Posts **Inventory Dr / AP Cr** when accounts 1200 and 2000 exist
+
+### Step 4: Vendor payment
+
+```bash
+curl -s "$BASE/procurement/vendors/$VENDOR_ID/ap-balance?branchId=$BRANCH_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" | jq
+
+curl -s -X POST "$BASE/procurement/vendor-payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "X-Branch-Id: $BRANCH_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendorId": "'$VENDOR_ID'",
+    "amount": 4000,
+    "paymentDate": "2026-05-31",
+    "payFromAccountCode": "1100",
+    "reference": "CHK-1001"
+  }' | jq
+```
+
+Posts **AP Dr / Bank Cr** (payment must not exceed outstanding AP for the vendor on the branch; respects open fiscal period).
+
+---
+
+## 12. Notifications
+
+In-app alerts (header bell) and optional email (Resend when `RESEND_API_KEY` is set). Examples: low stock, report job completed, payroll failed.
+
+### API
+
+```bash
+curl -s "$BASE/notifications/unread-count" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s "$BASE/notifications?limit=20" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X PATCH "$BASE/notifications/read-all" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s "$BASE/notifications/preferences" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X PATCH "$BASE/notifications/preferences/low_stock" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"inApp": true, "email": false}' | jq
+```
+
+**Settings → Notifications** tab configures per-type preferences for the current user.
+
+---
+
+## 13. Integrations (Channel Manager)
+
+Connect OTAs and partner systems via **adapter-based connections**, inbound webhooks, and (for channel adapters) **availability export** and **manual blocks**. Admin-only (`ADMIN` permission). Configure under **Settings → Integrations**.
+
+> **Deep references:** [phase2/integrations.md](phase2/integrations.md) (platform + webhooks), [phase2/channel-manager.md](phase2/channel-manager.md) (availability).
+
+### Adapters
+
+| Key | Use case |
+|-----|----------|
+| `channel_manager` | Preferred — `booking.import` + availability export/blocks |
+| `ota_inquiry` | Legacy alias (same behavior as `channel_manager`) |
+| `generic_webhook` | Log inbound payloads only (no PMS import) |
+
+Channel adapters require a **branch** on the connection so imports and inventory are scoped correctly.
+
+### Step 1: Platform health and adapter catalog
+
+```bash
+# Public — no auth
+curl -s "$BASE/integrations/health" | jq
+
+curl -s "$BASE/integrations/adapters" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### Step 2: Create a channel connection
+
+```bash
+curl -s -X POST "$BASE/integrations/connections" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adapterKey": "channel_manager",
+    "name": "Demo OTA",
+    "branchId": "'$BRANCH_ID'"
+  }' | jq
+```
+
+**Save from the response:**
+
+- `CONNECTION_ID` — used in webhook URL and API paths
+- `webhookSecret` — shown **once** at create; store securely (rotate if lost)
+
+**Webhook URL** (partners POST here):
+
+```
+POST $BASE/integrations/webhooks/$CONNECTION_ID
+Header: X-Webhook-Secret: <webhookSecret>
+```
+
+Default public base: `http://localhost:3001/api` (set `PUBLIC_API_URL` in production).
+
+```bash
+curl -s "$BASE/integrations/connections" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### Step 3: Rotate webhook secret
+
+```bash
+curl -s -X POST "$BASE/integrations/connections/$CONNECTION_ID/rotate-secret" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Returns a new `webhookSecret` once; update the partner configuration.
+
+### Step 4: Import booking (inbound webhook)
+
+Simulate an OTA sending a new booking. Creates or reuses a guest by email, then a PMS **`INQUIRY`** reservation (does not block inventory until confirmed in PMS).
+
+```bash
+ROOM_ID="<vacant-room-uuid-from-availability>"
+
+curl -s -X POST "$BASE/integrations/webhooks/$CONNECTION_ID" \
+  -H "X-Webhook-Secret: $WEBHOOK_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "booking.import",
+    "roomId": "'$ROOM_ID'",
+    "checkIn": "2026-07-01",
+    "checkOut": "2026-07-03",
+    "guest": {
+      "fullName": "Jane OTA Guest",
+      "email": "jane.ota@example.com",
+      "phone": "+8801711111111"
+    },
+    "adultCount": 2,
+    "childCount": 0
+  }' | jq
+```
+
+Review delivery log:
+
+```bash
+curl -s "$BASE/integrations/connections/$CONNECTION_ID/webhook-events?limit=20" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+Events progress: `RECEIVED` → `PROCESSED` or `FAILED` (with `errorMessage`).
+
+### Step 5: Export availability
+
+Pull nightly inventory by room type for a date range (max 366 nights). Counts subtract overlapping reservations (`INQUIRY`, `CONFIRMED`, `CHECKED_IN`), `MAINTENANCE` rooms, and manual blocks.
+
+```bash
+curl -s "$BASE/integrations/connections/$CONNECTION_ID/availability-export?from=2026-07-01&to=2026-07-08" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+**Expected shape (abridged):**
+
+```json
+{
+  "connectionId": "int_…",
+  "branchId": "00000000-0000-0000-0000-000000000001",
+  "from": "2026-07-01",
+  "to": "2026-07-08",
+  "roomTypes": [
+    {
+      "roomTypeName": "Standard Double",
+      "inventory": [
+        { "date": "2026-07-01", "totalRooms": 4, "availableCount": 2, "blockedCount": 2 }
+      ]
+    }
+  ]
+}
+```
+
+Export is **pull-based** (UI preview or API). Live OTA push is future work.
+
+### Step 6: Manual availability blocks
+
+Close dates to channel sale without creating a reservation (e.g. renovation). Scope: whole branch, one **room type**, or one **room**.
+
+```bash
+curl -s "$BASE/integrations/connections/$CONNECTION_ID/availability-blocks" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -X POST "$BASE/integrations/connections/$CONNECTION_ID/availability-blocks" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "roomTypeId": "00000000-0000-0000-0000-000000000010",
+    "startDate": "2026-07-05",
+    "endDate": "2026-07-07",
+    "reason": "Renovation"
+  }' | jq
+
+curl -s -X DELETE "$BASE/integrations/connections/$CONNECTION_ID/availability-blocks/$BLOCK_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### Step 7: Disable or delete a connection
+
+```bash
+curl -s -X PATCH "$BASE/integrations/connections/$CONNECTION_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"DISABLED"}' | jq
+
+curl -s -X DELETE "$BASE/integrations/connections/$CONNECTION_ID" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" | jq
+```
+
+### End-to-end OTA flow
+
+```
+Partner ──booking.import──► Webhook ──► INQUIRY reservation in PMS
+                                    │
+Front desk ──confirm──► CONFIRMED (blocks availability)
+
+Admin ──availability-export──► Partner reads open inventory
+Admin ──availability-blocks──► Partner sees reduced counts
+```
+
+After import, staff use **PMS → Reservations** to confirm, assign packages, check in, etc. ([Section 2](#2-property-management-system-pms)).
+
+---
+
 ## 10. Testing
 
 ### Unit Tests
@@ -1712,7 +2340,9 @@ pnpm test -- --coverage
 | Integration   | Jest + Prisma   | Database operations, transactions        |
 | E2E           | Playwright      | Full user workflows via the browser      |
 
-Key E2E specs: `e2e/pms.spec.ts`, `e2e/pos.spec.ts`, `e2e/kitchen.spec.ts`, `e2e/inventory.spec.ts`, `e2e/accounting.spec.ts`, `e2e/hr.spec.ts`, `e2e/reports.spec.ts`, `e2e/settings.spec.ts`, `e2e/dashboard.spec.ts`.
+Key E2E specs: `pms.spec.ts`, `pms-flow.spec.ts`, `rates.spec.ts`, `pos.spec.ts`, `kitchen.spec.ts`, `inventory.spec.ts`, `procurement.spec.ts`, `accounting.spec.ts`, `hr.spec.ts`, `reports.spec.ts`, `settings.spec.ts`, `dashboard.spec.ts`, `notifications.spec.ts`, `audit.spec.ts`, `integrations.spec.ts`, `channel-manager.spec.ts`, `onboarding.spec.ts`, `branch-access.spec.ts`.
+
+**Local smoke** (real API + DB): `pnpm test:smoke-local` — see [smoke-local.md](smoke-local.md).
 
 ---
 
@@ -1745,6 +2375,23 @@ See [pms-module.md](pms-module.md) for curl examples.
 | PATCH | `/pms/reservations/:id/check-out` | PMS_WRITE | Check-out |
 | PATCH | `/pms/reservations/:id/cancel` | PMS_WRITE | Cancel |
 | DELETE | `/pms/reservations/:id` | PMS_WRITE | Delete reservation |
+| GET/POST | `/pms/rate-plans` | PMS_READ/WRITE | List/create rate plans |
+| PATCH/DELETE | `/pms/rate-plans/:id` | PMS_WRITE | Update/delete plan |
+| POST | `/pms/rate-plans/:id/rules` | PMS_WRITE | Add pricing rule |
+| DELETE | `/pms/rate-plans/:planId/rules/:ruleId` | PMS_WRITE | Delete rule |
+| GET | `/pms/pricing/quote` | PMS_READ | Stay price quote |
+
+### Inclusions Endpoints
+
+See [guest-inclusions-module.md](guest-inclusions-module.md).
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET/POST/PATCH | `/inclusions/packages` | PMS_READ/WRITE | Guest packages |
+| GET/POST/PUT | `/inclusions/recipes` | PMS_READ/WRITE | Inclusion BOM |
+| GET | `/inclusions/reservations/:id/allowances` | PMS_READ | Entitled vs consumed |
+| POST | `/inclusions/reservations/:id/consume` | PMS_WRITE | Manual issue |
+| POST | `/inclusions/reservations/:id/reconcile` | PMS_WRITE | Refresh snapshot |
 
 ### POS Endpoints
 
@@ -1782,6 +2429,21 @@ See [inventory-module.md](inventory-module.md) for curl examples.
 | GET    | `/inventory/items/:id/movements`     | INVENTORY_READ | Movement history       |
 | POST   | `/inventory/recipes`                 | INVENTORY_WRITE| Upsert recipe/BOM      |
 | GET    | `/inventory/recipes/:menuItemId`     | INVENTORY_READ | Get recipe             |
+| GET/POST/PATCH | `/inventory/pools`           | INVENTORY_*    | Org inventory pools    |
+
+### Procurement Endpoints
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET/POST | `/procurement/vendors` | INVENTORY_READ/WRITE | Vendor master |
+| PATCH | `/procurement/vendors/:id` | INVENTORY_WRITE | Update vendor |
+| GET/POST | `/procurement/purchase-orders` | INVENTORY_READ/WRITE | PO list/create |
+| GET | `/procurement/purchase-orders/:id` | INVENTORY_READ | PO detail |
+| POST | `/procurement/purchase-orders/:id/submit` | INVENTORY_WRITE | Submit PO |
+| POST | `/procurement/purchase-orders/:id/receive` | INVENTORY_WRITE | Receive goods |
+| GET | `/procurement/vendor-payments` | INVENTORY_READ | Payment list |
+| GET | `/procurement/vendors/:id/ap-balance` | INVENTORY_READ | Outstanding AP |
+| POST | `/procurement/vendor-payments` | ACCOUNTING_WRITE | Pay vendor |
 
 ### Accounting Endpoints
 
@@ -1793,6 +2455,10 @@ See [accounting-module.md](accounting-module.md) for curl examples.
 | POST   | `/accounting/accounts`               | ACCOUNTING_WRITE | Create account         |
 | GET    | `/accounting/journals`               | ACCOUNTING_READ  | List journal entries   |
 | POST   | `/accounting/journals`               | ACCOUNTING_WRITE | Create journal entry   |
+| POST   | `/accounting/journals/:id/reverse`   | ACCOUNTING_WRITE | Reverse journal        |
+| GET/POST | `/accounting/fiscal-periods`       | ACCOUNTING_*     | Fiscal periods         |
+| PATCH  | `/accounting/fiscal-periods/:id/close` | ACCOUNTING_WRITE | Close period         |
+| PATCH  | `/accounting/fiscal-periods/:id/reopen` | ACCOUNTING_WRITE | Reopen period       |
 
 ### HR & Payroll Endpoints
 
@@ -1811,6 +2477,46 @@ See [accounting-module.md](accounting-module.md) for curl examples.
 | POST   | `/hr/payroll/runs`                   | HR_WRITE   | Request payroll run    |
 | GET    | `/payroll/runs`                      | HR_READ    | List payroll runs      |
 | GET    | `/payroll/runs/:id`                  | HR_READ    | Get payroll run        |
+| GET    | `/payroll/runs/:id/payslip`          | HR_READ    | Payslip PDF            |
+
+### Tenants & Settings Endpoints
+
+See [settings-module.md](settings-module.md), [organization-onboarding.md](organization-onboarding.md).
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET/POST | `/tenants/organizations` | — | List/create orgs |
+| GET/PATCH | `/tenants/organizations/current` | ADMIN | Current org |
+| GET/POST/PATCH/DELETE | `/tenants/branches` | ADMIN | Branch CRUD |
+| GET/POST | `/tenants/invites` | ADMIN | Email invites |
+| GET/POST | `/tenants/join-requests` | ADMIN | Approve/reject joins |
+| GET/PATCH/DELETE | `/tenants/members` | ADMIN | Team CRUD |
+| GET | `/audit/logs` | ADMIN | Audit trail |
+
+### Integrations Endpoints
+
+See [§13](#13-integrations-channel-manager), [phase2/integrations.md](phase2/integrations.md), [phase2/channel-manager.md](phase2/channel-manager.md).
+
+| Method | Path | Permission | Description |
+|--------|------|------------|-------------|
+| GET | `/integrations/health` | Public | Platform status |
+| GET | `/integrations/adapters` | ADMIN | Adapter catalog |
+| GET/POST/PATCH/DELETE | `/integrations/connections` | ADMIN | Connections |
+| POST | `/integrations/connections/:id/rotate-secret` | ADMIN | New webhook secret |
+| GET | `/integrations/connections/:id/webhook-events` | ADMIN | Delivery log |
+| GET | `/integrations/connections/:id/availability-export` | ADMIN | OTA inventory export |
+| GET/POST/DELETE | `/integrations/connections/:id/availability-blocks` | ADMIN | Close dates |
+| POST | `/integrations/webhooks/:connectionId` | Webhook secret | Inbound partner payload |
+
+### Notifications Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/notifications` | List notifications |
+| GET | `/notifications/unread-count` | Unread count |
+| PATCH | `/notifications/read-all` | Mark all read |
+| PATCH | `/notifications/:id/read` | Mark one read |
+| GET/PATCH | `/notifications/preferences` | User preferences |
 
 ### Reporting Endpoints
 

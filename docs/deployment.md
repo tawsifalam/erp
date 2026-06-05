@@ -10,6 +10,8 @@ For **VPS day-two ops** (inspect running containers, stop the stack completely, 
 - **web** / **api** — Docker (localhost bindings in prod)
 - **postgres** / **redis** / **minio** — Docker on VPS, or managed services (Path B)
 
+Object storage (reports, payslips): [cloud-deployment.md § Object storage (MinIO)](./cloud-deployment.md#object-storage-minio).
+
 Config: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.example)
 
 ## Deploy scripts (VPS)

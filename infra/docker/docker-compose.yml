@@ -36,6 +36,12 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   api:
     build:
@@ -54,6 +60,7 @@ services:
       MINIO_PORT: "9000"
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: erp-files
       MINIO_USE_SSL: "false"
     depends_on:
       postgres:
@@ -61,7 +68,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
 
   web:
     build:

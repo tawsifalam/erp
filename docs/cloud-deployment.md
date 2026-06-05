@@ -75,8 +75,8 @@ COMPOSE=(
 
 | Command | When |
 |---------|------|
-| `./scripts/deploy-prod.sh initial` | First deploy on a VPS |
-| `./scripts/deploy-prod.sh update` | After `git pull` / code changes (default: rebuild all, `--no-cache`) |
+| `./scripts/deploy-prod.sh initial` | First deploy on a VPS (starts postgres/redis/**minio**, waits for health, then api/web) |
+| `./scripts/deploy-prod.sh update` | After `git pull` / code changes (default: rebuild all, `--no-cache`; ensures minio healthy before api) |
 | `./scripts/deploy-prod.sh update --migrate` | Update + Prisma migrations |
 | `./scripts/deploy-prod.sh migrate` | Migrations only |
 | `./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com` | Install host nginx site file |
@@ -167,7 +167,99 @@ docker compose "${COMPOSE[@]}" ps
 
 Default DB credentials are in [docker-compose.yml](../infra/docker/docker-compose.yml) (`erp` / `erp`). **Change** `POSTGRES_PASSWORD` in compose and matching URL in `api.environment` before real customers.
 
-MinIO console: use SSH tunnel to port 9001 — do not expose 9000/9001 publicly in prod (`prod.yml` resets those ports).
+`./scripts/deploy-prod.sh initial` and `update` (api/all) wait for **minio** to be healthy before starting or recreating **api**. See [Object storage (MinIO)](#object-storage-minio) for credentials, downloads, and troubleshooting.
+
+---
+
+## Object storage (MinIO)
+
+MinIO stores **report export files** (CSV/PDF) and **payroll payslip PDFs**. The ERP app does **not** require logging into the MinIO web console — the API connects with access keys from environment variables.
+
+### What uses storage
+
+| Feature | Stored as | Download path |
+|---------|-----------|---------------|
+| Reports (`/reports`) | `reports/{jobId}.csv` or `.pdf` in bucket `erp-files` | Web **Download** button → `GET /api/reporting/jobs/:id/download` (auth required) |
+| Payroll payslips (`/hr`) | `payroll/{runId}.pdf` | **Download payslip** → `GET /api/payroll/runs/:id/payslip` |
+
+Exports run in BullMQ; if storage is down, jobs fail with `File storage is unavailable` instead of completing without a file.
+
+### Path A — bundled MinIO (recommended first deploy)
+
+Compose runs MinIO on the internal Docker network. The **api** container receives (from [docker-compose.yml](../infra/docker/docker-compose.yml) `api.environment`):
+
+| Variable | In-container value (Path A) |
+|----------|----------------------------|
+| `MINIO_ENDPOINT` | `minio` |
+| `MINIO_PORT` | `9000` |
+| `MINIO_USE_SSL` | `false` |
+| `MINIO_BUCKET` | `erp-files` (default in code if unset) |
+| `MINIO_ACCESS_KEY` | `minioadmin` (dev default — **change for production**) |
+| `MINIO_SECRET_KEY` | `minioadmin` (dev default — **change for production**) |
+
+**Rotate credentials before real customers:** set `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` on the `minio` service and matching `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` on `api.environment` in compose (or a prod override file). Restart `minio` and `api` after changes.
+
+**Do not publish** ports 9000/9001 on the public internet — [docker-compose.prod.yml](../infra/docker/docker-compose.prod.yml) clears host bindings. API reaches MinIO via Docker DNS (`minio:9000`).
+
+**Optional web console** (browse buckets manually only):
+
+```bash
+# From your laptop — tunnel to the VPS MinIO console
+ssh -L 9001:127.0.0.1:9001 user@your-vps
+# Open http://localhost:9001 — login with MINIO_ROOT_USER / MINIO_ROOT_PASSWORD
+```
+
+### Path B — managed S3-compatible storage
+
+Skip the `minio` service. Point the API at your provider (AWS S3, Cloudflare R2, etc.) by overriding `MINIO_*` on the **api** service:
+
+```env
+MINIO_ENDPOINT=s3.amazonaws.com
+MINIO_PORT=443
+MINIO_USE_SSL=true
+MINIO_ACCESS_KEY=your-access-key
+MINIO_SECRET_KEY=your-secret-key
+MINIO_BUCKET=your-bucket-name
+```
+
+For Path B you must **remove or replace** the bundled `MINIO_*` entries in compose `api.environment` — compose `environment` wins over `.env` alone. Use a prod override file or managed-service-specific endpoint/region settings per your provider’s S3 API docs.
+
+### Local development (API on host, MinIO in Docker)
+
+When running `pnpm dev` on the host (not inside the api container), set in repo root `.env`:
+
+```env
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=erp-files
+MINIO_USE_SSL=false
+```
+
+See [.env.example](../.env.example) and [local-setup.md](./local-setup.md).
+
+### Verify storage (production smoke P5)
+
+```bash
+# MinIO container healthy (Path A)
+docker compose "${COMPOSE[@]}" ps minio
+
+# API can reach storage — queue a report export in the UI, wait for COMPLETED, download from /reports
+# Or check API logs: no "MinIO unavailable, storage uploads disabled" after startup
+docker compose "${COMPOSE[@]}" logs api | grep -i minio
+```
+
+Full checklist: [production-smoke-runbook.md](./production-smoke-runbook.md) prerequisite **P5**.
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|----------------|-----|
+| `File storage is unavailable` on export | API started before MinIO, or wrong `MINIO_*` | Ensure `minio` is running; restart `api`. API retries MinIO on the next upload/download if it was down at boot. |
+| Report job `COMPLETED` but download 404 (older jobs) | Job finished while storage was disabled | Re-export the report, or download again (API regenerates CSV/PDF when the object is missing). |
+| `MinIO unavailable` in API logs at startup | Wrong endpoint, credentials, or minio not up | Path A: `MINIO_ENDPOINT=minio` inside api container, not `localhost`. Recreate api after fixing compose. |
+| Cannot open MinIO console on VPS IP:9001 | Ports intentionally not published in prod | Use SSH tunnel to port 9001 (see above). |
 
 ---
 
@@ -376,6 +468,8 @@ cd /opt/erp
 | `CORS_ORIGIN` | Same as app URL |
 | `PROPELAUTH_*` | From dashboard |
 | In-container DB (Path A) | Set by compose `api.environment`, not `.env` |
+| `MINIO_*` (Path A) | Compose sets `MINIO_ENDPOINT=minio`; rotate keys — see [Object storage (MinIO)](#object-storage-minio) |
+| `MINIO_*` (Path B) | Your S3-compatible endpoint, bucket, and keys on `api` only |
 
 Validated in `packages/config/src/env.ts`.
 
@@ -401,6 +495,8 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 | Old UI after `git pull` | Image not rebuilt | `./scripts/deploy-prod.sh update web` |
 | `compose ps` empty, site works | Wrong cwd/project | `cd /opt/erp`; see [vps-docker-operations.md](./vps-docker-operations.md) |
 | `SOURCE_REV` warning | Harmless on `ps` | Export for builds: `export SOURCE_REV=$(git rev-parse HEAD)` |
+| `File storage is unavailable` | MinIO down or api started before minio | Start minio; restart api; see [Object storage (MinIO)](#object-storage-minio) |
+| Report download 404 | Stale job from storage outage | Re-export or retry download (API regenerates if object missing) |
 
 ---
 
@@ -414,7 +510,8 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 [ ] host-nginx.conf.example installed under /etc/nginx
 [ ] certbot / TLS active
 [ ] curl https://app.yourdomain.com/api/health
-[ ] Phase 1 smoke tests
+[ ] MinIO credentials rotated (not default `minioadmin`) — [Object storage (MinIO)](#object-storage-minio)
+[ ] Phase 1 smoke tests (include P5 MinIO / report download)
 [ ] Backups scheduled
 ```
 

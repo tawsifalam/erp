@@ -101,11 +101,17 @@ erp_wait_healthy() {
   return 1
 }
 
-erp_up_data() {
-  echo "==> starting postgres redis minio"
+erp_ensure_data() {
+  echo "==> ensuring postgres redis minio are running"
   erp_compose up -d postgres redis minio
   erp_wait_healthy postgres
   erp_wait_healthy redis
+  erp_wait_healthy minio
+}
+
+# Backward-compatible alias
+erp_up_data() {
+  erp_ensure_data
 }
 
 erp_migrate() {

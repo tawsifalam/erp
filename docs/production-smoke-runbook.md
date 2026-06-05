@@ -35,7 +35,7 @@ Complete before starting flows. All must pass.
 | P2 | `GET {API}/health` returns OK | ☐ | |
 | P3 | Web login redirects through PropelAuth and lands on `/dashboard` | ☐ | |
 | P4 | Redis reachable (report/payroll jobs queue) | ☐ | |
-| P5 | MinIO/S3 reachable (payslips, report files) | ☐ | |
+| P5 | MinIO/S3 reachable (payslips, report files) | ☐ | See [cloud-deployment.md § Object storage (MinIO)](./cloud-deployment.md#object-storage-minio) |
 | P6 | At least one org, branch, and ADMIN user exist (seed or onboarding) | ☐ | |
 | P7 | Chart of accounts present (seed or manual) — codes **1000**, **1100**, **2000**, **4000**, **5100**, **2100** | ☐ | |
 | P8 | Inventory pools exist for branch (guest / staff defaults or Settings) | ☐ | |

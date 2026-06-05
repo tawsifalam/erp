@@ -51,9 +51,12 @@ POST /reporting/export { type, branchId?, format?: "csv" | "pdf", ... }
       → Generate CSV or PDF (financial types) / CSV only (branch types)
       → Upload to storage (.csv or .pdf)
       → COMPLETED (fileUrl) or FAILED (errorMessage)
+Download: `GET /reporting/jobs/:id/download` (streams file from storage; regenerates if object missing)
 ```
 
 List jobs: `GET /reporting/jobs`
+
+Download completed export: `GET /reporting/jobs/:id/download` (requires same auth headers as other reporting routes). The web UI uses this endpoint — not a direct MinIO URL.
 
 ## API reference
 
@@ -77,7 +80,13 @@ curl -s -X POST "$BASE/reporting/export" \
 curl -s "$BASE/reporting/jobs" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Organization-Id: $ORG_ID" | jq
+
+curl -s -o report.csv "$BASE/reporting/jobs/$JOB_ID/download" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
 ```
+
+Storage (MinIO/S3) must be running for exports to complete. Production setup: [cloud-deployment.md § Object storage (MinIO)](./cloud-deployment.md#object-storage-minio).
 
 ## Web UI
 

@@ -45,6 +45,12 @@ if [[ "${DO_PULL}" -eq 1 ]]; then
 fi
 
 erp_export_source_rev
+
+# Keep data services up (and minio healthy) before api restarts — avoids "File storage is unavailable"
+if [[ "${TARGET}" == "all" || "${TARGET}" == "api" ]]; then
+  erp_ensure_data
+fi
+
 erp_rebuild_target "${TARGET}" "${NO_CACHE}"
 
 if [[ "${RUN_MIGRATE}" -eq 1 ]]; then

@@ -45,6 +45,8 @@ Run from the **repo root** (uses root `.env`):
 docker compose up -d postgres redis minio
 ```
 
+MinIO defaults: access key / secret `minioadmin` / `minioadmin` (see `.env`). Optional console: http://localhost:9001 — **not** required for the app; the API uses env keys. Reports and payslips need MinIO running before exports. Production details: [cloud-deployment.md § Object storage (MinIO)](./cloud-deployment.md#object-storage-minio).
+
 ## 4. Database
 
 Prisma loads **`DATABASE_URL` from the repo root `.env`** ([`apps/api/prisma.config.ts`](../apps/api/prisma.config.ts)). You do not need a separate `apps/api/.env` for `pnpm db:reset` / `db:migrate`.

@@ -1,7 +1,11 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ReservationStatus, OrderStatus } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { StorageService } from "../storage/storage.service";
+import { ReportGeneratorsService } from "./report-generators.service";
+import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
 import {
   BRANCH_SCOPED_REPORT_TYPES,
   REPORT_TYPE_LABELS,
@@ -20,6 +24,10 @@ export class ReportingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
+    private readonly storage: StorageService,
+    private readonly config: ConfigService,
+    private readonly generators: ReportGeneratorsService,
+    private readonly financialGenerators: FinancialReportGeneratorsService,
   ) {}
 
   async dashboard(_organizationId: string, branchId: string) {
@@ -92,6 +100,30 @@ export class ReportingService {
       orderBy: { createdAt: "desc" },
       take: limit,
     });
+  }
+
+  async downloadJob(organizationId: string, jobId: string) {
+    const job = await this.prisma.reportJob.findFirst({
+      where: { id: jobId, organizationId },
+    });
+    if (!job || job.status !== "COMPLETED" || !job.fileUrl) {
+      throw new NotFoundException("Report file not available");
+    }
+
+    const key = this.storageKeyFromFileUrl(job.fileUrl);
+    const meta = this.reportContentMeta(job, key);
+    let body = await this.storage.download(key);
+
+    if (!body) {
+      body = await this.generateReportBody(job);
+      void this.storage.upload(key, body, meta.contentType).catch(() => undefined);
+    }
+
+    return {
+      body,
+      contentType: meta.contentType,
+      filename: `${job.type}-${job.id}.${meta.extension}`,
+    };
   }
 
   requestExport(
@@ -170,5 +202,56 @@ export class ReportingService {
     }
 
     return stored;
+  }
+
+  private storageKeyFromFileUrl(fileUrl: string): string {
+    const bucket = this.config.get("MINIO_BUCKET", "erp-files");
+    const prefix = `${bucket}/`;
+    if (fileUrl.startsWith(prefix)) return fileUrl.slice(prefix.length);
+    return fileUrl;
+  }
+
+  private reportContentMeta(
+    job: { params: unknown },
+    key: string,
+  ): { extension: string; contentType: string } {
+    const params = (job.params ?? {}) as ReportExportParams;
+    const isPdf = params.format === REPORT_FORMAT_PDF || key.endsWith(".pdf");
+    return {
+      extension: isPdf ? "pdf" : "csv",
+      contentType: isPdf ? "application/pdf" : "text/csv",
+    };
+  }
+
+  private async generateReportBody(job: {
+    type: string;
+    organizationId: string;
+    branchId: string | null;
+    params: unknown;
+  }): Promise<Buffer> {
+    if (!isFinancialReportType(job.type) && !job.branchId) {
+      throw new NotFoundException("Report file not found");
+    }
+
+    const params = (job.params ?? {}) as ReportExportParams;
+    const isPdf = params.format === REPORT_FORMAT_PDF;
+    if (isPdf && !isFinancialReportType(job.type)) {
+      throw new NotFoundException("Report file not found");
+    }
+
+    if (isFinancialReportType(job.type)) {
+      if (isPdf) {
+        return this.financialGenerators.generatePdf(job.type, job.organizationId, params);
+      }
+      const csv = await this.financialGenerators.generate(
+        job.type,
+        job.organizationId,
+        params,
+      );
+      return Buffer.from(csv);
+    }
+
+    const csv = await this.generators.generate(job.type, job.branchId!);
+    return Buffer.from(csv);
   }
 }

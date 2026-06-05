@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionGuard } from "../common/guards/permission.guard";
@@ -67,5 +68,21 @@ export class ReportingController {
   @RequirePermission(Permission.REPORTS_READ)
   jobs(@Tenant() t: TenantContext) {
     return this.reporting.listJobs(t.organizationId);
+  }
+
+  @Get("jobs/:id/download")
+  @RequirePermission(Permission.REPORTS_READ)
+  async downloadJob(
+    @Tenant() t: TenantContext,
+    @Param("id") id: string,
+    @Res() res: Response,
+  ) {
+    const { body, contentType, filename } = await this.reporting.downloadJob(
+      t.organizationId,
+      id,
+    );
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(body);
   }
 }

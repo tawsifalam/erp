@@ -905,7 +905,17 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("reporting/jobs"), async (route) => {
-    const result = handleReportingMutation(route.request().method(), route.request().url(), null);
+    const method = route.request().method();
+    const url = route.request().url();
+    if (method === "GET" && url.includes("/download")) {
+      const isPdf = url.includes("rpt_") && getReportJobs().some((j) => url.includes(j.id) && j.fileUrl?.endsWith(".pdf"));
+      return route.fulfill({
+        status: 200,
+        contentType: isPdf ? "application/pdf" : "text/csv",
+        body: Buffer.from(isPdf ? "%PDF-1.4\n% Mock report" : "type,value\nbranch_summary,1"),
+      });
+    }
+    const result = handleReportingMutation(method, url, null);
     return fulfillJson(route, result);
   });
 

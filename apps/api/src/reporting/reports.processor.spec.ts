@@ -96,6 +96,29 @@ describe("ReportsProcessor", () => {
     );
   });
 
+  it("marks job FAILED when storage upload is unavailable", async () => {
+    mockPrisma.reportJob.findUnique.mockResolvedValue({
+      id: "rpt-3",
+      organizationId: "org-1",
+      type: "branch_summary",
+      branchId: "branch-1",
+      params: null,
+    });
+    mockGenerators.generate.mockResolvedValue("metric,value\n");
+    mockStorage.upload.mockRejectedValue(new Error("File storage is unavailable"));
+
+    await processor.process({ data: { reportJobId: "rpt-3" } } as never);
+
+    expect(mockPrisma.reportJob.update).toHaveBeenLastCalledWith({
+      where: { id: "rpt-3" },
+      data: {
+        status: "FAILED",
+        errorMessage: "File storage is unavailable",
+        completedAt: expect.any(Date),
+      },
+    });
+  });
+
   it("marks job FAILED on generator error", async () => {
     mockPrisma.reportJob.findUnique.mockResolvedValue({
       id: "rpt-2",

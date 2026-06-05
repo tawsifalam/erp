@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { StorageService } from "./storage.service";
 
@@ -79,7 +80,7 @@ describe("StorageService", () => {
   });
 
   it("returns null from download when MinIO init failed", async () => {
-    mockBucketExists.mockRejectedValueOnce(new Error("connection refused"));
+    mockBucketExists.mockRejectedValue(new Error("connection refused"));
     const disabled = new StorageService({
       get: jest.fn(() => undefined),
     } as never);
@@ -88,6 +89,12 @@ describe("StorageService", () => {
     await expect(disabled.download("missing.pdf")).resolves.toBeNull();
     await expect(
       disabled.upload("x.pdf", Buffer.from("x"), "application/pdf"),
-    ).resolves.toEqual({ key: "x.pdf", url: null });
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it("returns null from download when object is missing", async () => {
+    mockGetObject.mockRejectedValue(new Error("Not Found"));
+
+    await expect(service.download("missing.pdf")).resolves.toBeNull();
   });
 });

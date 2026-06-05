@@ -1,18 +1,36 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ReportingService } from "./reporting.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { StorageService } from "../storage/storage.service";
+import { ReportGeneratorsService } from "./report-generators.service";
+import { FinancialReportGeneratorsService } from "./financial-report-generators.service";
 
 const mockPrisma = {
   room: { count: jest.fn() },
   reservation: { count: jest.fn() },
   order: { aggregate: jest.fn() },
-  reportJob: { create: jest.fn(), findMany: jest.fn() },
+  reportJob: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
 };
 
 const mockInventory = {
   listItemsWithStock: jest.fn(),
+};
+
+const mockStorage = {
+  download: jest.fn(),
+  upload: jest.fn(),
+};
+
+const mockGenerators = {
+  generate: jest.fn(),
+};
+
+const mockFinancialGenerators = {
+  generate: jest.fn(),
+  generatePdf: jest.fn(),
 };
 
 describe("ReportingService", () => {
@@ -40,6 +58,13 @@ describe("ReportingService", () => {
         ReportingService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: InventoryService, useValue: mockInventory },
+        { provide: StorageService, useValue: mockStorage },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn((key: string, fallback?: unknown) => (key === "MINIO_BUCKET" ? "erp-files" : fallback)) },
+        },
+        { provide: ReportGeneratorsService, useValue: mockGenerators },
+        { provide: FinancialReportGeneratorsService, useValue: mockFinancialGenerators },
       ],
     }).compile();
 
@@ -134,6 +159,53 @@ describe("ReportingService", () => {
         ]),
       );
       expect(types).toHaveLength(7);
+    });
+  });
+
+  describe("downloadJob", () => {
+    const completedJob = {
+      id: "rpt-1",
+      organizationId: "org-1",
+      branchId: "branch-1",
+      type: "branch_summary",
+      status: "COMPLETED",
+      fileUrl: "reports/rpt-1.csv",
+      params: null,
+    };
+
+    it("returns stored file when present in storage", async () => {
+      mockPrisma.reportJob.findFirst.mockResolvedValue(completedJob);
+      mockStorage.download.mockResolvedValue(Buffer.from("metric,value\n"));
+
+      const result = await service.downloadJob("org-1", "rpt-1");
+
+      expect(result.body.toString()).toBe("metric,value\n");
+      expect(result.contentType).toBe("text/csv");
+      expect(result.filename).toBe("branch_summary-rpt-1.csv");
+      expect(mockGenerators.generate).not.toHaveBeenCalled();
+    });
+
+    it("regenerates CSV when storage file is missing", async () => {
+      mockPrisma.reportJob.findFirst.mockResolvedValue(completedJob);
+      mockStorage.download.mockResolvedValue(null);
+      mockGenerators.generate.mockResolvedValue("metric,value\noccupancyPct,20\n");
+      mockStorage.upload.mockResolvedValue({ key: "reports/rpt-1.csv", url: "erp-files/reports/rpt-1.csv" });
+
+      const result = await service.downloadJob("org-1", "rpt-1");
+
+      expect(mockGenerators.generate).toHaveBeenCalledWith("branch_summary", "branch-1");
+      expect(result.body.toString()).toBe("metric,value\noccupancyPct,20\n");
+    });
+
+    it("throws when job is not completed", async () => {
+      mockPrisma.reportJob.findFirst.mockResolvedValue({
+        ...completedJob,
+        status: "FAILED",
+      });
+
+      await expect(service.downloadJob("org-1", "rpt-1")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 });

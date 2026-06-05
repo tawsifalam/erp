@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  OnModuleInit,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Minio from "minio";
 
@@ -13,24 +18,42 @@ export class StorageService implements OnModuleInit {
 
   async onModuleInit() {
     this.bucket = this.config.get("MINIO_BUCKET", "erp-files");
+    await this.connect();
+  }
+
+  isEnabled() {
+    return this.enabled;
+  }
+
+  private async connect(): Promise<boolean> {
     try {
       this.client = new Minio.Client({
         endPoint: this.config.get("MINIO_ENDPOINT", "localhost"),
-        port: this.config.get<number>("MINIO_PORT", 9000),
+        port: Number(this.config.get("MINIO_PORT", 9000)),
         useSSL: this.config.get("MINIO_USE_SSL") === "true",
         accessKey: this.config.get("MINIO_ACCESS_KEY", "minioadmin"),
         secretKey: this.config.get("MINIO_SECRET_KEY", "minioadmin"),
       });
       const exists = await this.client.bucketExists(this.bucket);
       if (!exists) await this.client.makeBucket(this.bucket);
+      this.enabled = true;
+      return true;
     } catch (e) {
       this.enabled = false;
       this.logger.warn(`MinIO unavailable, storage uploads disabled: ${e}`);
+      return false;
     }
   }
 
+  private async ensureConnected(): Promise<boolean> {
+    if (this.enabled) return true;
+    return this.connect();
+  }
+
   async upload(key: string, body: Buffer, contentType: string) {
-    if (!this.enabled) return { key, url: null };
+    if (!(await this.ensureConnected())) {
+      throw new ServiceUnavailableException("File storage is unavailable");
+    }
     await this.client.putObject(this.bucket, key, body, body.length, {
       "Content-Type": contentType,
     });
@@ -38,13 +61,17 @@ export class StorageService implements OnModuleInit {
   }
 
   async download(key: string): Promise<Buffer | null> {
-    if (!this.enabled) return null;
-    const stream = await this.client.getObject(this.bucket, key);
-    const chunks: Buffer[] = [];
-    return new Promise((resolve, reject) => {
-      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
-      stream.on("end", () => resolve(Buffer.concat(chunks)));
-      stream.on("error", reject);
-    });
+    if (!(await this.ensureConnected())) return null;
+    try {
+      const stream = await this.client.getObject(this.bucket, key);
+      const chunks: Buffer[] = [];
+      return await new Promise((resolve, reject) => {
+        stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+        stream.on("end", () => resolve(Buffer.concat(chunks)));
+        stream.on("error", reject);
+      });
+    } catch {
+      return null;
+    }
   }
 }

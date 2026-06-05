@@ -15,7 +15,7 @@ import {
   TableSkeleton,
   TableScrollArea,
 } from "@erp/ui";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, apiFetchBlob } from "@/lib/api-client";
 import { useTenantHeaders } from "@/lib/tenant-context";
 import { useAsync } from "@/lib/use-async";
 import { formatDateTime } from "@/lib/format";
@@ -269,10 +269,34 @@ export default function ReportsPage() {
                       </Table.Cell>
                       <Table.Cell>{formatDateTime(j.createdAt)}</Table.Cell>
                       <Table.Cell>
-                        {j.fileUrl ? (
-                          <a href={j.fileUrl} target="_blank" rel="noreferrer">
+                        {j.status === "COMPLETED" && j.fileUrl ? (
+                          <Button
+                            size="xs"
+                            variant="plain"
+                            colorPalette="blue"
+                            data-testid={`download-report-${j.id}`}
+                            onClick={async () => {
+                              try {
+                                const blob = await apiFetchBlob(
+                                  `/reporting/jobs/${j.id}/download`,
+                                  { tenant },
+                                );
+                                const isPdf = j.fileUrl?.endsWith(".pdf");
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `${j.type}-${j.id}.${isPdf ? "pdf" : "csv"}`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              } catch (e) {
+                                appToast.error(
+                                  e instanceof Error ? e.message : "Failed to download report",
+                                );
+                              }
+                            }}
+                          >
                             Download
-                          </a>
+                          </Button>
                         ) : (
                           "—"
                         )}

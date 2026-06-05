@@ -11,7 +11,7 @@ test.describe("Reports", () => {
     await expect(page.getByRole("heading", { name: /Reports/i })).toBeVisible();
     await expect(page.getByRole("cell", { name: "branch_summary" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "COMPLETED" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Download" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download" })).toBeVisible();
   });
 
   test("queues export and shows new job", async ({ page }) => {
@@ -42,10 +42,12 @@ test.describe("Reports", () => {
       timeout: 10_000,
     });
     const row = page.getByRole("row").filter({ hasText: "profit_and_loss" }).first();
-    await expect(row.getByRole("link", { name: "Download" })).toHaveAttribute(
-      "href",
-      /report-new\.pdf/,
+    const downloadResponse = page.waitForResponse(
+      (r) => r.url().includes("/reporting/jobs/") && r.url().includes("/download") && r.ok(),
     );
+    await row.getByRole("button", { name: "Download" }).click();
+    const res = await downloadResponse;
+    expect(res.headers()["content-type"]).toMatch(/application\/pdf/);
   });
 
   test("Export PDF hidden for branch-scoped reports", async ({ page }) => {

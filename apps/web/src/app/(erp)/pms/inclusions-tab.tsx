@@ -56,6 +56,15 @@ type InclusionPackage = {
   }[];
 };
 
+type PackageRulePayload = {
+  inclusionType: InclusionType;
+  inclusionRecipeId: string;
+  quantityPerGuestPerNight?: number;
+  quantityPerGuestPerStay?: number;
+  autoIssueOnCheckIn?: boolean;
+  sortOrder: number;
+};
+
 const emptyRecipeForm = () => ({
   name: "",
   inclusionType: InclusionType.MEAL as InclusionType,
@@ -181,7 +190,7 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
 
   const savePackage = async () => {
     if (!pkgForm.name.trim()) return;
-    const rules = pkgForm.mealRules
+    const rules: PackageRulePayload[] = pkgForm.mealRules
       .filter(
         (meal) =>
           meal.inclusionRecipeId &&

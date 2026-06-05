@@ -82,7 +82,7 @@ The seed script creates a fully functional demo environment:
 | Inventory Items |    12 | Rice, Chicken, Oil, Eggs, etc.            |
 | Recipes (BOM)   |     8 | Linked to menu items                      |
 | Guest packages  |     2 | Full board (3 meals), Budget (1 meal)     |
-| Inclusion recipes |   2 | Standard guest meal, Standard amenity kit |
+| Inclusion recipes |   4 | Breakfast meal, Lunch meal, Dinner meal, Standard amenity kit |
 | Vendors         |     1 | Fresh Foods Ltd (procurement)             |
 | Employees       |     5 | Chef, Front Desk, Waiter, etc.            |
 
@@ -566,16 +566,16 @@ curl -s -X POST "$BASE/inclusions/recipes" \
   -H "Content-Type: application/json" \
   -d '{
     "branchId": "'$BRANCH_ID'",
-    "name": "Standard guest meal",
+    "name": "Breakfast meal",
     "inclusionType": "MEAL",
     "lines": [
-      { "inventoryItemId": "<rice-inv-id>", "quantity": 0.15 },
-      { "inventoryItemId": "<chicken-inv-id>", "quantity": 0.1 }
+      { "inventoryItemId": "<eggs-inv-id>", "quantity": 2 },
+      { "inventoryItemId": "<bread-inv-id>", "quantity": 2 }
     ]
   }' | jq
 ```
 
-Seed includes **Standard guest meal** and **Standard amenity kit** on the main branch.
+Seed includes **Breakfast meal**, **Lunch meal**, **Dinner meal**, and **Standard amenity kit** on the main branch.
 
 ### Step 4b: Guest packages
 
@@ -596,8 +596,18 @@ curl -s -X POST "$BASE/inclusions/packages" \
     "rules": [
       {
         "inclusionType": "MEAL",
-        "inclusionRecipeId": "<meal-recipe-id>",
-        "quantityPerGuestPerNight": 3
+        "inclusionRecipeId": "<breakfast-recipe-id>",
+        "quantityPerGuestPerNight": 1
+      },
+      {
+        "inclusionType": "MEAL",
+        "inclusionRecipeId": "<lunch-recipe-id>",
+        "quantityPerGuestPerNight": 1
+      },
+      {
+        "inclusionType": "MEAL",
+        "inclusionRecipeId": "<dinner-recipe-id>",
+        "quantityPerGuestPerNight": 1
       },
       {
         "inclusionType": "AMENITY_KIT",

@@ -678,13 +678,47 @@ async function main() {
     });
   }
 
-  const guestMealRecipe = await prisma.inclusionRecipe.upsert({
-    where: { branchId_name: { branchId: mainBranch.id, name: "Standard guest meal" } },
+  const breakfastMealRecipe = await prisma.inclusionRecipe.upsert({
+    where: { branchId_name: { branchId: mainBranch.id, name: "Breakfast meal" } },
     update: {},
     create: {
       id: sid("ir"),
       branchId: mainBranch.id,
-      name: "Standard guest meal",
+      name: "Breakfast meal",
+      inclusionType: InclusionType.MEAL,
+      lines: {
+        create: [
+          { id: sid("irl"), inventoryItemId: inventoryIds["Eggs"], quantity: 2 },
+          { id: sid("irl"), inventoryItemId: inventoryIds["Bread"], quantity: 2 },
+        ],
+      },
+    },
+  });
+
+  const lunchMealRecipe = await prisma.inclusionRecipe.upsert({
+    where: { branchId_name: { branchId: mainBranch.id, name: "Lunch meal" } },
+    update: {},
+    create: {
+      id: sid("ir"),
+      branchId: mainBranch.id,
+      name: "Lunch meal",
+      inclusionType: InclusionType.MEAL,
+      lines: {
+        create: [
+          { id: sid("irl"), inventoryItemId: inventoryIds["Rice"], quantity: 0.15 },
+          { id: sid("irl"), inventoryItemId: inventoryIds["Chicken"], quantity: 0.1 },
+        ],
+      },
+    },
+  });
+
+  const dinnerMealRecipe = await prisma.inclusionRecipe.upsert({
+    where: { branchId_name: { branchId: mainBranch.id, name: "Dinner meal" } },
+    update: {},
+    create: {
+      id: sid("ir"),
+      branchId: mainBranch.id,
+      name: "Dinner meal",
       inclusionType: InclusionType.MEAL,
       lines: {
         create: [
@@ -725,9 +759,23 @@ async function main() {
           {
             id: sid("ipr"),
             inclusionType: InclusionType.MEAL,
-            inclusionRecipeId: guestMealRecipe.id,
-            quantityPerGuestPerNight: 3,
+            inclusionRecipeId: breakfastMealRecipe.id,
+            quantityPerGuestPerNight: 1,
             sortOrder: 0,
+          },
+          {
+            id: sid("ipr"),
+            inclusionType: InclusionType.MEAL,
+            inclusionRecipeId: lunchMealRecipe.id,
+            quantityPerGuestPerNight: 1,
+            sortOrder: 1,
+          },
+          {
+            id: sid("ipr"),
+            inclusionType: InclusionType.MEAL,
+            inclusionRecipeId: dinnerMealRecipe.id,
+            quantityPerGuestPerNight: 1,
+            sortOrder: 2,
           },
           {
             id: sid("ipr"),
@@ -735,7 +783,7 @@ async function main() {
             inclusionRecipeId: amenityKitRecipe.id,
             quantityPerGuestPerStay: 1,
             autoIssueOnCheckIn: true,
-            sortOrder: 1,
+            sortOrder: 3,
           },
         ],
       },
@@ -755,7 +803,7 @@ async function main() {
           {
             id: sid("ipr"),
             inclusionType: InclusionType.MEAL,
-            inclusionRecipeId: guestMealRecipe.id,
+            inclusionRecipeId: breakfastMealRecipe.id,
             quantityPerGuestPerNight: 1,
             sortOrder: 0,
           },

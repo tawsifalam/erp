@@ -95,8 +95,7 @@ test.describe("Visual guide — PMS flows", () => {
     await captureDrawerStep(page, flow, "02-drawer-empty", "New guest package");
 
     await page.getByLabel("Package name").fill("Guide half board");
-    await page.getByLabel("Meals per guest per night").fill("2");
-    await pickAppSelectInDrawer(page, "New guest package", 0, "Standard guest meal");
+    await pickAppSelectInDrawer(page, "New guest package", 0, "Breakfast meal");
     await captureDrawerStep(page, flow, "03-meal-allowance-filled", "New guest package");
   });
 

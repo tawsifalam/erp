@@ -46,13 +46,31 @@ const INITIAL_PACKAGES: MockInclusionPackage[] = [
     isActive: true,
     rules: [
       {
-        id: "ipr-meal",
+        id: "ipr-breakfast",
         inclusionType: "MEAL",
-        inclusionRecipeId: "ir-meal",
-        quantityPerGuestPerNight: 3,
+        inclusionRecipeId: "ir-breakfast",
+        quantityPerGuestPerNight: 1,
         quantityPerGuestPerStay: null,
         autoIssueOnCheckIn: false,
-        recipe: { id: "ir-meal", name: "Standard guest meal", inclusionType: "MEAL" },
+        recipe: { id: "ir-breakfast", name: "Breakfast meal", inclusionType: "MEAL" },
+      },
+      {
+        id: "ipr-lunch",
+        inclusionType: "MEAL",
+        inclusionRecipeId: "ir-lunch",
+        quantityPerGuestPerNight: 1,
+        quantityPerGuestPerStay: null,
+        autoIssueOnCheckIn: false,
+        recipe: { id: "ir-lunch", name: "Lunch meal", inclusionType: "MEAL" },
+      },
+      {
+        id: "ipr-dinner",
+        inclusionType: "MEAL",
+        inclusionRecipeId: "ir-dinner",
+        quantityPerGuestPerNight: 1,
+        quantityPerGuestPerStay: null,
+        autoIssueOnCheckIn: false,
+        recipe: { id: "ir-dinner", name: "Dinner meal", inclusionType: "MEAL" },
       },
       {
         id: "ipr-kit",
@@ -74,11 +92,11 @@ const INITIAL_PACKAGES: MockInclusionPackage[] = [
       {
         id: "ipr-budget",
         inclusionType: "MEAL",
-        inclusionRecipeId: "ir-meal",
+        inclusionRecipeId: "ir-breakfast",
         quantityPerGuestPerNight: 1,
         quantityPerGuestPerStay: null,
         autoIssueOnCheckIn: false,
-        recipe: { id: "ir-meal", name: "Standard guest meal", inclusionType: "MEAL" },
+        recipe: { id: "ir-breakfast", name: "Breakfast meal", inclusionType: "MEAL" },
       },
     ],
   },
@@ -86,14 +104,53 @@ const INITIAL_PACKAGES: MockInclusionPackage[] = [
 
 const INITIAL_RECIPES: MockInclusionRecipe[] = [
   {
-    id: "ir-meal",
-    name: "Standard guest meal",
+    id: "ir-breakfast",
+    name: "Breakfast meal",
+    inclusionType: "MEAL",
+    lines: [
+      {
+        inventoryItemId: "inv-eggs",
+        quantity: 2,
+        inventoryItem: { id: "inv-eggs", name: "Eggs", unit: "pcs" },
+      },
+      {
+        inventoryItemId: "inv-bread",
+        quantity: 2,
+        inventoryItem: { id: "inv-bread", name: "Bread", unit: "pcs" },
+      },
+    ],
+  },
+  {
+    id: "ir-lunch",
+    name: "Lunch meal",
     inclusionType: "MEAL",
     lines: [
       {
         inventoryItemId: "inv-rice",
         quantity: 0.15,
         inventoryItem: { id: "inv-rice", name: "Rice", unit: "kg" },
+      },
+      {
+        inventoryItemId: "inv-chicken",
+        quantity: 0.1,
+        inventoryItem: { id: "inv-chicken", name: "Chicken", unit: "kg" },
+      },
+    ],
+  },
+  {
+    id: "ir-dinner",
+    name: "Dinner meal",
+    inclusionType: "MEAL",
+    lines: [
+      {
+        inventoryItemId: "inv-rice",
+        quantity: 0.15,
+        inventoryItem: { id: "inv-rice", name: "Rice", unit: "kg" },
+      },
+      {
+        inventoryItemId: "inv-chicken",
+        quantity: 0.1,
+        inventoryItem: { id: "inv-chicken", name: "Chicken", unit: "kg" },
       },
     ],
   },
@@ -114,13 +171,33 @@ const INITIAL_RECIPES: MockInclusionRecipe[] = [
 const allowancesByReservation: Record<string, MockAllowance[]> = {
   "res-001": [
     {
-      id: "ra-meal",
+      id: "ra-breakfast",
       inclusionType: "MEAL",
-      inclusionRecipeId: "ir-meal",
-      recipeName: "Standard guest meal",
-      entitledQty: 18,
+      inclusionRecipeId: "ir-breakfast",
+      recipeName: "Breakfast meal",
+      entitledQty: 6,
       consumedQty: 0,
-      remainingQty: 18,
+      remainingQty: 6,
+      unitLabel: "meals",
+    },
+    {
+      id: "ra-lunch",
+      inclusionType: "MEAL",
+      inclusionRecipeId: "ir-lunch",
+      recipeName: "Lunch meal",
+      entitledQty: 6,
+      consumedQty: 0,
+      remainingQty: 6,
+      unitLabel: "meals",
+    },
+    {
+      id: "ra-dinner",
+      inclusionType: "MEAL",
+      inclusionRecipeId: "ir-dinner",
+      recipeName: "Dinner meal",
+      entitledQty: 6,
+      consumedQty: 0,
+      remainingQty: 6,
       unitLabel: "meals",
     },
     {
@@ -146,13 +223,33 @@ export function resetInclusionsState() {
     if (key === "res-001") {
       allowancesByReservation[key] = structuredClone([
         {
-          id: "ra-meal",
+          id: "ra-breakfast",
           inclusionType: "MEAL",
-          inclusionRecipeId: "ir-meal",
-          recipeName: "Standard guest meal",
-          entitledQty: 18,
+          inclusionRecipeId: "ir-breakfast",
+          recipeName: "Breakfast meal",
+          entitledQty: 6,
           consumedQty: 0,
-          remainingQty: 18,
+          remainingQty: 6,
+          unitLabel: "meals",
+        },
+        {
+          id: "ra-lunch",
+          inclusionType: "MEAL",
+          inclusionRecipeId: "ir-lunch",
+          recipeName: "Lunch meal",
+          entitledQty: 6,
+          consumedQty: 0,
+          remainingQty: 6,
+          unitLabel: "meals",
+        },
+        {
+          id: "ra-dinner",
+          inclusionType: "MEAL",
+          inclusionRecipeId: "ir-dinner",
+          recipeName: "Dinner meal",
+          entitledQty: 6,
+          consumedQty: 0,
+          remainingQty: 6,
           unitLabel: "meals",
         },
         {

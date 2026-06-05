@@ -65,8 +65,7 @@ const emptyRecipeForm = () => ({
 const emptyPkgForm = () => ({
   name: "",
   isDefault: false,
-  mealRecipeId: "",
-  mealsPerGuestPerNight: "3",
+  mealRules: [{ inclusionRecipeId: "", quantityPerGuestPerNight: "1" }],
   amenityRecipeId: "",
   amenityPerGuestPerStay: "1",
 });
@@ -182,20 +181,26 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
 
   const savePackage = async () => {
     if (!pkgForm.name.trim()) return;
-    const rules = [];
-    if (pkgForm.mealRecipeId && Number(pkgForm.mealsPerGuestPerNight) > 0) {
-      rules.push({
+    const rules = pkgForm.mealRules
+      .filter(
+        (meal) =>
+          meal.inclusionRecipeId &&
+          Number.isFinite(Number(meal.quantityPerGuestPerNight)) &&
+          Number(meal.quantityPerGuestPerNight) > 0,
+      )
+      .map((meal, idx) => ({
         inclusionType: InclusionType.MEAL,
-        inclusionRecipeId: pkgForm.mealRecipeId,
-        quantityPerGuestPerNight: Number(pkgForm.mealsPerGuestPerNight),
-      });
-    }
+        inclusionRecipeId: meal.inclusionRecipeId,
+        quantityPerGuestPerNight: Number(meal.quantityPerGuestPerNight),
+        sortOrder: idx,
+      }));
     if (pkgForm.amenityRecipeId && Number(pkgForm.amenityPerGuestPerStay) > 0) {
       rules.push({
         inclusionType: InclusionType.AMENITY_KIT,
         inclusionRecipeId: pkgForm.amenityRecipeId,
         quantityPerGuestPerStay: Number(pkgForm.amenityPerGuestPerStay),
         autoIssueOnCheckIn: true,
+        sortOrder: rules.length,
       });
     }
     if (rules.length === 0) {
@@ -223,6 +228,14 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
     recipeForm.inclusionType === InclusionType.MEAL ? guestItems : hkItems;
   const mealRecipes = recipes.filter((r) => r.inclusionType === InclusionType.MEAL);
   const amenityRecipes = recipes.filter((r) => r.inclusionType === InclusionType.AMENITY_KIT);
+  const updateMealRule = (
+    idx: number,
+    patch: Partial<{ inclusionRecipeId: string; quantityPerGuestPerNight: string }>,
+  ) => {
+    const mealRules = [...pkgForm.mealRules];
+    mealRules[idx] = { ...mealRules[idx], ...patch };
+    setPkgForm({ ...pkgForm, mealRules });
+  };
 
   if (!branchId) {
     return <BranchRequiredNotice />;
@@ -441,27 +454,57 @@ export function InclusionsTab({ tenant }: { tenant: TenantHeaders }) {
             <Text fontSize="sm">Default package for new reservations</Text>
           </Flex>
           <FormSection title="Meal allowance">
-            <FormField label="Meals per guest per night">
-              <AppNumberInput
-                min={0}
-                step={1}
-                value={pkgForm.mealsPerGuestPerNight}
-                onValueChange={(v) =>
-                  setPkgForm({ ...pkgForm, mealsPerGuestPerNight: v })
+            <Stack gap={3} width="100%">
+              {pkgForm.mealRules.map((rule, idx) => (
+                <Flex key={idx} gap={2} direction={{ base: "column", sm: "row" }} width="100%">
+                  <AppSelect
+                    width="100%"
+                    items={[
+                      { value: "", label: "Meal recipe" },
+                      ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
+                    ]}
+                    value={rule.inclusionRecipeId}
+                    onValueChange={(v) => updateMealRule(idx, { inclusionRecipeId: v })}
+                  />
+                  <AppNumberInput
+                    min={0}
+                    step={1}
+                    placeholder="Qty/night"
+                    value={rule.quantityPerGuestPerNight}
+                    onValueChange={(v) => updateMealRule(idx, { quantityPerGuestPerNight: v })}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pkgForm.mealRules.length === 1}
+                    onClick={() =>
+                      setPkgForm({
+                        ...pkgForm,
+                        mealRules: pkgForm.mealRules.filter((_, i) => i !== idx),
+                      })
+                    }
+                  >
+                    Remove
+                  </Button>
+                </Flex>
+              ))}
+              <Button
+                size="sm"
+                variant="outline"
+                alignSelf="flex-start"
+                onClick={() =>
+                  setPkgForm({
+                    ...pkgForm,
+                    mealRules: [
+                      ...pkgForm.mealRules,
+                      { inclusionRecipeId: "", quantityPerGuestPerNight: "1" },
+                    ],
+                  })
                 }
-              />
-            </FormField>
-            <FormField label="Meal recipe">
-              <AppSelect
-                width="100%"
-                items={[
-                  { value: "", label: "Meal recipe" },
-                  ...mealRecipes.map((r) => ({ value: r.id, label: r.name })),
-                ]}
-                value={pkgForm.mealRecipeId}
-                onValueChange={(v) => setPkgForm({ ...pkgForm, mealRecipeId: v })}
-              />
-            </FormField>
+              >
+                + Meal
+              </Button>
+            </Stack>
           </FormSection>
           <FormSection title="Amenity kit">
             <FormField label="Kits per guest per stay">

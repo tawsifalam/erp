@@ -45,17 +45,21 @@ test.describe("PMS – reservation lifecycle", () => {
   test("checked-in reservation shows inclusions drawer", async ({ page }) => {
     await page.goto("/pms");
     await clickRowActionOnPage(page, "CHECKED_IN", "Inclusions");
-    await expect(page.getByRole("heading", { name: "Guest inclusions" })).toBeVisible();
-    await expect(page.getByText(/meals used/)).toBeVisible();
-    await page.getByRole("button", { name: "Record comp meal (1)" }).click();
-    await expect(page.getByText(/1 \/ 18 meals used/)).toBeVisible({ timeout: 5000 });
+    const inclusions = page.getByRole("dialog", { name: "Guest inclusions" });
+    await expect(inclusions).toBeVisible();
+    await expect(inclusions.getByText("Breakfast meal", { exact: true })).toBeVisible();
+    await expect(inclusions.getByText(/0 \/ 6 meals used/).first()).toBeVisible();
+    await inclusions.getByRole("button", { name: "Record comp meal (1)" }).first().click();
+    await expect(inclusions.getByText(/1 \/ 6 meals used/).first()).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("guest packages tab lists demo packages", async ({ page }) => {
     await page.goto("/pms");
     await page.getByRole("tab", { name: "Guest packages" }).click();
-    await expect(page.getByText("Full board (3 meals)")).toBeVisible();
-    await expect(page.getByText("Budget (1 meal)")).toBeVisible();
+    await expect(page.getByText("Full board (3 meals)").first()).toBeVisible();
+    await expect(page.getByText("Budget (1 meal)").first()).toBeVisible();
   });
 
   test("new reservation drawer on mobile viewport", async ({ page }) => {

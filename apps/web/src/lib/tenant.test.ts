@@ -4,9 +4,11 @@ import {
   getBranchesForOrg,
   parseStoredTenant,
   pickDefaultBranch,
+  pickManagedBranchId,
   pickInitialTenant,
   resolveBranchChange,
   resolveOrganizationChange,
+  resolveTenantSelection,
   serializeStoredTenant,
   type OrgMembership,
 } from "./tenant";
@@ -51,10 +53,36 @@ describe("tenant selection logic", () => {
     expect(pickDefaultBranch(memberships, "org_b")).toBe("br_b1");
   });
 
+  it("pickManagedBranchId keeps current branch when still valid", () => {
+    const branches = [{ id: "br_a1" }, { id: "br_a2" }];
+    expect(pickManagedBranchId("br_a2", branches)).toBe("br_a2");
+  });
+
+  it("pickManagedBranchId resets to first branch after org switch", () => {
+    const branches = [{ id: "br_b1" }];
+    expect(pickManagedBranchId("br_a1", branches)).toBe("br_b1");
+  });
+
   it("resolveOrganizationChange resets branch to first in new org", () => {
     const next = resolveOrganizationChange(memberships, "org_b");
     expect(next.organizationId).toBe("org_b");
     expect(next.branchId).toBe("br_b1");
+  });
+
+  it("resolveTenantSelection picks explicit branch in target org", () => {
+    const next = resolveTenantSelection(memberships, "org_a", "br_a2");
+    expect(next).toEqual({ organizationId: "org_a", branchId: "br_a2" });
+  });
+
+  it("resolveTenantSelection rejects branch from another org", () => {
+    const next = resolveTenantSelection(memberships, "org_b", "br_a1");
+    expect(next).toEqual({ organizationId: "org_b", branchId: "br_b1" });
+  });
+
+  it("resolveTenantSelection falls back when org is unknown", () => {
+    const next = resolveTenantSelection(memberships, "org_missing", "br_a1");
+    expect(next.organizationId).toBe("org_a");
+    expect(next.branchId).toBe("br_a1");
   });
 
   it("pickInitialTenant uses stored selection when valid", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -77,7 +77,10 @@ export default function SettingsPage() {
   const [branchDrawerOpen, setBranchDrawerOpen] = useState(false);
   const [newOrgDrawerOpen, setNewOrgDrawerOpen] = useState(false);
 
-  const tenantHeaders = tenantHeadersFor(tenant.organizationId, tenant.branchId);
+  const tenantHeaders = useMemo(
+    () => tenantHeadersFor(tenant.organizationId, tenant.branchId),
+    [tenant.organizationId, tenant.branchId],
+  );
 
   const load = useCallback(async () => {
     if (!tenantHeaders || !isAdmin) {
@@ -197,14 +200,16 @@ export default function SettingsPage() {
       setNewOrgDrawerOpen(false);
       setNewOrgForm({ name: "", timezone: "Asia/Dhaka" });
       appToast.success(`Organization "${name}" created`);
-      await tenant.refreshMemberships();
-      if (result?.organization?.id) {
-        tenant.setOrganizationId(result.organization.id);
-        if (result.organization.branches[0]) {
-          tenant.setBranchId(result.organization.branches[0].id);
-        }
+      const newOrgId = result?.organization?.id;
+      const newBranchId = result?.organization?.branches[0]?.id ?? null;
+      if (newOrgId) {
+        await tenant.refreshMemberships({
+          organizationId: newOrgId,
+          branchId: newBranchId,
+        });
+      } else {
+        await tenant.refreshMemberships();
       }
-      load();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to create organization");
     }

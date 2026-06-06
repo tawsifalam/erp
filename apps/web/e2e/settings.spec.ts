@@ -68,6 +68,35 @@ test.describe("Settings – Organization & branch management", () => {
     await expect(mainRow.getByRole("button", { name: "Delete" }).first()).toBeDisabled();
   });
 
+  test("creating a new organization switches tenant and loads admin tabs", async ({ page }) => {
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "+ New organization" }).click();
+    await page.getByPlaceholder("Organization name").fill("Second Property Group");
+    await page.getByRole("button", { name: "Create organization" }).click();
+
+    await expect(page.getByText("Second Property Group · Main Branch")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByRole("textbox", { name: /organization name/i }).first()).toHaveValue(
+      "Second Property Group",
+    );
+    await expect(page.getByRole("cell", { name: "Main Branch" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Team & access" }).click();
+    await expect(page.getByText("No team members found")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("tab", { name: "Branch access" }).click();
+    const branchAccessPanel = page.getByRole("tabpanel", { name: "Branch access" });
+    await expect(
+      branchAccessPanel.getByRole("cell", { name: "ADMIN", exact: true }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole("tab", { name: "Integrations" }).click();
+    await expect(page.getByRole("button", { name: "Add connection" })).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
   test("can save organization name", async ({ page }) => {
     await page.goto("/settings");
     const nameInput = page.getByRole("textbox", { name: /organization name/i }).first();

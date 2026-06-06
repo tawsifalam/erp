@@ -511,6 +511,37 @@ describe("TenantsService", () => {
     expect(result[0].organization.branches).toEqual([{ id: "br_1", name: "Main" }]);
   });
 
+  it("listBranchMembers returns members with access flags", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.userOrganization.findMany.mockResolvedValue([
+      {
+        userId: "usr_admin",
+        role: "ADMIN",
+        user: { id: "usr_admin", email: "admin@test.com", name: "Admin" },
+      },
+      {
+        userId: "usr_front",
+        role: "FRONT_DESK",
+        user: { id: "usr_front", email: "front@test.com", name: null },
+      },
+    ]);
+    mockPrisma.userBranch.findMany.mockResolvedValue([{ userId: "usr_front" }]);
+
+    const result = await service.listBranchMembers("org_1", "br_1");
+
+    expect(result).toHaveLength(2);
+    expect(result.find((m) => m.userId === "usr_admin")?.implicitAccess).toBe(true);
+    expect(result.find((m) => m.userId === "usr_front")?.hasBranchAccess).toBe(true);
+  });
+
+  it("listBranchMembers throws when branch is not in organization", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue(null);
+
+    await expect(service.listBranchMembers("org_1", "br_missing")).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
   it("grantBranchAccess upserts ACTIVE user branch row", async () => {
     mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
     mockPrisma.userOrganization.findUnique.mockResolvedValue({

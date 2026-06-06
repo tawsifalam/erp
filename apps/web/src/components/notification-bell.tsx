@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -33,19 +33,27 @@ function tenantHeaders(orgId: string | null, branchId: string | null): TenantHea
 export function NotificationBell() {
   const router = useRouter();
   const tenant = useTenant();
-  const headers = tenantHeaders(tenant.organizationId, tenant.branchId);
+  const { organizationId, branchId } = tenant;
+  const headers = useMemo(
+    () => tenantHeaders(organizationId, branchId),
+    [organizationId, branchId],
+  );
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const unreadRequestId = useRef(0);
 
   const refreshUnread = useCallback(async () => {
     if (!headers) return;
+    const requestId = ++unreadRequestId.current;
     try {
       const { count } = await apiFetch<{ count: number }>("/notifications/unread-count", {
         tenant: headers,
       });
+      if (requestId !== unreadRequestId.current) return;
       setUnread(count);
     } catch {
+      if (requestId !== unreadRequestId.current) return;
       setUnread(0);
     }
   }, [headers]);
@@ -66,8 +74,13 @@ export function NotificationBell() {
   }, [headers]);
 
   useEffect(() => {
+    if (!headers) {
+      unreadRequestId.current += 1;
+      setUnread(0);
+      return;
+    }
     refreshUnread();
-  }, [refreshUnread]);
+  }, [headers, refreshUnread]);
 
   const markRead = async (id: string, link: string | null) => {
     if (!headers) return;

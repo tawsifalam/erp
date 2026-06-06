@@ -25,10 +25,12 @@ const INITIAL_BRANCHES: MockBranch[] = [
 
 let orgName = "Boulevard Café";
 let branches = structuredClone(INITIAL_BRANCHES) as MockBranch[];
+let createdOrganizations: MockOrgCurrent[] = [];
 
 export function resetTenantState() {
   orgName = "Boulevard Café";
   branches = structuredClone(INITIAL_BRANCHES) as MockBranch[];
+  createdOrganizations = [];
   resetBranchAccessState();
 }
 
@@ -50,25 +52,52 @@ export function getCurrentOrganization(): MockOrgCurrent {
   };
 }
 
+export function getOrganizationById(orgId: string): MockOrgCurrent | null {
+  if (orgId === "org-test-001") return getCurrentOrganization();
+  return createdOrganizations.find((org) => org.id === orgId) ?? null;
+}
+
+export function getCreatedOrganizationMemberships() {
+  return createdOrganizations.map((org) => ({
+    organizationId: org.id,
+    role: "OWNER",
+    organization: {
+      id: org.id,
+      name: org.name,
+      branches: org.branches.map((b) => ({ id: b.id, name: b.name })),
+    },
+  }));
+}
+
 export function handleTenantMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  activeOrgId?: string,
 ): unknown {
-  const branchAccess = handleBranchAccessMutation(method, url, body);
+  const branchAccess = handleBranchAccessMutation(method, url, body, activeOrgId);
   if (branchAccess !== null) return branchAccess;
 
   if (url.includes("/tenants/organizations/current")) {
-    if (method === "GET") return getCurrentOrganization();
+    const org = activeOrgId ? getOrganizationById(activeOrgId) : getCurrentOrganization();
+    if (method === "GET") {
+      if (!org) return { status: 403, message: "Not a member of this organization" };
+      return org;
+    }
     if (method === "PATCH" && body?.name) {
-      orgName = String(body.name);
-      recordAudit({
-        action: "UPDATE",
-        entityType: "organization",
-        entityId: E2E_ORG_ID,
-        metadata: { name: orgName },
-      });
-      return getCurrentOrganization();
+      if (!org) return { status: 403, message: "Not a member of this organization" };
+      if (org.id === "org-test-001") {
+        orgName = String(body.name);
+        recordAudit({
+          action: "UPDATE",
+          entityType: "organization",
+          entityId: E2E_ORG_ID,
+          metadata: { name: orgName },
+        });
+        return getCurrentOrganization();
+      }
+      org.name = String(body.name);
+      return org;
     }
   }
 
@@ -107,7 +136,11 @@ export function handleTenantMutation(
   }
 
   if (url.includes("/tenants/branches")) {
-    if (method === "GET") return getTenantBranches();
+    if (method === "GET") {
+      const org = activeOrgId ? getOrganizationById(activeOrgId) : getCurrentOrganization();
+      if (!org) return { status: 403, message: "Not a member of this organization" };
+      return org.branches;
+    }
     if (method === "POST") {
       const branch: MockBranch = {
         id: `branch_${branches.length + 1}`,
@@ -126,12 +159,28 @@ export function handleTenantMutation(
   }
 
   if (url.includes("/tenants/organizations") && method === "POST") {
+    const created: MockOrgCurrent = {
+      id: `org-new-${createdOrganizations.length + 1}`,
+      name: String(body?.name ?? "New Org"),
+      propelAuthOrgId: `pa_org_new_${createdOrganizations.length + 1}`,
+      joinCode: `ov_new_${createdOrganizations.length + 1}`,
+      branches: [
+        {
+          id: `branch-new-${createdOrganizations.length + 1}`,
+          name: "Main Branch",
+          timezone: String(body?.timezone ?? "Asia/Dhaka"),
+        },
+      ],
+    };
+    createdOrganizations.push(created);
     return {
       organization: {
-        id: "org-new-001",
-        name: String(body?.name ?? "New Org"),
-        branches: [{ id: "branch-new-001", name: "Main Branch", timezone: String(body?.timezone ?? "Asia/Dhaka") }],
+        id: created.id,
+        name: created.name,
+        propelAuthOrgId: created.propelAuthOrgId,
+        branches: created.branches,
       },
+      propelAuthSynced: true,
     };
   }
 

@@ -47,6 +47,35 @@ export function resolveOrganizationChange(
   };
 }
 
+/** Keep a branch id only when it exists in the loaded branch list (e.g. after org switch). */
+export function pickManagedBranchId(
+  current: string,
+  branches: { id: string }[],
+): string {
+  if (current && branches.some((b) => b.id === current)) return current;
+  return branches[0]?.id ?? "";
+}
+
+/** Apply an explicit org (and optional branch) against a fresh membership list. */
+export function resolveTenantSelection(
+  memberships: OrgMembership[],
+  organizationId: string,
+  branchId?: string | null,
+): { organizationId: string; branchId: string | null } {
+  const membership = findMembership(memberships, organizationId);
+  if (!membership) {
+    return pickInitialTenant(memberships, null);
+  }
+
+  const branches = membership.organization.branches;
+  const validBranch =
+    branchId != null && branches.some((b) => b.id === branchId)
+      ? branchId
+      : pickDefaultBranch(memberships, organizationId);
+
+  return { organizationId, branchId: validBranch };
+}
+
 /** Restore from localStorage when valid; otherwise default to first membership. */
 export function pickInitialTenant(
   memberships: OrgMembership[],

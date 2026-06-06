@@ -7,6 +7,19 @@ test.describe("Notifications", () => {
     await setupE2ePage(page);
   });
 
+  test("unread count is not fetched repeatedly on dashboard load", async ({ page }) => {
+    let unreadCountCalls = 0;
+    await page.route("**/notifications/unread-count", async (route) => {
+      unreadCountCalls += 1;
+      return route.continue();
+    });
+
+    await page.goto("/dashboard");
+    await page.waitForLoadState("networkidle");
+
+    expect(unreadCountCalls).toBeLessThanOrEqual(2);
+  });
+
   test("bell shows unread count from seed data", async ({ page }) => {
     await page.goto("/dashboard");
     await page.waitForResponse(

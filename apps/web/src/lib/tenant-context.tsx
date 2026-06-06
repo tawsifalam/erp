@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   useEffect,
   type ReactNode,
@@ -14,9 +15,11 @@ import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "./api-client";
 import {
   type OrgMembership,
+  findMembership,
   pickInitialTenant,
   resolveBranchChange,
   resolveOrganizationChange,
+  resolveTenantSelection,
 } from "./tenant";
 import { readStoredTenant, writeStoredTenant } from "./tenant-storage";
 
@@ -28,7 +31,10 @@ type TenantState = {
   setBranchId: (id: string) => void;
   memberships: OrgMembership[];
   loading: boolean;
-  refreshMemberships: () => Promise<void>;
+  refreshMemberships: (options?: {
+    organizationId?: string;
+    branchId?: string | null;
+  }) => Promise<OrgMembership[]>;
 };
 
 const TenantContext = createContext<TenantState | null>(null);
@@ -41,6 +47,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [branchId, setBranchIdState] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<OrgMembership[]>([]);
   const [loading, setLoading] = useState(true);
+  const membershipsRef = useRef(memberships);
+  const organizationIdRef = useRef(organizationId);
+  membershipsRef.current = memberships;
+  organizationIdRef.current = organizationId;
 
   const loadMemberships = useCallback(async () => {
     const data = await apiFetch<
@@ -59,19 +69,42 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     return mapped;
   }, []);
 
-  const refreshMemberships = useCallback(async () => {
-    const mapped = await loadMemberships();
-    const stored = readStoredTenant();
-    const initial = pickInitialTenant(mapped, stored);
-    setOrganizationIdState(initial.organizationId);
-    setBranchIdState(initial.branchId);
-    if (initial.organizationId) {
-      writeStoredTenant({
-        organizationId: initial.organizationId,
-        branchId: initial.branchId,
-      });
-    }
-  }, [loadMemberships]);
+  const applyTenantSelection = useCallback(
+    (
+      mapped: OrgMembership[],
+      preferred?: { organizationId?: string; branchId?: string | null },
+    ) => {
+      const next =
+        preferred?.organizationId &&
+        findMembership(mapped, preferred.organizationId)
+          ? resolveTenantSelection(
+              mapped,
+              preferred.organizationId,
+              preferred.branchId,
+            )
+          : pickInitialTenant(mapped, readStoredTenant());
+
+      setOrganizationIdState(next.organizationId);
+      setBranchIdState(next.branchId);
+      if (next.organizationId) {
+        writeStoredTenant({
+          organizationId: next.organizationId,
+          branchId: next.branchId,
+        });
+      }
+      return next;
+    },
+    [],
+  );
+
+  const refreshMemberships = useCallback(
+    async (options?: { organizationId?: string; branchId?: string | null }) => {
+      const mapped = await loadMemberships();
+      applyTenantSelection(mapped, options);
+      return mapped;
+    },
+    [loadMemberships, applyTenantSelection],
+  );
 
   useEffect(() => {
     if (authLoading) return;
@@ -83,19 +116,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
     loadMemberships()
       .then((mapped) => {
-        const initial = pickInitialTenant(mapped, readStoredTenant());
-        setOrganizationIdState(initial.organizationId);
-        setBranchIdState(initial.branchId);
-        if (initial.organizationId) {
-          writeStoredTenant({
-            organizationId: initial.organizationId,
-            branchId: initial.branchId,
-          });
-        }
+        applyTenantSelection(mapped);
       })
       .catch(() => setMemberships([]))
       .finally(() => setLoading(false));
-  }, [authLoading, isOnboardingRoute, loadMemberships]);
+  }, [authLoading, isOnboardingRoute, loadMemberships, applyTenantSelection]);
 
   const role =
     memberships.find((m) => m.organizationId === organizationId)?.role ?? null;
@@ -108,24 +133,22 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   const setOrganizationId = useCallback(
     (id: string) => {
-      const next = resolveOrganizationChange(memberships, id);
+      const next = resolveOrganizationChange(membershipsRef.current, id);
       setOrganizationIdState(next.organizationId);
       setBranchIdState(next.branchId);
       persist(next.organizationId, next.branchId);
     },
-    [memberships, persist],
+    [persist],
   );
 
-  const setBranchId = useCallback(
-    (id: string) => {
-      const resolved = resolveBranchChange(memberships, organizationId, id);
-      setBranchIdState(resolved);
-      if (organizationId) {
-        persist(organizationId, resolved);
-      }
-    },
-    [memberships, organizationId, persist],
-  );
+  const setBranchId = useCallback((id: string) => {
+    const orgId = organizationIdRef.current;
+    const resolved = resolveBranchChange(membershipsRef.current, orgId, id);
+    setBranchIdState(resolved);
+    if (orgId) {
+      persist(orgId, resolved);
+    }
+  }, [persist]);
 
   const value = useMemo(
     () => ({

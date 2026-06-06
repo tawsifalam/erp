@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Flex, Table, Text } from "@chakra-ui/react";
 import { AppSelect } from "@/components/app-select";
 import { ContentCard, EmptyState, TableSkeleton, TableScrollArea } from "@erp/ui";
 import { apiFetch } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
 import type { TenantHeaders } from "@/lib/api-client";
+import { pickManagedBranchId } from "@/lib/tenant";
 
 type BranchMember = {
   userId: string;
@@ -19,48 +20,99 @@ type BranchMember = {
 type Branch = { id: string; name: string };
 
 export function BranchAccessSection({ tenant }: { tenant: TenantHeaders | undefined }) {
+  const organizationId = tenant?.organizationId;
   const [loading, setLoading] = useState(true);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState("");
   const [members, setMembers] = useState<BranchMember[]>([]);
   const [acting, setActing] = useState<string | null>(null);
+  const branchesRequestId = useRef(0);
+  const membersRequestId = useRef(0);
 
-  const loadBranches = useCallback(async () => {
-    if (!tenant) return;
-    const data = await apiFetch<Branch[]>("/tenants/branches", { tenant });
-    setBranches(data);
-    setBranchId((current) => current || data[0]?.id || "");
-  }, [tenant]);
-
-  const loadMembers = useCallback(async () => {
-    if (!tenant || !branchId) {
+  useEffect(() => {
+    if (!tenant || !organizationId) {
+      branchesRequestId.current += 1;
+      membersRequestId.current += 1;
+      setBranches([]);
+      setBranchId("");
       setMembers([]);
       setLoading(false);
       return;
     }
+
+    const requestId = ++branchesRequestId.current;
+    membersRequestId.current += 1;
+    setBranches([]);
+    setBranchId("");
+    setMembers([]);
+    setLoading(true);
+
+    apiFetch<Branch[]>("/tenants/branches", { tenant })
+      .then((data) => {
+        if (requestId !== branchesRequestId.current) return;
+        setBranches(data);
+        setBranchId(pickManagedBranchId("", data));
+      })
+      .catch((e) => {
+        if (requestId !== branchesRequestId.current) return;
+        appToast.error(e instanceof Error ? e.message : "Failed to load branches");
+        setLoading(false);
+      });
+  }, [tenant, organizationId]);
+
+  useEffect(() => {
+    if (!tenant || !organizationId || !branchId) {
+      membersRequestId.current += 1;
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
+    if (!branches.some((b) => b.id === branchId)) {
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
+
+    const requestId = ++membersRequestId.current;
+    setLoading(true);
+
+    apiFetch<BranchMember[]>(`/tenants/branches/${branchId}/members`, { tenant })
+      .then((data) => {
+        if (requestId !== membersRequestId.current) return;
+        setMembers(data);
+      })
+      .catch((e) => {
+        if (requestId !== membersRequestId.current) return;
+        appToast.error(e instanceof Error ? e.message : "Failed to load branch members");
+      })
+      .finally(() => {
+        if (requestId !== membersRequestId.current) return;
+        setLoading(false);
+      });
+  }, [tenant, organizationId, branchId, branches]);
+
+  const reloadMembers = useCallback(async () => {
+    if (!tenant || !organizationId || !branchId) return;
+    if (!branches.some((b) => b.id === branchId)) return;
+
+    const requestId = ++membersRequestId.current;
     setLoading(true);
     try {
       const data = await apiFetch<BranchMember[]>(
         `/tenants/branches/${branchId}/members`,
         { tenant },
       );
+      if (requestId !== membersRequestId.current) return;
       setMembers(data);
     } catch (e) {
+      if (requestId !== membersRequestId.current) return;
       appToast.error(e instanceof Error ? e.message : "Failed to load branch members");
     } finally {
-      setLoading(false);
+      if (requestId === membersRequestId.current) {
+        setLoading(false);
+      }
     }
-  }, [tenant, branchId]);
-
-  useEffect(() => {
-    loadBranches().catch((e) =>
-      appToast.error(e instanceof Error ? e.message : "Failed to load branches"),
-    );
-  }, [loadBranches]);
-
-  useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
+  }, [tenant, organizationId, branchId, branches]);
 
   const toggleAccess = async (member: BranchMember, grant: boolean) => {
     if (!tenant || !branchId || member.implicitAccess) return;
@@ -80,7 +132,7 @@ export function BranchAccessSection({ tenant }: { tenant: TenantHeaders | undefi
         });
         appToast.success("Branch access revoked");
       }
-      await loadMembers();
+      await reloadMembers();
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to update branch access");
     } finally {
@@ -104,7 +156,7 @@ export function BranchAccessSection({ tenant }: { tenant: TenantHeaders | undefi
           placeholder="Select branch"
           aria-label="Branch for access management"
         />
-        <Button size="sm" variant="outline" onClick={loadMembers} disabled={!branchId}>
+        <Button size="sm" variant="outline" onClick={reloadMembers} disabled={!branchId}>
           Refresh
         </Button>
       </Flex>

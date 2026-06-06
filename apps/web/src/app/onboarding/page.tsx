@@ -129,12 +129,15 @@ export default function OnboardingPage() {
         method: "POST",
         body: JSON.stringify(createForm),
       });
-      await tenant.refreshMemberships();
-      if (result?.organization?.id) {
-        tenant.setOrganizationId(result.organization.id);
-        if (result.organization.branches[0]) {
-          tenant.setBranchId(result.organization.branches[0].id);
-        }
+      const newOrgId = result?.organization?.id;
+      const newBranchId = result?.organization?.branches[0]?.id ?? null;
+      if (newOrgId) {
+        await tenant.refreshMemberships({
+          organizationId: newOrgId,
+          branchId: newBranchId,
+        });
+      } else {
+        await tenant.refreshMemberships();
       }
       router.replace(getDefaultRouteForRole(Role.OWNER));
     } catch (e) {

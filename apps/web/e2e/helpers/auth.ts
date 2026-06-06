@@ -59,6 +59,7 @@ import {
   resetBranchAccessState,
 } from "./branch-access-state";
 import {
+  getCreatedOrganizationMemberships,
   getOrgName,
   getTenantBranches,
   handleTenantMutation,
@@ -213,6 +214,7 @@ export function getMockOrganizations() {
         branches: [{ id: FAKE_BRANCH_ID_2B, name: "Harbor Downtown" }],
       },
     },
+    ...getCreatedOrganizationMemberships(),
   ];
 }
 
@@ -602,14 +604,16 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("tenants/organizations/current"), async (route) => {
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleTenantMutation(method, route.request().url(), body);
+    const orgId = route.request().headers()["x-organization-id"];
+    const result = handleTenantMutation(method, route.request().url(), body, orgId);
     return fulfillTenantMutation(route, result);
   });
 
   await page.route(backendApiRoute("tenants/branches/"), async (route) => {
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleTenantMutation(method, route.request().url(), body);
+    const orgId = route.request().headers()["x-organization-id"];
+    const result = handleTenantMutation(method, route.request().url(), body, orgId);
     return fulfillTenantMutation(route, result);
   });
 
@@ -617,7 +621,8 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleTenantMutation(method, url, body);
+    const orgId = route.request().headers()["x-organization-id"];
+    const result = handleTenantMutation(method, url, body, orgId);
     return fulfillJson(route, result);
   });
 

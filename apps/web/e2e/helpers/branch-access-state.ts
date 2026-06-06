@@ -1,7 +1,7 @@
 /** Branch access grants for Playwright API mocks. */
 
 import { E2E_ORG_ID } from "./audit-state";
-import { getTenantBranches } from "./tenant-state";
+import { getOrganizationById, getTenantBranches } from "./tenant-state";
 
 export type MockBranchMember = {
   userId: string;
@@ -33,7 +33,17 @@ export function resetBranchAccessState() {
   grants.set("branch-test-001", new Set(["usr-front-desk"]));
 }
 
-export function listBranchMembers(branchId: string): MockBranchMember[] {
+function branchExistsInOrg(branchId: string, orgId?: string): boolean {
+  const branches = orgId
+    ? (getOrganizationById(orgId)?.branches ?? [])
+    : getTenantBranches();
+  return branches.some((b) => b.id === branchId);
+}
+
+export function listBranchMembers(branchId: string, orgId?: string): MockBranchMember[] | { status: number; message: string } {
+  if (!branchExistsInOrg(branchId, orgId)) {
+    return { status: 404, message: "Branch not found" };
+  }
   const branchGrants = grants.get(branchId) ?? new Set<string>();
   return ORG_MEMBERS.map((m) => ({
     userId: m.userId,
@@ -79,6 +89,7 @@ export function handleBranchAccessMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  orgId?: string,
 ): unknown {
   const membersMatch = url.match(/\/tenants\/branches\/([^/]+)\/members(?:\/([^/?]+))?/);
   if (!membersMatch) return null;
@@ -87,7 +98,7 @@ export function handleBranchAccessMutation(
   const targetUserId = membersMatch[2];
 
   if (method === "GET" && !targetUserId) {
-    return listBranchMembers(branchId);
+    return listBranchMembers(branchId, orgId);
   }
 
   if (method === "POST" && !targetUserId) {

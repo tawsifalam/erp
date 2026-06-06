@@ -78,8 +78,9 @@ COMPOSE=(
 | `./scripts/deploy-prod.sh initial` | First deploy on a VPS (starts postgres/redis/**minio**, waits for health, then api/web) |
 | `./scripts/deploy-prod.sh update` | After `git pull` / code changes (default: rebuild all, `--no-cache`; ensures minio healthy before api) |
 | `./scripts/deploy-prod.sh update --migrate` | Update + Prisma migrations |
-| `./scripts/deploy-prod.sh migrate` | Migrations only |
-| `./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com` | Install host nginx site file |
+| `./scripts/deploy-prod.sh migrate` | `prisma migrate deploy` in the **api** container |
+| `./scripts/deploy-prod.sh reset` | Wipe data volumes + reapply schema (`--yes`, `--db-only`, `--seed`) |
+| `./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com` | Host nginx site (HTTP bootstrap first, then HTTPS after certbot) |
 
 Legacy alias: `./scripts/docker-rebuild-prod.sh` → `deploy-prod.sh update`.
 
@@ -342,11 +343,13 @@ Two providers, two jobs:
 From `/opt/erp` after `.env` is ready:
 
 ```bash
-chmod +x scripts/deploy-prod.sh scripts/deploy-prod-initial.sh scripts/deploy-prod-update.sh
+chmod +x scripts/deploy-prod.sh scripts/deploy-prod-initial.sh scripts/deploy-prod-update.sh scripts/deploy-prod-reset.sh
 ./scripts/deploy-prod.sh initial
 ```
 
-This runs: `pnpm install` → `db:generate` → start postgres/redis/minio → build api+web → start api+web → `prisma migrate deploy` → local health check.
+This runs: `pnpm install` → `db:generate` → start postgres/redis/minio → build api+web → start api+web → `prisma migrate deploy` → local health check on `127.0.0.1:3001`.
+
+**Does not** install or start host nginx — do [Step 9](#step-9--host-nginx-and-tls) after `initial` (requires `apt install nginx` from [Step 2](#step-2--server-setup)).
 
 **Updates** (routine deploy after code changes):
 
@@ -386,27 +389,28 @@ PropelAuth is unchanged; users must create or join an organization after reset.
 
 ## Step 9 — Host nginx and TLS
 
-1. Copy and edit the example:
+**Prerequisite:** host nginx packages from [Step 2](#step-2--server-setup) (`apt install nginx certbot python3-certbot-nginx`). Without that, `/etc/nginx` does not exist and install will fail.
 
-   ```bash
-   sudo cp /opt/erp/infra/nginx/host-nginx.conf.example /etc/nginx/sites-available/erp
-   sudo sed -i 's/app.yourdomain.com/<your-domain>/g' /etc/nginx/sites-available/erp
-   sudo ln -sf /etc/nginx/sites-available/erp /etc/nginx/sites-enabled/
-   sudo rm -f /etc/nginx/sites-enabled/default   # if it conflicts
-   ```
+**Recommended** — use the install helper (three steps):
 
-2. Or use the install helper (copies the example and substitutes domain from `--domain` or `.env`):
+```bash
+# 1. HTTP-only bootstrap (works before TLS certs exist)
+./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
 
-   ```bash
-   # Requires host nginx: sudo apt install -y nginx certbot python3-certbot-nginx
-   ./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
-   sudo certbot --nginx -d app.yourdomain.com
-   ./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com   # full HTTPS config
-   ```
+# 2. Obtain certificate (Let's Encrypt)
+sudo certbot --nginx -d app.yourdomain.com
 
-   Or use Cloudflare origin certificates — adjust `ssl_certificate` paths in the site file.
+# 3. Install full HTTPS config (redirect HTTP→HTTPS, all proxy routes)
+./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
+```
 
-3. Confirm WebSocket routes: `/socket.io/` must have `Upgrade` headers (included in the example).
+The helper picks `host-nginx.bootstrap.conf.example` when certs are missing, then `host-nginx.conf.example` after certbot. It creates `sites-available` / `sites-enabled` if needed (Debian/Ubuntu).
+
+**Manual install** — only if you prefer editing files by hand. Do **not** copy the full HTTPS example before certs exist (`nginx -t` will fail on missing `ssl_certificate` paths). Use the bootstrap file first, or run certbot, then copy [host-nginx.conf.example](../infra/nginx/host-nginx.conf.example).
+
+Cloudflare origin certs: adjust `ssl_certificate` paths in the site file instead of certbot.
+
+Confirm WebSocket routes: `/socket.io/` must have `Upgrade` headers (included in both nginx examples).
 
 Public check:
 
@@ -504,6 +508,10 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 | Login loop | `PROPELAUTH_REDIRECT_URI` mismatch | Match dashboard exactly |
 | CORS errors | `CORS_ORIGIN` ≠ app URL | Align with `NEXT_PUBLIC_APP_URL` |
 | Kitchen not updating | WebSocket blocked | Check `/socket.io/` in host nginx config |
+| `cp: cannot create ... /etc/nginx/sites-available/erp` | Host nginx not installed | `sudo apt install -y nginx certbot python3-certbot-nginx`; then `nginx-install` |
+| `nginx -t` fails on first install | Full HTTPS config before certs | Use `nginx-install` (bootstrap), then certbot, then `nginx-install` again |
+| Site down after `reset` | Docker restarted; host nginx separate | `./scripts/deploy-prod.sh health`; `sudo systemctl start nginx` |
+| `prisma migrate deploy` schema path error | Wrong path inside api container | Use `./scripts/deploy-prod.sh migrate` (absolute schema path) |
 | Old UI after `git pull` | Image not rebuilt | `./scripts/deploy-prod.sh update web` |
 | `compose ps` empty, site works | Wrong cwd/project | `cd /opt/erp`; see [vps-docker-operations.md](./vps-docker-operations.md) |
 | `SOURCE_REV` warning | Harmless on `ps` | Export for builds: `export SOURCE_REV=$(git rev-parse HEAD)` |
@@ -516,12 +524,13 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 
 ```
 [ ] DNS → VPS
-[ ] nginx + certbot installed on host
+[ ] apt install nginx certbot python3-certbot-nginx (Step 2)
 [ ] /opt/erp/.env (PropelAuth, NEXT_PUBLIC_*, CORS; optional Resend — see Email section)
-[ ] ./scripts/deploy-prod.sh initial (or manual compose up + migrate)
-[ ] host-nginx.conf.example installed under /etc/nginx
-[ ] certbot / TLS active
-[ ] curl https://app.yourdomain.com/api/health
+[ ] ./scripts/deploy-prod.sh initial → curl http://127.0.0.1:3001/api/health
+[ ] ./scripts/deploy-prod.sh nginx-install --domain <domain>  (HTTP bootstrap)
+[ ] sudo certbot --nginx -d <domain>
+[ ] ./scripts/deploy-prod.sh nginx-install --domain <domain>  (full HTTPS)
+[ ] curl https://<domain>/api/health
 [ ] MinIO credentials rotated (not default `minioadmin`) — [Object storage (MinIO)](#object-storage-minio)
 [ ] Phase 1 smoke tests (include P5 MinIO / report download)
 [ ] Backups scheduled

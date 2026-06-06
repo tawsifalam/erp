@@ -1,10 +1,12 @@
-# Production reverse proxy — install on the VPS host (not in Docker).
-# Copy to /etc/nginx/sites-available/erp (adjust server_name and SSL paths), then:
-#   sudo ln -sf /etc/nginx/sites-available/erp /etc/nginx/sites-enabled/
-#   sudo nginx -t && sudo systemctl reload nginx
+# Production reverse proxy — HTTPS (use AFTER Let's Encrypt or origin certs exist).
+# Do not copy this file on first install before certs — nginx -t will fail.
+#
+# Recommended:
+#   ./scripts/deploy-prod.sh nginx-install --domain <domain>   # HTTP bootstrap
+#   sudo certbot --nginx -d <domain>
+#   ./scripts/deploy-prod.sh nginx-install --domain <domain>   # installs this file
 #
 # Compose must publish api/web on localhost only (docker-compose.prod-host-nginx.yml).
-# TLS: use certbot --nginx (paths below) or Cloudflare origin certs (see infra/nginx/nginx.conf).
 
 upstream erp_api {
   server 127.0.0.1:3001;

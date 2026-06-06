@@ -155,7 +155,9 @@ After `git pull`:
 | Space in path: `/opt/erp/ infra/...` | No space after `/opt/erp/` |
 | `down` from `$HOME` | `cd /opt/erp` and use `"${COMPOSE[@]}"` |
 | Missing `--env-file` | Add `--env-file /opt/erp/.env` |
-| Starting compose `nginx` on VPS | Use host nginx; see [host-nginx.conf.example](../infra/nginx/host-nginx.conf.example) |
+| Starting compose `nginx` on VPS | Use host nginx; see [cloud-deployment.md § Step 9](./cloud-deployment.md#step-9--host-nginx-and-tls) |
+| `sites-available/erp: No such file` | Run `sudo apt install -y nginx` first |
+| Public site down after `reset` | `./scripts/deploy-prod.sh health`; `sudo systemctl start nginx` |
 
 ---
 

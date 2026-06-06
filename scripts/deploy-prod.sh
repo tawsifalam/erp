@@ -35,7 +35,7 @@ Production deployment (run from repo root, e.g. /opt/erp)
   health          curl 127.0.0.1:3001/api/health
 
   nginx-install [--domain NAME]
-      Copy host-nginx.conf.example to /etc/nginx (requires sudo).
+      Install host nginx site (HTTP bootstrap, or HTTPS if certs exist). Requires sudo + apt install nginx.
 
 Examples:
   ./scripts/deploy-prod.sh initial

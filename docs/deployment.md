@@ -17,9 +17,10 @@ Config: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.exa
 ## Deploy scripts (VPS)
 
 ```bash
-./scripts/deploy-prod.sh initial          # first time
+./scripts/deploy-prod.sh initial          # first time (Docker only — not nginx)
 ./scripts/deploy-prod.sh update [--migrate]
-./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
+./scripts/deploy-prod.sh reset [--yes]    # wipe data + schema (see cloud-deployment.md)
+./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com  # then certbot, then nginx-install again
 ```
 
 See [cloud-deployment.md](./cloud-deployment.md). Local dev: `docker compose up` from repo root with `.env`.
@@ -39,17 +40,27 @@ Use a **single public domain** for web + API paths when possible (`NEXT_PUBLIC_A
 
 ## Migrations
 
-Run before deploy:
+**VPS (bundled Postgres, ports not on host):**
+
+```bash
+./scripts/deploy-prod.sh migrate
+```
+
+Runs `prisma migrate deploy` inside the **api** container with schema `/app/apps/api/prisma/schema.prisma`.
+
+**Local dev** (Postgres on `localhost:5432`):
 
 ```bash
 pnpm --filter @erp/api exec prisma migrate deploy
 ```
 
-Do not run `db:seed` in production unless you want demo data.
+Do not run `db:seed` in production unless you want demo data. Use `./scripts/deploy-prod.sh reset --seed` on staging only.
 
 ## nginx
 
-Production: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.example) on the VPS host. Optional Docker nginx for local demos: [docker-compose.nginx.yml](../infra/docker/docker-compose.nginx.yml).
+Install on the **host** (not Docker): `apt install nginx`, then `./scripts/deploy-prod.sh nginx-install` → `certbot` → `nginx-install` again. See [cloud-deployment.md § Step 9](./cloud-deployment.md#step-9--host-nginx-and-tls).
+
+Configs: [host-nginx.bootstrap.conf.example](../infra/nginx/host-nginx.bootstrap.conf.example) (HTTP first), [host-nginx.conf.example](../infra/nginx/host-nginx.conf.example) (HTTPS). Optional Docker nginx for local demos: [docker-compose.nginx.yml](../infra/docker/docker-compose.nginx.yml).
 
 ## Health checks
 

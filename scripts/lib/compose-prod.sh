@@ -116,7 +116,7 @@ erp_up_data() {
 
 erp_migrate() {
   echo "==> prisma migrate deploy"
-  erp_compose exec -T api npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+  erp_compose exec -T api npx prisma migrate deploy --schema=prisma/schema.prisma
 }
 
 erp_build_apps() {

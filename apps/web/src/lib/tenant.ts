@@ -64,7 +64,11 @@ export function resolveTenantSelection(
 ): { organizationId: string; branchId: string | null } {
   const membership = findMembership(memberships, organizationId);
   if (!membership) {
-    return pickInitialTenant(memberships, null);
+    const fallback = pickInitialTenant(memberships, null);
+    return {
+      organizationId: fallback.organizationId ?? organizationId,
+      branchId: fallback.branchId,
+    };
   }
 
   const branches = membership.organization.branches;

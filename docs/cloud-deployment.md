@@ -372,6 +372,16 @@ Expected containers (project `erp`): **postgres, redis, minio, api, web** — fi
 
 **Do not** run `pnpm db:seed` in production unless you want demo data.
 
+**Clean reset** (wipe Postgres/Redis/MinIO volumes and reapply schema):
+
+```bash
+./scripts/deploy-prod.sh reset          # interactive — type RESET to confirm
+./scripts/deploy-prod.sh reset --yes    # empty DB, no demo seed
+./scripts/deploy-prod.sh reset --seed   # staging: includes demo seed
+```
+
+PropelAuth is unchanged; users must create or join an organization after reset.
+
 ---
 
 ## Step 9 — Host nginx and TLS

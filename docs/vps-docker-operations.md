@@ -118,6 +118,16 @@ docker compose "${COMPOSE[@]}" down -v --remove-orphans
 
 Wipes Postgres and MinIO data.
 
+**Automated clean reset** (stops stack, wipes volumes, `migrate deploy`, health check):
+
+```bash
+cd /opt/erp
+./scripts/deploy-prod.sh reset          # prompts: type RESET
+./scripts/deploy-prod.sh reset --yes    # non-interactive
+./scripts/deploy-prod.sh reset --db-only   # Postgres only, keep Redis/MinIO
+./scripts/deploy-prod.sh reset --seed      # demo data (staging only)
+```
+
 ---
 
 ## Start again after a full stop

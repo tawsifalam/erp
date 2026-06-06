@@ -4,6 +4,7 @@
 #   ./scripts/deploy-prod.sh initial              # first deploy
 #   ./scripts/deploy-prod.sh update [all|api|web] [--migrate]
 #   ./scripts/deploy-prod.sh migrate              # schema only
+#   ./scripts/deploy-prod.sh reset [--yes] [--db-only] [--seed]
 #   ./scripts/deploy-prod.sh status|logs|health
 #   ./scripts/deploy-prod.sh nginx-install --domain app.example.com
 #
@@ -25,6 +26,9 @@ Production deployment (run from repo root, e.g. /opt/erp)
 
   migrate
       prisma migrate deploy in the running api container.
+
+  reset [--yes] [--db-only] [--seed]
+      Destructive wipe + schema reapply (see deploy-prod-reset.sh).
 
   status          docker compose ps
   logs [service]  follow logs (default: api web)
@@ -58,6 +62,9 @@ case "${cmd}" in
     erp_compose_init
     erp_cd_root
     erp_migrate
+    ;;
+  reset)
+    exec "${SCRIPT_DIR}/deploy-prod-reset.sh" "$@"
     ;;
   status)
     # shellcheck source=lib/compose-prod.sh

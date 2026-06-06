@@ -7,6 +7,9 @@
 # Migrations (from repo on server):
 #   docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.prod.yml \
 #     exec api npx prisma migrate deploy --schema=/app/apps/api/prisma/schema.prisma
+#
+# Full data wipe + schema (from repo on server):
+#   ./scripts/deploy-prod.sh reset
 
 # Compose merges port lists by default; !reset clears base publish rules from docker-compose.yml.
 services:

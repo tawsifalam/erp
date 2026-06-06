@@ -8,6 +8,9 @@ ERP_ROOT="$(cd "${erp_lib_dir}/../.." && pwd)"
 # Populated by erp_compose_init
 COMPOSE=()
 
+# Prisma schema path inside the production api image (WORKDIR /app/apps/api).
+ERP_PRISMA_SCHEMA="/app/apps/api/prisma/schema.prisma"
+
 erp_compose_init() {
   local env_file="${ERP_ROOT}/.env"
   if [[ ! -f "${env_file}" ]]; then
@@ -116,9 +119,24 @@ erp_up_data() {
 
 erp_migrate() {
   echo "==> prisma migrate deploy"
-  # API image stores Prisma at /app/apps/api/prisma (WORKDIR). Use an absolute schema
-  # path so migrate works regardless of exec cwd (repo-relative paths break in-container).
-  erp_compose exec -T api npx prisma migrate deploy --schema=/app/apps/api/prisma/schema.prisma
+  erp_compose exec -T api npx prisma migrate deploy --schema="${ERP_PRISMA_SCHEMA}"
+}
+
+erp_migrate_reset() {
+  local skip_seed="${1:-1}"
+  echo "==> prisma migrate reset"
+  local -a args=(--force --schema="${ERP_PRISMA_SCHEMA}")
+  if [[ "${skip_seed}" -eq 1 ]]; then
+    args+=(--skip-seed)
+  fi
+  erp_compose run --rm --no-deps api npx prisma migrate reset "${args[@]}"
+}
+
+erp_db_seed() {
+  echo "==> prisma db seed"
+  # Runner image has prisma/seed.ts but not prisma.config.ts — invoke seed directly.
+  erp_compose exec -T api \
+    npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
 }
 
 erp_build_apps() {

@@ -16,6 +16,8 @@ const mockPrisma = {
 
 const mockTenants = {
   fulfillPendingInvitesForUser: jest.fn().mockResolvedValue([]),
+  syncUserPropelAuthOrgMemberships: jest.fn().mockResolvedValue(undefined),
+  syncPropelAuthOrgUsersToDb: jest.fn().mockResolvedValue({ usersSynced: 0, membershipsAdded: 0 }),
 };
 
 describe("AuthService", () => {
@@ -82,5 +84,25 @@ describe("AuthService", () => {
 
     const result = await service.syncUser({ userId: "pa_1", email: "a@b.c" });
     expect(result.hasActiveMembership).toBe(true);
+  });
+
+  it("syncUser syncs PropelAuth org memberships and org users", async () => {
+    mockPrisma.user.upsert.mockResolvedValue({ id: "usr_1", email: "a@b.c" });
+    mockPrisma.userOrganization.count.mockResolvedValue(1);
+    mockPrisma.organizationJoinRequest.findFirst.mockResolvedValue(null);
+    mockPrisma.user.findUnique.mockResolvedValue({ id: "usr_1", memberships: [] });
+
+    await service.syncUser({
+      userId: "pa_1",
+      email: "a@b.c",
+      orgs: [{ orgId: "pa_org_1", role: "Member" }],
+    });
+
+    expect(mockTenants.syncUserPropelAuthOrgMemberships).toHaveBeenCalledWith(
+      "usr_1",
+      "a@b.c",
+      [{ orgId: "pa_org_1", role: "Member" }],
+    );
+    expect(mockTenants.syncPropelAuthOrgUsersToDb).toHaveBeenCalledWith("pa_org_1");
   });
 });

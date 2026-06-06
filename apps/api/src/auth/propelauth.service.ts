@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { initBaseAuth, type UserClass } from "@propelauth/node";
+import { Role } from "@erp/types";
 import type { AuthUserPayload } from "@erp/types";
 
 type PropelAuthAdmin = ReturnType<typeof initBaseAuth>;
@@ -52,6 +53,38 @@ export class PropelAuthService implements OnModuleInit {
     return this.config.get<string>("PROPELAUTH_ORG_OWNER_ROLE") ?? "Owner";
   }
 
+  /** PropelAuth org role used for ERP admins when syncing or updating PropelAuth. */
+  defaultOrgAdminRole(): string {
+    return this.config.get<string>("PROPELAUTH_ORG_ADMIN_ROLE") ?? "Admin";
+  }
+
+  /** Map PropelAuth org role names to ERP roles when importing members. */
+  mapPropelAuthRoleToErp(propelAuthRole: string): Role {
+    const normalized = propelAuthRole.trim().toLowerCase();
+    if (normalized === this.defaultOrgOwnerRole().trim().toLowerCase()) {
+      return Role.OWNER;
+    }
+    if (normalized === this.defaultOrgAdminRole().trim().toLowerCase()) {
+      return Role.ADMIN;
+    }
+    if (normalized === this.defaultOrgInviteRole().trim().toLowerCase()) {
+      return Role.FRONT_DESK;
+    }
+    return Role.FRONT_DESK;
+  }
+
+  /** Map ERP roles to PropelAuth org roles when pushing membership changes. */
+  mapErpRoleToPropelAuth(erpRole: string): string {
+    switch (erpRole) {
+      case Role.OWNER:
+        return this.defaultOrgOwnerRole();
+      case Role.ADMIN:
+        return this.defaultOrgAdminRole();
+      default:
+        return this.defaultOrgInviteRole();
+    }
+  }
+
   async fetchOrg(orgId: string) {
     return this.admin.fetchOrg(orgId);
   }
@@ -71,15 +104,19 @@ export class PropelAuthService implements OnModuleInit {
     });
   }
 
+  async removeUserFromOrg(orgId: string, userId: string) {
+    return this.admin.removeUserFromOrg({ orgId, userId });
+  }
+
   async updateOrg(orgId: string, name: string) {
     return this.admin.updateOrg({ orgId, name });
   }
 
-  async inviteUserToOrg(orgId: string, email: string) {
+  async inviteUserToOrg(orgId: string, email: string, role?: string) {
     return this.admin.inviteUserToOrg({
       orgId,
       email,
-      role: this.defaultOrgInviteRole(),
+      role: role ?? this.defaultOrgInviteRole(),
     });
   }
 
@@ -90,17 +127,43 @@ export class PropelAuthService implements OnModuleInit {
     });
   }
 
+  async fetchAllUsersInOrg(propelAuthOrgId: string) {
+    const users: Awaited<
+      ReturnType<PropelAuthAdmin["fetchUsersInOrg"]>
+    >["users"] = [];
+    let pageNumber = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const page = await this.admin.fetchUsersInOrg({
+        orgId: propelAuthOrgId,
+        pageSize: 100,
+        pageNumber,
+      });
+      users.push(...page.users);
+      hasMore = page.hasMoreResults;
+      pageNumber += 1;
+    }
+
+    return users;
+  }
+
   async validateAuthorizationHeader(
     authorizationHeader: string | undefined,
   ): Promise<AuthUserPayload> {
     const user = await this.validateAccessToken(authorizationHeader);
-    const org = user.getOrgs()[0];
+    const orgs = user.getOrgs().map((org) => ({
+      orgId: org.orgId,
+      orgName: org.orgName,
+      role: org.assignedRole,
+    }));
     return {
       userId: user.userId,
       email: user.email,
       firstName: user.firstName ?? undefined,
       lastName: user.lastName ?? undefined,
-      orgId: org?.orgId,
+      orgId: orgs[0]?.orgId,
+      orgs,
     };
   }
 }

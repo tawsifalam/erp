@@ -1,11 +1,13 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { JoinRequestStatus } from "@erp/types";
-import type { AuthUserPayload } from "@erp/types";
+import type { AuthUserPayload, PropelAuthOrgMembership } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { TenantsService } from "../tenants/tenants.service";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenants: TenantsService,
@@ -27,6 +29,16 @@ export class AuthService {
     });
 
     await this.tenants.fulfillPendingInvitesForUser(user.id, email);
+
+    const propelAuthOrgs = claims.orgs ?? [];
+    if (propelAuthOrgs.length > 0) {
+      await this.tenants.syncUserPropelAuthOrgMemberships(
+        user.id,
+        email,
+        propelAuthOrgs,
+      );
+      await this.syncPropelAuthOrgUsers(propelAuthOrgs);
+    }
 
     const membershipCount = await this.prisma.userOrganization.count({
       where: { userId: user.id },
@@ -56,5 +68,21 @@ export class AuthService {
           }
         : null,
     };
+  }
+
+  /** Upsert all members of linked PropelAuth orgs into the ERP users table. */
+  private async syncPropelAuthOrgUsers(orgs: PropelAuthOrgMembership[]) {
+    const seen = new Set<string>();
+    for (const org of orgs) {
+      if (seen.has(org.orgId)) continue;
+      seen.add(org.orgId);
+      try {
+        await this.tenants.syncPropelAuthOrgUsersToDb(org.orgId);
+      } catch (err) {
+        this.logger.warn(
+          `PropelAuth org user sync failed for ${org.orgId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
   }
 }

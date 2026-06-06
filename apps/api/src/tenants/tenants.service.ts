@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InviteStatus, JoinRequestStatus, ReservationStatus, Role } from "@erp/types";
+import type { PropelAuthOrgMembership } from "@erp/types";
 import { generateId, generateJoinCode, generatePrefixedId } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryPoolsService } from "../inventory/inventory-pools.service";
@@ -596,9 +597,48 @@ export class TenantsService {
       throw new ForbiddenException("You cannot remove yourself from the organization");
     }
 
+    const [org, targetUser] = await Promise.all([
+      this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { propelAuthOrgId: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { propelAuthUserId: true, email: true },
+      }),
+    ]);
+
     await this.prisma.userOrganization.delete({
       where: { id: membership.id },
     });
+
+    if (
+      org &&
+      targetUser?.propelAuthUserId &&
+      !org.propelAuthOrgId.startsWith("erp_")
+    ) {
+      try {
+        await this.propelAuth.removeUserFromOrg(
+          org.propelAuthOrgId,
+          targetUser.propelAuthUserId,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `PropelAuth removeUserFromOrg failed for user ${targetUserId} in org ${organizationId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+
+      if (targetUser.email) {
+        try {
+          await this.propelAuth.revokePendingOrgInvite(
+            org.propelAuthOrgId,
+            targetUser.email,
+          );
+        } catch {
+          // Invite may already be accepted or absent.
+        }
+      }
+    }
 
     await this.audit.record({
       organizationId,
@@ -803,8 +843,9 @@ export class TenantsService {
     }
 
     const propelAuthOrgId = await this.ensurePropelAuthOrganization(org);
+    const propelAuthRole = this.propelAuth.mapErpRoleToPropelAuth(assignedRole);
     try {
-      await this.propelAuth.inviteUserToOrg(propelAuthOrgId, email);
+      await this.propelAuth.inviteUserToOrg(propelAuthOrgId, email, propelAuthRole);
     } catch {
       throw new BadRequestException(
         "Could not send invite email. Check PropelAuth configuration and org roles.",
@@ -922,6 +963,179 @@ export class TenantsService {
     }
 
     return accepted;
+  }
+
+  private async resolveMembershipRole(
+    email: string,
+    organizationId: string,
+    propelAuthRole?: string,
+  ): Promise<Role> {
+    const invite = await this.prisma.organizationInvite.findFirst({
+      where: {
+        organizationId,
+        email: this.normalizeEmail(email),
+        status: InviteStatus.PENDING,
+      },
+    });
+    if (invite) return this.assertValidRole(invite.role);
+    if (propelAuthRole) {
+      return this.propelAuth.mapPropelAuthRoleToErp(propelAuthRole);
+    }
+    return Role.FRONT_DESK;
+  }
+
+  /** Creates ERP membership when missing; returns true if a row was added. */
+  private async ensureOrgMembership(
+    userId: string,
+    email: string,
+    organizationId: string,
+    propelAuthRole?: string,
+  ): Promise<boolean> {
+    const existing = await this.prisma.userOrganization.findUnique({
+      where: {
+        userId_organizationId: { userId, organizationId },
+      },
+    });
+    if (existing) return false;
+
+    const normalized = this.normalizeEmail(email);
+    const role = await this.resolveMembershipRole(
+      normalized,
+      organizationId,
+      propelAuthRole,
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userOrganization.create({
+        data: {
+          userId,
+          organizationId,
+          role,
+        },
+      });
+
+      await tx.organizationInvite.updateMany({
+        where: {
+          organizationId,
+          email: normalized,
+          status: InviteStatus.PENDING,
+        },
+        data: { status: InviteStatus.ACCEPTED, acceptedAt: new Date() },
+      });
+
+      await tx.organizationJoinRequest.updateMany({
+        where: {
+          userId,
+          organizationId,
+          status: JoinRequestStatus.PENDING,
+        },
+        data: { status: JoinRequestStatus.CANCELLED },
+      });
+    });
+
+    return true;
+  }
+
+  /**
+   * Create ERP org membership when the user belongs to a linked PropelAuth org.
+   * ERP invite roles take precedence; otherwise PropelAuth roles are mapped to ERP.
+   */
+  async syncUserPropelAuthOrgMemberships(
+    userId: string,
+    email: string,
+    orgs: PropelAuthOrgMembership[],
+  ) {
+    const normalized = this.normalizeEmail(email);
+
+    for (const paOrg of orgs) {
+      if (paOrg.orgId.startsWith("erp_")) continue;
+
+      const erpOrg = await this.prisma.organization.findUnique({
+        where: { propelAuthOrgId: paOrg.orgId },
+      });
+      if (!erpOrg) continue;
+
+      await this.ensureOrgMembership(userId, normalized, erpOrg.id, paOrg.role);
+    }
+  }
+
+  /**
+   * Upsert PropelAuth org members into ERP and ensure team membership.
+   */
+  async syncPropelAuthOrgUsersToDb(propelAuthOrgId: string): Promise<{
+    usersSynced: number;
+    membershipsAdded: number;
+  }> {
+    if (propelAuthOrgId.startsWith("erp_")) {
+      return { usersSynced: 0, membershipsAdded: 0 };
+    }
+
+    const erpOrg = await this.prisma.organization.findUnique({
+      where: { propelAuthOrgId },
+    });
+    if (!erpOrg) return { usersSynced: 0, membershipsAdded: 0 };
+
+    const paUsers = await this.propelAuth.fetchAllUsersInOrg(propelAuthOrgId);
+    let usersSynced = 0;
+    let membershipsAdded = 0;
+
+    for (const paUser of paUsers) {
+      const name =
+        [paUser.firstName, paUser.lastName].filter(Boolean).join(" ") || undefined;
+      const email = paUser.email;
+
+      const user = await this.prisma.user.upsert({
+        where: { propelAuthUserId: paUser.userId },
+        update: { email, name },
+        create: {
+          propelAuthUserId: paUser.userId,
+          email,
+          name,
+        },
+      });
+
+      usersSynced += 1;
+      await this.fulfillPendingInvitesForUser(user.id, email);
+
+      const added = await this.ensureOrgMembership(
+        user.id,
+        email,
+        erpOrg.id,
+        paUser.roleInOrg,
+      );
+      if (added) membershipsAdded += 1;
+    }
+
+    return { usersSynced, membershipsAdded };
+  }
+
+  /** Admin-triggered sync of PropelAuth org members into ERP team membership. */
+  async syncOrganizationMembersFromPropelAuth(
+    organizationId: string,
+    actingUserId?: string,
+  ) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+    if (!org) throw new NotFoundException("Organization not found");
+    if (org.propelAuthOrgId.startsWith("erp_")) {
+      throw new BadRequestException(
+        "This organization is not linked to PropelAuth yet. Send an email invite to link it.",
+      );
+    }
+
+    const result = await this.syncPropelAuthOrgUsersToDb(org.propelAuthOrgId);
+
+    await this.audit.record({
+      organizationId,
+      userId: actingUserId,
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.ORGANIZATION,
+      entityId: organizationId,
+      metadata: { propelAuthMemberSync: result },
+    });
+
+    return result;
   }
 
   async listBranchMembers(organizationId: string, branchId: string) {

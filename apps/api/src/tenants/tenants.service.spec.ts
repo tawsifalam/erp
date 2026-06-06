@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, NotFoundExc
 import { TenantsService } from "./tenants.service";
 
 const mockPrisma = {
-  user: { findUnique: jest.fn() },
+  user: { findUnique: jest.fn(), upsert: jest.fn() },
   userOrganization: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
   organization: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn(), findMany: jest.fn() },
   organizationJoinRequest: {
@@ -49,6 +49,19 @@ const mockPropelAuth = {
   updateOrg: jest.fn(),
   inviteUserToOrg: jest.fn(),
   revokePendingOrgInvite: jest.fn(),
+  fetchAllUsersInOrg: jest.fn(),
+  removeUserFromOrg: jest.fn(),
+  mapPropelAuthRoleToErp: jest.fn((role: string) => {
+    const normalized = role.toLowerCase();
+    if (normalized === "owner") return "OWNER";
+    if (normalized === "admin") return "ADMIN";
+    return "FRONT_DESK";
+  }),
+  mapErpRoleToPropelAuth: jest.fn((role: string) => {
+    if (role === "OWNER") return "Owner";
+    if (role === "ADMIN") return "Admin";
+    return "Member";
+  }),
 };
 
 describe("TenantsService", () => {
@@ -454,6 +467,7 @@ describe("TenantsService", () => {
     expect(mockPropelAuth.inviteUserToOrg).toHaveBeenCalledWith(
       "pa_org_1",
       "new@example.com",
+      "Member",
     );
     expect(mockPrisma.organizationInvite.create).toHaveBeenCalled();
   });
@@ -475,18 +489,36 @@ describe("TenantsService", () => {
     ).rejects.toThrow(ConflictException);
   });
 
-  it("removeMember deletes non-founder membership", async () => {
+  it("removeMember deletes non-founder membership and removes from PropelAuth", async () => {
     mockPrisma.userOrganization.findFirst.mockResolvedValue({ userId: "usr_founder" });
     mockPrisma.userOrganization.findUnique.mockResolvedValue({
       id: "uo_2",
       userId: "usr_member",
       role: "FRONT_DESK",
     });
+    mockPrisma.organization.findUnique.mockResolvedValue({
+      propelAuthOrgId: "pa_org_1",
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      propelAuthUserId: "pa_user_member",
+      email: "member@test.com",
+    });
+    mockPropelAuth.removeUserFromOrg.mockResolvedValue(true);
+    mockPropelAuth.revokePendingOrgInvite.mockResolvedValue(true);
     mockPrisma.userOrganization.delete.mockResolvedValue({});
 
     const result = await service.removeMember("org_1", "usr_member", "usr_admin");
+
     expect(result.removed).toBe(true);
     expect(mockPrisma.userOrganization.delete).toHaveBeenCalledWith({ where: { id: "uo_2" } });
+    expect(mockPropelAuth.removeUserFromOrg).toHaveBeenCalledWith(
+      "pa_org_1",
+      "pa_user_member",
+    );
+    expect(mockPropelAuth.revokePendingOrgInvite).toHaveBeenCalledWith(
+      "pa_org_1",
+      "member@test.com",
+    );
   });
 
   it("listOrganizations filters branches for non-admin members", async () => {
@@ -567,5 +599,89 @@ describe("TenantsService", () => {
       service.userHasBranchAccess("usr_admin", "org_1", "ADMIN", "br_1"),
     ).resolves.toBe(true);
     expect(mockPrisma.userBranch.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("syncUserPropelAuthOrgMemberships creates membership for linked PropelAuth org", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue({
+      id: "org_1",
+      propelAuthOrgId: "pa_org_1",
+    });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue(null);
+    mockPrisma.organizationInvite.findFirst.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) =>
+      fn({
+        ...mockPrisma,
+        userOrganization: { create: jest.fn() },
+        organizationInvite: { updateMany: jest.fn() },
+        organizationJoinRequest: { updateMany: jest.fn() },
+      } as never),
+    );
+
+    await service.syncUserPropelAuthOrgMemberships("usr_1", "member@test.com", [
+      { orgId: "pa_org_1", role: "Member" },
+    ]);
+
+    expect(mockPrisma.organization.findUnique).toHaveBeenCalledWith({
+      where: { propelAuthOrgId: "pa_org_1" },
+    });
+    expect(mockPrisma.$transaction).toHaveBeenCalled();
+  });
+
+  it("syncPropelAuthOrgUsersToDb upserts users and adds team membership", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue({
+      id: "org_1",
+      propelAuthOrgId: "pa_org_1",
+    });
+    mockPropelAuth.fetchAllUsersInOrg.mockResolvedValue([
+      {
+        userId: "pa_user_1",
+        email: "member@test.com",
+        firstName: "Team",
+        lastName: "Member",
+        roleInOrg: "Admin",
+      },
+    ]);
+    mockPrisma.user.upsert.mockResolvedValue({
+      id: "usr_1",
+      email: "member@test.com",
+    });
+    mockPrisma.organizationInvite.findMany.mockResolvedValue([]);
+    mockPrisma.userOrganization.findUnique.mockResolvedValue(null);
+    mockPrisma.organizationInvite.findFirst.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) =>
+      fn({
+        ...mockPrisma,
+        userOrganization: { create: jest.fn() },
+        organizationInvite: { updateMany: jest.fn() },
+        organizationJoinRequest: { updateMany: jest.fn() },
+      } as never),
+    );
+
+    const result = await service.syncPropelAuthOrgUsersToDb("pa_org_1");
+
+    expect(result).toEqual({ usersSynced: 1, membershipsAdded: 1 });
+    expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { propelAuthUserId: "pa_user_1" },
+        create: expect.objectContaining({ email: "member@test.com", name: "Team Member" }),
+      }),
+    );
+  });
+
+  it("syncPropelAuthOrgUsersToDb skips synthetic erp_ org ids", async () => {
+    const result = await service.syncPropelAuthOrgUsersToDb("erp_local_org");
+    expect(result).toEqual({ usersSynced: 0, membershipsAdded: 0 });
+    expect(mockPropelAuth.fetchAllUsersInOrg).not.toHaveBeenCalled();
+  });
+
+  it("syncOrganizationMembersFromPropelAuth throws when org is not linked", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue({
+      id: "org_1",
+      propelAuthOrgId: "erp_local_org",
+    });
+
+    await expect(
+      service.syncOrganizationMembersFromPropelAuth("org_1", "usr_admin"),
+    ).rejects.toThrow(BadRequestException);
   });
 });

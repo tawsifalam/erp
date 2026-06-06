@@ -222,6 +222,21 @@ export class TenantsController {
     return this.tenants.listMembers(t.organizationId);
   }
 
+  @Post("members/sync-propelauth")
+  @UseGuards(TenantGuard, PermissionGuard)
+  @RequirePermission(Permission.ADMIN)
+  async syncMembersFromPropelAuth(
+    @CurrentUser() claims: AuthUserPayload,
+    @Tenant() t: TenantContext,
+  ) {
+    const user = await this.requireUser(claims);
+    if (!user) return null;
+    return this.tenants.syncOrganizationMembersFromPropelAuth(
+      t.organizationId,
+      user.id,
+    );
+  }
+
   @Delete("members/:userId")
   @UseGuards(TenantGuard, PermissionGuard)
   @RequirePermission(Permission.ADMIN)

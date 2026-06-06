@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import { MovementDirection, MovementType } from "@erp/types";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantGuard } from "../common/guards/tenant.guard";
@@ -83,9 +93,24 @@ export class InventoryController {
     @Tenant() t: TenantContext,
     @Query("branchId") branchId: string | undefined,
     @Body()
-    body: { name?: string; unit?: string; lowStockThreshold?: number | null },
+    body: {
+      name?: string;
+      unit?: string;
+      lowStockThreshold?: number | null;
+      poolId?: string;
+    },
   ) {
     return this.inventory.updateItem(branchId || t.branchId!, id, body);
+  }
+
+  @Delete("items/:id")
+  @RequirePermission(Permission.INVENTORY_WRITE)
+  deleteItem(
+    @Param("id") id: string,
+    @Tenant() t: TenantContext,
+    @Query("branchId") branchId: string | undefined,
+  ) {
+    return this.inventory.deleteItem(branchId || t.branchId!, id, t.userId);
   }
 
   @Get("items/:id/stock")

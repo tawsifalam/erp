@@ -14,7 +14,8 @@ describe("apiFetch tenant headers", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({}),
+        status: 200,
+        text: async () => "{}",
       }),
     );
   });
@@ -35,6 +36,20 @@ describe("apiFetch tenant headers", () => {
     expect(headers["X-Organization-Id"]).toBe("org_a");
     expect(headers["X-Branch-Id"]).toBe("br_a1");
     expect(headers.Authorization).toBe("Bearer token-123");
+  });
+
+  it("handles empty successful responses (e.g. DELETE)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => "",
+      }),
+    );
+
+    const result = await apiFetch<void>("/inventory/items/inv-1", { method: "DELETE" });
+    expect(result).toBeUndefined();
   });
 
   it("omits branch header when branchId is undefined", async () => {

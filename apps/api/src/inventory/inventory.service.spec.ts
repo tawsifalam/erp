@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { MovementDirection, MovementType } from "@erp/types";
 import { InventoryService } from "./inventory.service";
 import { InventoryPoolsService } from "./inventory-pools.service";
@@ -19,7 +19,12 @@ const mockPrisma = {
     findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
+  recipeLine: { count: jest.fn() },
+  staffMealRecipeLine: { count: jest.fn() },
+  inclusionRecipeLine: { count: jest.fn() },
+  purchaseOrderLine: { count: jest.fn() },
   inventoryMovement: {
     findMany: jest.fn(),
     create: jest.fn(),
@@ -441,6 +446,83 @@ describe("InventoryService", () => {
         data: { name: "Basmati", lowStockThreshold: 5 },
         include: { pool: { select: { id: true, code: true, name: true } } },
       });
+    });
+
+    it("updates pool when poolId is provided", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({ id: "inv-1", pool: { code: "guest" } });
+      mockPrisma.inventoryItem.update.mockResolvedValue({ id: "inv-1", pool: { code: "staff" } });
+
+      await service.updateItem("branch-1", "inv-1", { poolId: "pool-staff" });
+
+      expect(mockPools.getPool).toHaveBeenCalledWith("org-1", "pool-staff");
+      expect(mockPrisma.inventoryItem.update).toHaveBeenCalledWith({
+        where: { id: "inv-1" },
+        data: { poolId: "pool-staff" },
+        include: { pool: { select: { id: true, code: true, name: true } } },
+      });
+    });
+  });
+
+  describe("deleteItem", () => {
+    beforeEach(() => {
+      mockPrisma.recipeLine.count.mockResolvedValue(0);
+      mockPrisma.staffMealRecipeLine.count.mockResolvedValue(0);
+      mockPrisma.inclusionRecipeLine.count.mockResolvedValue(0);
+      mockPrisma.purchaseOrderLine.count.mockResolvedValue(0);
+      mockPrisma.inventoryMovement.findMany.mockResolvedValue([]);
+    });
+
+    it("throws when item not found", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue(null);
+
+      await expect(service.deleteItem("branch-1", "missing")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("throws when item is used in a recipe", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({
+        id: "inv-1",
+        name: "Rice",
+        sku: "RICE-1",
+        pool: { code: "guest" },
+      });
+      mockPrisma.recipeLine.count.mockResolvedValue(1);
+
+      await expect(service.deleteItem("branch-1", "inv-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("throws when item still has stock", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({
+        id: "inv-1",
+        name: "Rice",
+        sku: "RICE-1",
+        pool: { code: "guest" },
+      });
+      mockPrisma.inventoryMovement.findMany.mockResolvedValue([
+        { direction: MovementDirection.IN, quantity: 5 },
+      ]);
+
+      await expect(service.deleteItem("branch-1", "inv-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("deletes item with zero stock and no references", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({
+        id: "inv-1",
+        name: "Rice",
+        sku: "RICE-1",
+        pool: { code: "guest" },
+      });
+      mockPrisma.inventoryItem.delete.mockResolvedValue({ id: "inv-1" });
+
+      const result = await service.deleteItem("branch-1", "inv-1", "usr-1");
+
+      expect(mockPrisma.inventoryItem.delete).toHaveBeenCalledWith({ where: { id: "inv-1" } });
+      expect(result).toEqual({ ok: true });
     });
   });
 });

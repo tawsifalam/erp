@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { setupE2ePage } from "./helpers/setup";
 import { pickAppSelectInDrawer } from "./helpers/app-select";
+import { acceptConfirmDialog } from "./helpers/confirm-dialog";
 
 test.describe("Inventory – Stock", () => {
   test.beforeEach(async ({ page }) => {
@@ -54,6 +55,40 @@ test.describe("Inventory – Stock", () => {
     await page.getByRole("spinbutton").first().fill("10");
     await page.getByRole("button", { name: "Record", exact: true }).click();
     await expect(page.getByRole("cell", { name: "130.00" })).toBeVisible({ timeout: 5000 });
+  });
+
+  test("can change pool when editing an item", async ({ page }) => {
+    await page.goto("/inventory");
+    await page.getByRole("button", { name: "+ New item" }).click();
+    await page.getByPlaceholder("Name").fill("Cucumbers");
+    await page.getByPlaceholder("SKU").fill("VEG-CUC-01");
+    await page.getByPlaceholder("Unit").fill("kg");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await expect(page.getByRole("cell", { name: "Cucumbers" })).toBeVisible({ timeout: 5000 });
+
+    const row = page.getByRole("row").filter({ hasText: "Cucumbers" });
+    await row.getByRole("button", { name: "View" }).click();
+    await pickAppSelectInDrawer(page, /Cucumbers/, 0, /Staff pantry/);
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(row.getByRole("cell", { name: "Staff pantry" })).toBeVisible({ timeout: 5000 });
+  });
+
+  test("can delete a zero-stock item", async ({ page }) => {
+    await page.goto("/inventory");
+    await page.getByRole("button", { name: "+ New item" }).click();
+    await page.getByPlaceholder("Name").fill("Disposable Cups");
+    await page.getByPlaceholder("SKU").fill("SUP-CUP-01");
+    await page.getByPlaceholder("Unit").fill("pcs");
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    await expect(page.getByRole("cell", { name: "Disposable Cups" })).toBeVisible({
+      timeout: 5000,
+    });
+
+    const row = page.getByRole("row").filter({ hasText: "Disposable Cups" });
+    await row.getByRole("button", { name: "View" }).click();
+    await page.getByRole("button", { name: "Delete item" }).click();
+    await acceptConfirmDialog(page);
+    await expect(page.getByRole("cell", { name: "Disposable Cups" })).toHaveCount(0);
   });
 
   test("edit item shows low stock when threshold raised", async ({ page }) => {

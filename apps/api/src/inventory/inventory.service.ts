@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -133,7 +134,12 @@ export class InventoryService {
   async updateItem(
     branchId: string,
     itemId: string,
-    data: { name?: string; unit?: string; lowStockThreshold?: number | null },
+    data: {
+      name?: string;
+      unit?: string;
+      lowStockThreshold?: number | null;
+      poolId?: string;
+    },
   ) {
     await this.getItem(branchId, itemId);
     if (data.name !== undefined && !data.name.trim()) {
@@ -146,6 +152,11 @@ export class InventoryService {
       throw new BadRequestException("lowStockThreshold cannot be negative");
     }
 
+    if (data.poolId !== undefined) {
+      const organizationId = await this.branchOrganizationId(branchId);
+      await this.pools.getPool(organizationId, data.poolId);
+    }
+
     return this.prisma.inventoryItem.update({
       where: { id: itemId },
       data: {
@@ -154,9 +165,49 @@ export class InventoryService {
         ...(data.lowStockThreshold !== undefined
           ? { lowStockThreshold: data.lowStockThreshold }
           : {}),
+        ...(data.poolId !== undefined ? { poolId: data.poolId } : {}),
       },
       include: { pool: { select: { id: true, code: true, name: true } } },
     });
+  }
+
+  async deleteItem(branchId: string, itemId: string, userId?: string) {
+    const item = await this.getItem(branchId, itemId);
+    const organizationId = await this.branchOrganizationId(branchId);
+
+    const [recipeLines, staffLines, inclusionLines, poLines] = await Promise.all([
+      this.prisma.recipeLine.count({ where: { inventoryItemId: itemId } }),
+      this.prisma.staffMealRecipeLine.count({ where: { inventoryItemId: itemId } }),
+      this.prisma.inclusionRecipeLine.count({ where: { inventoryItemId: itemId } }),
+      this.prisma.purchaseOrderLine.count({ where: { inventoryItemId: itemId } }),
+    ]);
+
+    if (recipeLines + staffLines + inclusionLines > 0) {
+      throw new ConflictException("Item is used in a recipe and cannot be deleted");
+    }
+    if (poLines > 0) {
+      throw new ConflictException("Item appears on purchase orders and cannot be deleted");
+    }
+
+    const stock = await this.getCurrentStock(itemId, branchId);
+    if (stock > 0) {
+      throw new ConflictException(
+        "Item still has stock on hand — record an adjustment to zero it out before deleting",
+      );
+    }
+
+    await this.prisma.inventoryItem.delete({ where: { id: itemId } });
+
+    await this.audit.record({
+      organizationId,
+      userId,
+      action: AuditAction.DELETE,
+      entityType: AuditEntityType.INVENTORY_ITEM,
+      entityId: itemId,
+      metadata: { name: item.name, sku: item.sku },
+    });
+
+    return { ok: true };
   }
 
   async getCurrentStock(itemId: string, branchId: string): Promise<number> {

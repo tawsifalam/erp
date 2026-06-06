@@ -200,6 +200,12 @@ export function handleInventoryItemMutation(
       item.lowStockThreshold =
         body.lowStockThreshold == null ? null : Number(body.lowStockThreshold);
     }
+    if (body.poolId) {
+      const pool = pools.find((p) => p.id === String(body.poolId));
+      if (pool) {
+        item.pool = { id: pool.id, code: pool.code, name: pool.name };
+      }
+    }
     if (
       item.lowStockThreshold != null &&
       item.currentStock <= item.lowStockThreshold
@@ -212,6 +218,23 @@ export function handleInventoryItemMutation(
       });
     }
     return item;
+  }
+
+  if (method === "DELETE") {
+    if (item.currentStock > 0) {
+      return {
+        status: 409,
+        message: "Item still has stock on hand — record an adjustment to zero it out before deleting",
+      };
+    }
+    items = items.filter((i) => i.id !== id);
+    recordAudit({
+      action: "DELETE",
+      entityType: "inventory_item",
+      entityId: id,
+      metadata: { name: item.name, sku: item.sku },
+    });
+    return {};
   }
 
   return item;

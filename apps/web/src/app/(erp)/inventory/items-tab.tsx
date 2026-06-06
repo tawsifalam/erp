@@ -16,6 +16,7 @@ import {
 import { apiFetch } from "@/lib/api-client";
 import type { TenantHeaders } from "@/lib/api-client";
 import { appToast } from "@/lib/app-toast";
+import { useConfirmDialog } from "@/lib/use-confirm-dialog";
 
 type Item = {
   id: string;
@@ -55,6 +56,7 @@ const emptyMovForm = () => ({
 });
 
 export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
+  const { ask, dialog } = useConfirmDialog();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [pools, setPools] = useState<InventoryPool[]>([]);
@@ -65,7 +67,12 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
 
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
-  const [editForm, setEditForm] = useState({ name: "", unit: "", lowStockThreshold: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    unit: "",
+    lowStockThreshold: "",
+    poolId: "",
+  });
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [movementDrawer, setMovementDrawer] = useState(false);
@@ -140,6 +147,7 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
       name: item.name,
       unit: item.unit,
       lowStockThreshold: item.lowStockThreshold ?? "",
+      poolId: item.pool?.id ?? "",
     });
     setDetailLoading(true);
     try {
@@ -173,11 +181,11 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
           lowStockThreshold: editForm.lowStockThreshold
             ? Number(editForm.lowStockThreshold)
             : null,
+          poolId: editForm.poolId || undefined,
         }),
       });
+      closeDetail();
       load();
-      const item = items.find((i) => i.id === detailItemId);
-      if (item) await openDetail({ ...item, ...editForm });
     } catch (e) {
       appToast.error(e instanceof Error ? e.message : "Failed to update item");
     }
@@ -226,12 +234,36 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
 
   const detailItem = items.find((i) => i.id === detailItemId);
 
+  const confirmDeleteItem = () => {
+    if (!detailItemId || !detailItem) return;
+    ask({
+      title: `Delete "${detailItem.name}"?`,
+      description:
+        "This permanently removes the item and its movement history. Items with stock on hand, recipes, or purchase orders cannot be deleted.",
+      confirmLabel: "Delete item",
+      onConfirm: async () => {
+        try {
+          await apiFetch(`/inventory/items/${detailItemId}?branchId=${tenant.branchId}`, {
+            method: "DELETE",
+            tenant,
+          });
+          appToast.success("Item deleted");
+          closeDetail();
+          load();
+        } catch (e) {
+          appToast.error(e instanceof Error ? e.message : "Failed to delete item");
+        }
+      },
+    });
+  };
+
   if (!tenant.branchId) {
     return <BranchRequiredNotice />;
   }
 
   return (
     <>
+      {dialog}
       <Flex gap={2} mb={4} wrap="wrap" align="center">
         <Button size="sm" onClick={load}>
           Refresh
@@ -492,6 +524,18 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
         primaryLabel="Save changes"
         onPrimary={handleUpdateItem}
         primaryDisabled={!editForm.name.trim()}
+        footerExtra={
+          detailItem ? (
+            <Button
+              size="sm"
+              variant="outline"
+              colorPalette="red"
+              onClick={confirmDeleteItem}
+            >
+              Delete item
+            </Button>
+          ) : undefined
+        }
       >
         <Stack gap={4}>
           <FormField label="Name" required>
@@ -517,6 +561,15 @@ export function InventoryItemsTab({ tenant }: { tenant: TenantHeaders }) {
               onValueChange={(v) =>
                 setEditForm({ ...editForm, lowStockThreshold: v })
               }
+            />
+          </FormField>
+          <FormField label="Pool">
+            <AppSelect
+              width="100%"
+              items={pools.map((p) => ({ value: p.id, label: p.name }))}
+              value={editForm.poolId}
+              onValueChange={(v) => setEditForm({ ...editForm, poolId: v })}
+              placeholder="Pool"
             />
           </FormField>
           {detailItem && (

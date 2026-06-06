@@ -398,8 +398,10 @@ PropelAuth is unchanged; users must create or join an organization after reset.
 2. Or use the install helper (copies the example and substitutes domain from `--domain` or `.env`):
 
    ```bash
+   # Requires host nginx: sudo apt install -y nginx certbot python3-certbot-nginx
    ./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com
    sudo certbot --nginx -d app.yourdomain.com
+   ./scripts/deploy-prod.sh nginx-install --domain app.yourdomain.com   # full HTTPS config
    ```
 
    Or use Cloudflare origin certificates — adjust `ssl_certificate` paths in the site file.

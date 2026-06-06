@@ -105,3 +105,17 @@ echo "==> clean reset complete"
 if [[ "${WITH_SEED}" -eq 0 ]]; then
   echo "    Sign in and create an organization (onboarding or Settings)."
 fi
+cat <<'EOF'
+
+==> Host nginx (not restarted by this script)
+  Docker api/web are up if the health check above passed.
+  Public HTTPS still needs systemd nginx running on the VPS:
+
+    sudo systemctl start nginx          # if stopped
+    sudo systemctl reload nginx         # if already running
+    ./scripts/deploy-prod.sh health     # local API: 127.0.0.1:3001
+
+  First-time only: ./scripts/deploy-prod.sh nginx-install --domain <your-domain>
+
+  Then verify: curl -s https://<your-domain>/api/health
+EOF

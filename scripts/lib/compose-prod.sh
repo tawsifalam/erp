@@ -226,6 +226,31 @@ Public check: curl -s https://<domain>/api/health
 EOF
 }
 
+erp_nginx_ensure_installed() {
+  if command -v nginx >/dev/null 2>&1 && [[ -f /etc/nginx/nginx.conf ]]; then
+    return 0
+  fi
+  echo "error: nginx is not installed (missing /etc/nginx)." >&2
+  echo "On Debian/Ubuntu (Hetzner default):" >&2
+  echo "  sudo apt update" >&2
+  echo "  sudo apt install -y nginx certbot python3-certbot-nginx" >&2
+  echo "Then re-run: ./scripts/deploy-prod.sh nginx-install --domain <your-domain>" >&2
+  exit 1
+}
+
+erp_nginx_site_paths() {
+  # Debian/Ubuntu: sites-available + sites-enabled. RHEL/Alpine: conf.d only.
+  if grep -q 'sites-enabled' /etc/nginx/nginx.conf 2>/dev/null; then
+    sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+    echo "/etc/nginx/sites-available/erp"
+    echo "/etc/nginx/sites-enabled/erp"
+  else
+    sudo mkdir -p /etc/nginx/conf.d
+    echo "/etc/nginx/conf.d/erp.conf"
+    echo ""
+  fi
+}
+
 erp_nginx_install() {
   local domain="${1:-}"
   if [[ -z "${domain}" ]]; then
@@ -239,14 +264,41 @@ erp_nginx_install() {
     exit 1
   fi
 
+  erp_nginx_ensure_installed
+
+  local dest link paths
+  paths="$(erp_nginx_site_paths)"
+  dest="$(echo "${paths}" | sed -n '1p')"
+  link="$(echo "${paths}" | sed -n '2p')"
+
+  local cert="/etc/letsencrypt/live/${domain}/fullchain.pem"
   local src="${ERP_ROOT}/infra/nginx/host-nginx.conf.example"
-  local dest="/etc/nginx/sites-available/erp"
-  echo "==> installing host nginx site for ${domain}"
+  if [[ ! -f "${cert}" ]]; then
+    src="${ERP_ROOT}/infra/nginx/host-nginx.bootstrap.conf.example"
+    echo "==> no TLS cert yet — installing HTTP-only bootstrap for ${domain}"
+    echo "    After nginx is up: sudo certbot --nginx -d ${domain}"
+    echo "    Then re-run nginx-install to apply the full HTTPS config."
+  else
+    echo "==> installing host nginx site (HTTPS) for ${domain}"
+  fi
+
   sudo cp "${src}" "${dest}"
   sudo sed -i "s/app.yourdomain.com/${domain}/g" "${dest}"
-  sudo ln -sf "${dest}" /etc/nginx/sites-enabled/erp
-  sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+  if [[ -n "${link}" ]]; then
+    sudo ln -sf "${dest}" "${link}"
+    sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+  fi
+
   sudo nginx -t
+  sudo systemctl enable nginx
+  sudo systemctl start nginx
   sudo systemctl reload nginx
-  echo "==> nginx config installed. Run: sudo certbot --nginx -d ${domain}"
+
+  if [[ ! -f "${cert}" ]]; then
+    echo "==> nginx is running on port 80. Next:"
+    echo "    sudo certbot --nginx -d ${domain}"
+    echo "    ./scripts/deploy-prod.sh nginx-install --domain ${domain}"
+  else
+    echo "==> nginx config installed and reloaded."
+  fi
 }

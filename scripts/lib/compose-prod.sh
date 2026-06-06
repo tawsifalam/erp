@@ -116,7 +116,9 @@ erp_up_data() {
 
 erp_migrate() {
   echo "==> prisma migrate deploy"
-  erp_compose exec -T api npx prisma migrate deploy --schema=prisma/schema.prisma
+  # API image stores Prisma at /app/apps/api/prisma (WORKDIR). Use an absolute schema
+  # path so migrate works regardless of exec cwd (repo-relative paths break in-container).
+  erp_compose exec -T api npx prisma migrate deploy --schema=/app/apps/api/prisma/schema.prisma
 }
 
 erp_build_apps() {

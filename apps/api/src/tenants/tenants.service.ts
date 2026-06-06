@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { InviteStatus, JoinRequestStatus, ReservationStatus, Role } from "@erp/types";
@@ -36,6 +37,8 @@ type MemberWithUser = {
 
 @Injectable()
 export class TenantsService {
+  private readonly logger = new Logger(TenantsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryPools: InventoryPoolsService,
@@ -143,6 +146,16 @@ export class TenantsService {
       metadata: { name: org.name },
     });
 
+    if (data.name !== undefined && !org.propelAuthOrgId.startsWith("erp_")) {
+      try {
+        await this.propelAuth.updateOrg(org.propelAuthOrgId, org.name);
+      } catch (err) {
+        this.logger.warn(
+          `PropelAuth updateOrg failed for ${organizationId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
     return org;
   }
 
@@ -165,17 +178,7 @@ export class TenantsService {
     if (!data.name?.trim()) throw new BadRequestException("Organization name is required");
     if (!data.timezone?.trim()) throw new BadRequestException("Timezone is required");
 
-    let propelAuthOrgId: string;
-    if (data.propelAuthOrgId) {
-      propelAuthOrgId = data.propelAuthOrgId;
-    } else {
-      try {
-        const created = await this.propelAuth.createOrg(data.name.trim());
-        propelAuthOrgId = created.orgId;
-      } catch {
-        propelAuthOrgId = `erp_${generatePrefixedId("org")}`;
-      }
-    }
+    const propelAuthOrgId = data.propelAuthOrgId ?? `erp_${generatePrefixedId("org")}`;
     const joinCode = await this.uniqueJoinCode();
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -207,7 +210,45 @@ export class TenantsService {
     });
 
     await this.inventoryPools.seedDefaultPools(result.organization.id);
-    return result;
+
+    let linkedPropelAuthOrgId = result.organization.propelAuthOrgId;
+    let propelAuthSynced = false;
+
+    if (!data.propelAuthOrgId) {
+      try {
+        linkedPropelAuthOrgId = await this.ensurePropelAuthOrganization({
+          id: result.organization.id,
+          propelAuthOrgId: result.organization.propelAuthOrgId,
+          name: result.organization.name,
+        });
+        result.organization.propelAuthOrgId = linkedPropelAuthOrgId;
+      } catch (err) {
+        this.logger.warn(
+          `PropelAuth createOrg failed for ERP org ${result.organization.id}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    const creator = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { propelAuthUserId: true },
+    });
+
+    if (creator?.propelAuthUserId && !linkedPropelAuthOrgId.startsWith("erp_")) {
+      try {
+        await this.propelAuth.addUserToOrg(
+          linkedPropelAuthOrgId,
+          creator.propelAuthUserId,
+        );
+        propelAuthSynced = true;
+      } catch (err) {
+        this.logger.warn(
+          `PropelAuth addUserToOrg failed for ERP org ${result.organization.id}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    return { ...result, propelAuthSynced };
   }
 
   async getOnboardingStatus(userId: string) {

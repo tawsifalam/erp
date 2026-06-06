@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Stack, Text } from "@chakra-ui/react";
 import { useUser } from "@propelauth/nextjs/client";
@@ -33,35 +33,47 @@ export default function OnboardingPendingPage() {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const refreshMemberships = tenant.refreshMemberships;
 
-  const loadStatus = useCallback(async () => {
-    if (!accessToken) return;
-    await syncUserAfterLogin(undefined, accessToken);
-    const data = await apiFetch<OnboardingStatus>("/tenants/onboarding/status");
-    if (data.canAccessApp) {
-      await tenant.refreshMemberships();
-      const memberships = await apiFetch<{ role: string }[]>("/tenants/organizations");
-      const role = memberships[0]?.role ?? Role.FRONT_DESK;
-      router.replace(getDefaultRouteForRole(role));
-      return;
-    }
-    if (!data.pendingRequest) {
-      router.replace("/onboarding");
-      return;
-    }
-    setStatus(data);
-    setLoading(false);
-  }, [accessToken, router, tenant]);
+  const loadStatus = useCallback(
+    async (options?: { allowWhileLoading?: boolean }) => {
+      if (!accessToken) return;
+      if (loading && !options?.allowWhileLoading) return;
+      await syncUserAfterLogin(undefined, accessToken);
+      const data = await apiFetch<OnboardingStatus>("/tenants/onboarding/status");
+      if (data.canAccessApp) {
+        await refreshMemberships();
+        const memberships = await apiFetch<{ role: string }[]>("/tenants/organizations");
+        const role = memberships[0]?.role ?? Role.FRONT_DESK;
+        router.replace(getDefaultRouteForRole(role));
+        return;
+      }
+      if (!data.pendingRequest) {
+        router.replace("/onboarding");
+        return;
+      }
+      setStatus(data);
+      setLoading(false);
+    },
+    [accessToken, loading, router, refreshMemberships],
+  );
+
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
-    if (authLoading || !accessToken) return;
-    loadStatus().catch(() => setLoading(false));
+    initialLoadDone.current = false;
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (authLoading || !accessToken || initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    loadStatus({ allowWhileLoading: true }).catch(() => setLoading(false));
   }, [authLoading, accessToken, loadStatus]);
 
   useEffect(() => {
     if (!accessToken || loading) return;
     const interval = setInterval(() => {
-      loadStatus().catch(console.error);
+      void loadStatus({ allowWhileLoading: true });
     }, 15000);
     return () => clearInterval(interval);
   }, [accessToken, loading, loadStatus]);

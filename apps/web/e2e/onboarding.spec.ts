@@ -1,5 +1,125 @@
 import { test, expect } from "@playwright/test";
 import { backendApiListRoute, backendApiRoute, mockAuth, mockApiRoutes } from "./helpers/auth";
+import { mockApplicantApiRoutes, mockAuthApplicant } from "./helpers/applicant-auth";
+
+test.describe("Onboarding create organization", () => {
+  test("initial status check does not spam auth/sync or onboarding/status", async ({ page }) => {
+    await mockAuthApplicant(page);
+    await mockApplicantApiRoutes(page);
+
+    const counts = { sync: 0, status: 0, organizations: 0 };
+
+    await page.route("**/auth/sync", async (route) => {
+      counts.sync += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ hasActiveMembership: false, pendingJoinRequest: null }),
+      });
+    });
+
+    await page.unroute(backendApiRoute("tenants/onboarding/status"));
+    await page.route(backendApiRoute("tenants/onboarding/status"), async (route) => {
+      counts.status += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          hasMembership: false,
+          canAccessApp: false,
+          pendingRequest: null,
+        }),
+      });
+    });
+
+    await page.route(backendApiListRoute("tenants/organizations"), async (route) => {
+      if (route.request().method() === "GET") {
+        counts.organizations += 1;
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.goto("/onboarding", { waitUntil: "networkidle" });
+    await expect(page.getByText("Welcome to One Venue")).toBeVisible();
+
+    await page.waitForTimeout(1500);
+
+    expect(counts.sync).toBeLessThanOrEqual(2);
+    expect(counts.status).toBeLessThanOrEqual(2);
+    expect(counts.organizations).toBe(0);
+  });
+
+  test("create organization posts once and navigates to dashboard", async ({ page }) => {
+    await mockAuthApplicant(page);
+    await mockApplicantApiRoutes(page);
+
+    let createOrgCalls = 0;
+
+    await page.unroute(backendApiListRoute("tenants/organizations"));
+    await page.route(backendApiListRoute("tenants/organizations"), async (route) => {
+      if (route.request().method() === "POST") {
+        createOrgCalls += 1;
+        const body = route.request().postDataJSON() as { name: string; timezone: string };
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            organization: {
+              id: "org-created-001",
+              name: body.name,
+              propelAuthOrgId: "pa_created",
+              branches: [{ id: "br-created-001", name: "Main Branch" }],
+            },
+            propelAuthSynced: true,
+          }),
+        });
+      }
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              organizationId: "org-created-001",
+              role: "OWNER",
+              organization: {
+                id: "org-created-001",
+                name: "Boulevard Test",
+                branches: [{ id: "br-created-001", name: "Main Branch" }],
+              },
+            },
+          ]),
+        });
+      }
+      return route.fallback();
+    });
+
+    await page.unroute(backendApiRoute("tenants/onboarding/status"));
+    await page.route(backendApiRoute("tenants/onboarding/status"), (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          hasMembership: false,
+          canAccessApp: false,
+          pendingRequest: null,
+        }),
+      }),
+    );
+
+    await page.goto("/onboarding");
+    await page.getByPlaceholder("Boulevard Café").fill("Boulevard Test");
+    await page.getByRole("button", { name: "Create organization" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    expect(createOrgCalls).toBe(1);
+  });
+});
 
 test.describe("Onboarding gate", () => {
   test("user without membership is redirected to onboarding", async ({ page }) => {

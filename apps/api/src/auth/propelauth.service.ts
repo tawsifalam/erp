@@ -47,6 +47,11 @@ export class PropelAuthService implements OnModuleInit {
     return this.config.get<string>("PROPELAUTH_ORG_MEMBER_ROLE") ?? "Member";
   }
 
+  /** PropelAuth org role assigned to the user who creates an ERP organization. */
+  defaultOrgOwnerRole(): string {
+    return this.config.get<string>("PROPELAUTH_ORG_OWNER_ROLE") ?? "Owner";
+  }
+
   async fetchOrg(orgId: string) {
     return this.admin.fetchOrg(orgId);
   }
@@ -56,6 +61,18 @@ export class PropelAuthService implements OnModuleInit {
       name,
       ...(legacyOrgId ? { legacyOrgId } : {}),
     });
+  }
+
+  async addUserToOrg(orgId: string, userId: string, role?: string) {
+    return this.admin.addUserToOrg({
+      orgId,
+      userId,
+      role: role ?? this.defaultOrgOwnerRole(),
+    });
+  }
+
+  async updateOrg(orgId: string, name: string) {
+    return this.admin.updateOrg({ orgId, name });
   }
 
   async inviteUserToOrg(orgId: string, email: string) {

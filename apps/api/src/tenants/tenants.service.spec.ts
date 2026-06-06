@@ -45,6 +45,8 @@ const mockInventoryPools = {
 const mockPropelAuth = {
   createOrg: jest.fn(),
   fetchOrg: jest.fn(),
+  addUserToOrg: jest.fn(),
+  updateOrg: jest.fn(),
   inviteUserToOrg: jest.fn(),
   revokePendingOrgInvite: jest.fn(),
 };
@@ -56,6 +58,9 @@ describe("TenantsService", () => {
     jest.clearAllMocks();
     const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
     mockPropelAuth.fetchOrg.mockResolvedValue({ orgId: "pa_org" });
+    mockPropelAuth.createOrg.mockResolvedValue({ orgId: "pa_org_new" });
+    mockPropelAuth.addUserToOrg.mockResolvedValue(true);
+    mockPropelAuth.updateOrg.mockResolvedValue(true);
     mockPropelAuth.inviteUserToOrg.mockResolvedValue(true);
     service = new TenantsService(
       mockPrisma as never,
@@ -173,12 +178,62 @@ describe("TenantsService", () => {
     );
   });
 
-  it("createOrganization seeds default inventory pools", async () => {
+  it("updateOrganization syncs name to PropelAuth when linked", async () => {
+    mockPrisma.organization.update.mockResolvedValue({
+      id: "org_1",
+      name: "Renamed Hotel",
+      propelAuthOrgId: "pa_org_1",
+      branches: [],
+    });
+
+    const result = await service.updateOrganization("org_1", { name: "Renamed Hotel" }, "usr_1");
+
+    expect(result.name).toBe("Renamed Hotel");
+    expect(mockPropelAuth.updateOrg).toHaveBeenCalledWith("pa_org_1", "Renamed Hotel");
+  });
+
+  it("updateOrganization skips PropelAuth sync for synthetic org ids", async () => {
+    mockPrisma.organization.update.mockResolvedValue({
+      id: "org_1",
+      name: "Renamed Hotel",
+      propelAuthOrgId: "erp_local_org",
+      branches: [],
+    });
+
+    await service.updateOrganization("org_1", { name: "Renamed Hotel" });
+
+    expect(mockPropelAuth.updateOrg).not.toHaveBeenCalled();
+  });
+
+  it("getOnboardingStatus reports membership and pending request", async () => {
+    mockPrisma.userOrganization.count.mockResolvedValue(1);
+    mockPrisma.organizationJoinRequest.findFirst.mockResolvedValue(null);
+
+    const status = await service.getOnboardingStatus("usr_1");
+
+    expect(status).toEqual({
+      hasMembership: true,
+      canAccessApp: true,
+      pendingRequest: null,
+    });
+  });
+
+  it("createOrganization seeds pools, links PropelAuth, and adds creator", async () => {
     mockPrisma.organization.findUnique.mockResolvedValue(null);
+    mockPrisma.user.findUnique.mockResolvedValue({ propelAuthUserId: "pa_creator" });
+    mockPropelAuth.fetchOrg.mockResolvedValue(null);
+    mockPropelAuth.createOrg.mockResolvedValue({ orgId: "pa_org_new", name: "Test Org" });
+    mockPrisma.organization.update.mockResolvedValue({});
+
     mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
       const tx = {
         organization: {
-          create: jest.fn().mockResolvedValue({ id: "org_new", name: "Test Org" }),
+          create: jest.fn().mockResolvedValue({
+            id: "org_new",
+            name: "Test Org",
+            propelAuthOrgId: "erp_temp_org",
+            joinCode: "ov_abc",
+          }),
         },
         branch: {
           create: jest.fn().mockResolvedValue({
@@ -192,13 +247,90 @@ describe("TenantsService", () => {
       return fn(tx as never);
     });
 
-    await service.createOrganization("user_1", {
+    const result = await service.createOrganization("user_1", {
       name: "Test Org",
       timezone: "Asia/Dhaka",
-      propelAuthOrgId: "erp_test_org",
     });
 
     expect(mockInventoryPools.seedDefaultPools).toHaveBeenCalledWith("org_new");
+    expect(mockPropelAuth.createOrg).toHaveBeenCalledWith("Test Org", "org_new");
+    expect(mockPropelAuth.addUserToOrg).toHaveBeenCalledWith("pa_org_new", "pa_creator");
+    expect(result.propelAuthSynced).toBe(true);
+    expect(result.organization.propelAuthOrgId).toBe("pa_org_new");
+  });
+
+  it("createOrganization uses provided propelAuthOrgId and still adds creator", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue(null);
+    mockPrisma.user.findUnique.mockResolvedValue({ propelAuthUserId: "pa_creator" });
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
+      const tx = {
+        organization: {
+          create: jest.fn().mockResolvedValue({
+            id: "org_new",
+            name: "Linked Org",
+            propelAuthOrgId: "pa_existing",
+            joinCode: "ov_xyz",
+          }),
+        },
+        branch: {
+          create: jest.fn().mockResolvedValue({
+            id: "br_main",
+            name: "Main Branch",
+            timezone: "Asia/Dhaka",
+          }),
+        },
+        userOrganization: { create: jest.fn().mockResolvedValue({}) },
+      };
+      return fn(tx as never);
+    });
+
+    const result = await service.createOrganization("user_1", {
+      name: "Linked Org",
+      timezone: "Asia/Dhaka",
+      propelAuthOrgId: "pa_existing",
+    });
+
+    expect(mockPropelAuth.createOrg).not.toHaveBeenCalled();
+    expect(mockPropelAuth.addUserToOrg).toHaveBeenCalledWith("pa_existing", "pa_creator");
+    expect(result.propelAuthSynced).toBe(true);
+  });
+
+  it("createOrganization completes when PropelAuth sync fails", async () => {
+    mockPrisma.organization.findUnique.mockResolvedValue(null);
+    mockPrisma.user.findUnique.mockResolvedValue({ propelAuthUserId: "pa_creator" });
+    mockPropelAuth.fetchOrg.mockResolvedValue(null);
+    mockPropelAuth.createOrg.mockRejectedValue(new Error("PropelAuth down"));
+
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
+      const tx = {
+        organization: {
+          create: jest.fn().mockResolvedValue({
+            id: "org_new",
+            name: "Offline Org",
+            propelAuthOrgId: "erp_offline",
+            joinCode: "ov_off",
+          }),
+        },
+        branch: {
+          create: jest.fn().mockResolvedValue({
+            id: "br_main",
+            name: "Main Branch",
+            timezone: "Asia/Dhaka",
+          }),
+        },
+        userOrganization: { create: jest.fn().mockResolvedValue({}) },
+      };
+      return fn(tx as never);
+    });
+
+    const result = await service.createOrganization("user_1", {
+      name: "Offline Org",
+      timezone: "Asia/Dhaka",
+    });
+
+    expect(result.organization.id).toBe("org_new");
+    expect(result.propelAuthSynced).toBe(false);
+    expect(mockPropelAuth.addUserToOrg).not.toHaveBeenCalled();
   });
 
   it("createOrganization rejects missing name or timezone", async () => {
@@ -208,6 +340,55 @@ describe("TenantsService", () => {
     await expect(
       service.createOrganization("user_1", { name: "Test", timezone: "" }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it("updateBranch updates timezone when provided", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1" });
+    mockPrisma.branch.update.mockResolvedValue({
+      id: "br_1",
+      name: "Main",
+      timezone: "Europe/London",
+    });
+
+    const result = await service.updateBranch("br_1", "org_1", { timezone: "Europe/London" });
+
+    expect(mockPrisma.branch.update).toHaveBeenCalledWith({
+      where: { id: "br_1" },
+      data: { timezone: "Europe/London" },
+    });
+    expect(result.timezone).toBe("Europe/London");
+  });
+
+  it("updateBranch rejects empty timezone", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1" });
+    await expect(
+      service.updateBranch("br_1", "org_1", { timezone: "  " }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it("createBranch records audit metadata", async () => {
+    const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
+    const auditedService = new TenantsService(
+      mockPrisma as never,
+      mockInventoryPools as never,
+      mockAudit as never,
+      mockPropelAuth as never,
+    );
+    mockPrisma.branch.create.mockResolvedValue({
+      id: "br_new",
+      name: "Annex",
+      timezone: "Asia/Dhaka",
+    });
+
+    await auditedService.createBranch("org_1", { name: "Annex", timezone: "Asia/Dhaka" }, "usr_1");
+
+    expect(mockAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org_1",
+        userId: "usr_1",
+        entityId: "br_new",
+      }),
+    );
   });
 
   it("approveJoinRequest creates membership with assigned role", async () => {

@@ -9,6 +9,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useUser } from "@propelauth/nextjs/client";
 import { apiFetch } from "./api-client";
 import {
@@ -33,7 +34,9 @@ type TenantState = {
 const TenantContext = createContext<TenantState | null>(null);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const { loading: authLoading } = useUser();
+  const isOnboardingRoute = pathname.startsWith("/onboarding");
   const [organizationId, setOrganizationIdState] = useState<string | null>(null);
   const [branchId, setBranchIdState] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<OrgMembership[]>([]);
@@ -73,6 +76,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
 
+    if (isOnboardingRoute) {
+      setLoading(false);
+      return;
+    }
+
     loadMemberships()
       .then((mapped) => {
         const initial = pickInitialTenant(mapped, readStoredTenant());
@@ -87,7 +95,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => setMemberships([]))
       .finally(() => setLoading(false));
-  }, [authLoading, loadMemberships]);
+  }, [authLoading, isOnboardingRoute, loadMemberships]);
 
   const role =
     memberships.find((m) => m.organizationId === organizationId)?.role ?? null;
@@ -119,22 +127,30 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     [memberships, organizationId, persist],
   );
 
-  return (
-    <TenantContext.Provider
-      value={{
-        organizationId,
-        branchId,
-        role,
-        setOrganizationId,
-        setBranchId,
-        memberships,
-        loading,
-        refreshMemberships,
-      }}
-    >
-      {children}
-    </TenantContext.Provider>
+  const value = useMemo(
+    () => ({
+      organizationId,
+      branchId,
+      role,
+      setOrganizationId,
+      setBranchId,
+      memberships,
+      loading,
+      refreshMemberships,
+    }),
+    [
+      organizationId,
+      branchId,
+      role,
+      setOrganizationId,
+      setBranchId,
+      memberships,
+      loading,
+      refreshMemberships,
+    ],
   );
+
+  return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 }
 
 export function useTenant() {

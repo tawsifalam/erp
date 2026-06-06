@@ -4,6 +4,8 @@ const mockValidate = jest.fn();
 const mockAdmin = {
   fetchOrg: jest.fn(),
   createOrg: jest.fn(),
+  addUserToOrg: jest.fn(),
+  updateOrg: jest.fn(),
   inviteUserToOrg: jest.fn(),
   revokePendingOrgInvite: jest.fn(),
   validateAccessTokenAndGetUserClass: mockValidate,
@@ -35,6 +37,33 @@ describe("PropelAuthService", () => {
 
   it("defaultOrgInviteRole reads config with Member fallback", () => {
     expect(service.defaultOrgInviteRole()).toBe("Member");
+  });
+
+  it("defaultOrgOwnerRole defaults to Owner", () => {
+    expect(service.defaultOrgOwnerRole()).toBe("Owner");
+  });
+
+  it("addUserToOrg delegates to PropelAuth admin API", async () => {
+    mockAdmin.addUserToOrg.mockResolvedValue(true);
+
+    await service.addUserToOrg("pa_org_1", "pa_user_1");
+
+    expect(mockAdmin.addUserToOrg).toHaveBeenCalledWith({
+      orgId: "pa_org_1",
+      userId: "pa_user_1",
+      role: "Owner",
+    });
+  });
+
+  it("updateOrg delegates to PropelAuth admin API", async () => {
+    mockAdmin.updateOrg.mockResolvedValue(true);
+
+    await service.updateOrg("pa_org_1", "Renamed Org");
+
+    expect(mockAdmin.updateOrg).toHaveBeenCalledWith({
+      orgId: "pa_org_1",
+      name: "Renamed Org",
+    });
   });
 
   it("inviteUserToOrg delegates to PropelAuth admin API", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -56,28 +56,41 @@ export default function OnboardingPage() {
   const [joinMessage, setJoinMessage] = useState("");
   const [selectedOrg, setSelectedOrg] = useState<OrgSearchResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const statusCheckStarted = useRef(false);
+
+  const refreshMemberships = tenant.refreshMemberships;
 
   const checkStatus = useCallback(async () => {
-    if (!accessToken) return;
-    await syncUserAfterLogin(undefined, accessToken);
-    const status = await apiFetch<OnboardingStatus>("/tenants/onboarding/status");
-    if (status.canAccessApp) {
-      await tenant.refreshMemberships();
-      const memberships = await apiFetch<{ role: string }[]>("/tenants/organizations");
-      const role = memberships[0]?.role ?? Role.OWNER;
-      router.replace(getDefaultRouteForRole(role));
-      return;
+    if (!accessToken || statusCheckStarted.current) return;
+    statusCheckStarted.current = true;
+    try {
+      await syncUserAfterLogin(undefined, accessToken);
+      const status = await apiFetch<OnboardingStatus>("/tenants/onboarding/status");
+      if (status.canAccessApp) {
+        await refreshMemberships();
+        const memberships = await apiFetch<{ role: string }[]>("/tenants/organizations");
+        const role = memberships[0]?.role ?? Role.OWNER;
+        router.replace(getDefaultRouteForRole(role));
+        return;
+      }
+      if (status.pendingRequest) {
+        router.replace("/onboarding/pending");
+        return;
+      }
+      setChecking(false);
+    } catch {
+      statusCheckStarted.current = false;
+      setChecking(false);
     }
-    if (status.pendingRequest) {
-      router.replace("/onboarding/pending");
-      return;
-    }
-    setChecking(false);
-  }, [accessToken, router, tenant]);
+  }, [accessToken, router, refreshMemberships]);
+
+  useEffect(() => {
+    statusCheckStarted.current = false;
+  }, [accessToken]);
 
   useEffect(() => {
     if (authLoading || !accessToken) return;
-    checkStatus().catch(() => setChecking(false));
+    void checkStatus();
   }, [authLoading, accessToken, checkStatus]);
 
   const searchOrgs = async () => {

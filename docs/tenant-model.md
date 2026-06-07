@@ -75,8 +75,23 @@ When a request references another entity by UUID, assert it belongs to the tenan
 | `assertMenuItemInBranch` | POS order lines |
 | `assertAccountsInOrganization` | Journal entry lines |
 | `assertEmployeeInOrganization` | HR employee references |
+| `assertReservationInBranch` | PMS availability `excludeReservationId`, inclusions consume |
+| `assertOrderInBranch` | POS order mutations by id |
 
 Throw `NotFoundException` for cross-tenant IDs (avoid org enumeration).
+
+## `/api/tenants` route scoping
+
+Not every tenants route uses `TenantGuard`. Two patterns:
+
+| Pattern | Guard | `X-Organization-Id` | Examples |
+|---------|-------|---------------------|----------|
+| **JWT-only** | `JwtAuthGuard` | Not required | `GET /tenants/organizations` (membership list), `GET /tenants/onboarding/status`, `POST /tenants/join-requests`, org search / join-code lookup |
+| **Tenant-scoped** | `JwtAuthGuard` + `TenantGuard` (+ often `PermissionGuard`) | Required | Settings admin: branches, members, invites, join-request approve/reject, `organizations/current` |
+
+JWT-only routes scope by **authenticated user** (e.g. join requests belong to `userId`; org list is filtered to memberships). Tenant-scoped routes scope by **active org header** and enforce org/branch FK checks in services.
+
+Pre-membership onboarding (applicant join-code flow) intentionally calls JWT-only routes without an org header until a request is approved.
 
 ### Checklist for new modules
 
@@ -87,9 +102,12 @@ Throw `NotFoundException` for cross-tenant IDs (avoid org enumeration).
 
 ### Testing
 
-| Layer | Command |
-|-------|---------|
-| Unit | `cd apps/api && pnpm test:unit` |
-| Mock API E2E | `cd apps/web && npx playwright test e2e/tenant-isolation.spec.ts` |
-| Real-stack smoke | `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` (branch-grant denial when `SMOKE_PROPELAUTH_FRONT_DESK_USER_ID` is set) |
-| API integration (2 orgs in PostgreSQL) | `RUN_INTEGRATION=1 cd apps/api && pnpm test:integration` — 7 cases |
+| Layer | Command | Coverage |
+|-------|---------|----------|
+| Unit | `pnpm --filter @erp/api test:unit` | `TenantScopeService`, guards, controller FK rejection |
+| Mock helper vitest | `cd apps/web && pnpm exec vitest run e2e/helpers/tenant-scope-mock.test.ts e2e/helpers/join-request-state.test.ts` | Mock scope helpers + join-request validation |
+| Mock API E2E | `pnpm test:e2e -- e2e/tenant-isolation.spec.ts` | 42 cases — org/branch guards, mutations, admin settings |
+| Real-stack smoke | `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` | Live API + PropelAuth; optional FRONT_DESK branch-grant denial |
+| API integration | `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` | 26 cases — two-org PostgreSQL harness |
+
+See [test-coverage-gaps.md](./test-coverage-gaps.md) for the living checklist.

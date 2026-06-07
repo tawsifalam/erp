@@ -156,7 +156,7 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 | §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
 | Prereq P7 + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
-| Tenant isolation | `smoke-local-08-tenant-isolation` | Foreign `branchId` → 403 (inventory, PMS, reporting, POS, HR, inclusions); foreign `roomId` / `accountId` → 404; **FRONT_DESK branch-grant denial** (optional second PropelAuth user) |
+| Tenant isolation | `smoke-local-08-tenant-isolation` | Missing org header → 400; foreign `branchId` → 403 (inventory, PMS, reporting, POS, HR, inclusions); foreign `roomId` / `accountId` / `excludeReservationId` → 404; branch members foreign branch → 404; **FRONT_DESK branch-grant denial** (optional second PropelAuth user) |
 
 ### Manual only (second user / email / production infra)
 

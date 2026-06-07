@@ -353,6 +353,19 @@ const runIntegration =
     expect(res.body.message).toMatch(/Pending join request not found/);
   });
 
+  it("rejects join request approve outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerB, {
+      method: "post",
+      path: `/api/tenants/join-requests/${fixture.joinRequestAId}/approve`,
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+      body: { role: "FRONT_DESK" },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Pending join request not found/);
+  });
+
   it("lists vendors only for the active organization", async () => {
     const orgA = await integrationRequest(app, fixture.tokens.ownerA, {
       path: "/api/procurement/vendors",

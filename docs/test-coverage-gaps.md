@@ -35,10 +35,10 @@ Living checklist from the [test audit](../README.md#testing). Update when closin
 | Layer | Status | Notes |
 |-------|--------|-------|
 | API unit (`TenantScopeService`, guards, controllers) | ✅ | `pnpm --filter @erp/api test:unit` |
-| API integration (2-org PostgreSQL) | ✅ | `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` — 25 cases |
+| API integration (2-org PostgreSQL) | ✅ | `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` — 26 cases |
 | Mock E2E isolation | ✅ | `e2e/tenant-isolation.spec.ts` — 42 cases (org/branch guards, admin routes, join/branch settings) |
 | Mock helper vitest | ✅ | `tenant-scope-mock.test.ts`, `join-request-state.test.ts` |
-| Real-stack smoke isolation | ✅ | `smoke-local-08` (+ optional branch-grant user) |
+| Real-stack smoke isolation | ✅ | `smoke-local-08` — 12 cases (+ optional FRONT_DESK branch-grant user) |
 
 ## E2E (mocked)
 

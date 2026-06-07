@@ -185,6 +185,64 @@ test.describe("Smoke — tenant isolation", () => {
     expect(res.status).toBe(403);
   });
 
+  test("tenant routes reject missing X-Organization-Id header", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+    const res = await fetch(`${apiBase}/api/inventory/items?branchId=${auth.branchId}`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "X-Branch-Id": auth.branchId,
+      },
+    });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/X-Organization-Id header is required/);
+  });
+
+  test("branch members rejects foreign branchId in same request context", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignBranchId = "00000000-0000-0000-0000-000000000099";
+
+    const res = await fetch(
+      `${apiBase}/api/tenants/branches/${foreignBranchId}/members`,
+      {
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          "X-Organization-Id": auth.organizationId,
+          "X-Branch-Id": auth.branchId,
+        },
+      },
+    );
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/Branch not found/);
+  });
+
+  test("PMS availability rejects foreign excludeReservationId", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignReservationId = "00000000-0000-0000-0000-000000000066";
+
+    const res = await fetch(
+      `${apiBase}/api/pms/availability?branchId=${auth.branchId}&checkIn=2026-09-01T14:00:00Z&checkOut=2026-09-03T11:00:00Z&excludeReservationId=${foreignReservationId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          "X-Organization-Id": auth.organizationId,
+          "X-Branch-Id": auth.branchId,
+        },
+      },
+    );
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/Reservation not found/);
+  });
+
   test("FRONT_DESK without branch grant cannot access another branch in same org", async () => {
     const auth = await loadSmokeAuth();
     test.skip(

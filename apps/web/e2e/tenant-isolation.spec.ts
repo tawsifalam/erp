@@ -197,6 +197,9 @@ test.describe("Tenant isolation (mock API)", () => {
       "/api/payroll/runs",
       "/api/audit/logs",
       "/api/integrations/adapters",
+      "/api/accounting/accounts",
+      "/api/notifications",
+      "/api/notifications/unread-count",
     ]) {
       const { status, body } = await apiStatus(page, path, headers);
       expect(status, path).toBe(403);

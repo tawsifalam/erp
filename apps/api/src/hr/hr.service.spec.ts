@@ -32,6 +32,7 @@ const mockEvents = {
 
 const mockTenantScope = {
   assertBranchInOrganization: jest.fn().mockResolvedValue(undefined),
+  assertEmployeeInOrganization: jest.fn().mockResolvedValue(undefined),
   resolveBranchId: jest.fn(),
 };
 
@@ -58,6 +59,7 @@ describe("HrService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTenantScope.assertEmployeeInOrganization.mockResolvedValue(undefined);
     mockPrisma.employee.findFirst.mockResolvedValue({
       id: "emp-1",
       organizationId: "org-1",
@@ -206,19 +208,24 @@ describe("HrService", () => {
 
   describe("getEmployee", () => {
     it("throws NotFoundException when missing", async () => {
-      mockPrisma.employee.findFirst.mockResolvedValue(null);
+      mockTenantScope.assertEmployeeInOrganization.mockRejectedValue(
+        new NotFoundException("Employee not found"),
+      );
 
       await expect(service.getEmployee("org-1", "missing")).rejects.toThrow(NotFoundException);
+      expect(mockTenantScope.assertEmployeeInOrganization).toHaveBeenCalledWith(
+        "org-1",
+        "missing",
+      );
     });
 
     it("does not return employee from another organization (IDOR)", async () => {
-      mockPrisma.employee.findFirst.mockResolvedValue(null);
+      mockTenantScope.assertEmployeeInOrganization.mockRejectedValue(
+        new NotFoundException("Employee not found"),
+      );
       await expect(service.getEmployee("org-1", "emp-other-org")).rejects.toThrow(
         NotFoundException,
       );
-      expect(mockPrisma.employee.findFirst).toHaveBeenCalledWith({
-        where: { id: "emp-other-org", organizationId: "org-1" },
-      });
     });
   });
 
@@ -305,11 +312,28 @@ describe("HrService", () => {
         id: "emp-1",
         organizationId: "org-1",
         status: EmployeeStatus.TERMINATED,
+        branchId: "branch-1",
       });
 
       await expect(
         service.clockAttendance("org-1", "emp-1", "branch-1", "CLOCK_IN" as never),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects clock at a branch the employee is not assigned to", async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue({
+        id: "emp-1",
+        organizationId: "org-1",
+        status: EmployeeStatus.ACTIVE,
+        branchId: "branch-other",
+        branch: null,
+        user: null,
+      });
+
+      await expect(
+        service.clockAttendance("org-1", "emp-1", "branch-1", "CLOCK_IN" as never),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.attendanceRecord.create).not.toHaveBeenCalled();
     });
   });
 

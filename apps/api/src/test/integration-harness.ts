@@ -41,6 +41,10 @@ export type IntegrationFixture = {
   roomBId: string;
   accountAId: string;
   accountBId: string;
+  itemA1Id: string;
+  itemA2Id: string;
+  menuItemA1Id: string;
+  menuItemB1Id: string;
   tokens: {
     ownerA: string;
     frontDeskA: string;
@@ -345,6 +349,90 @@ export async function seedIntegrationFixture(
     },
   });
 
+  const poolA = await prisma.inventoryPool.upsert({
+    where: { organizationId_code: { organizationId: orgAId, code: "guest" } },
+    create: {
+      id: `${INTEGRATION_PREFIX}-pool-a`,
+      organizationId: orgAId,
+      code: "guest",
+      name: "Guest",
+      isSystem: true,
+    },
+    update: { name: "Guest" },
+  });
+
+  const itemA1 = await prisma.inventoryItem.upsert({
+    where: { branchId_sku: { branchId: branchA1Id, sku: "INT-A1" } },
+    create: {
+      id: `${INTEGRATION_PREFIX}-inv-a1`,
+      branchId: branchA1Id,
+      poolId: poolA.id,
+      name: "Item A1",
+      sku: "INT-A1",
+      unit: "kg",
+    },
+    update: { name: "Item A1" },
+  });
+
+  const itemA2 = await prisma.inventoryItem.upsert({
+    where: { branchId_sku: { branchId: branchA2Id, sku: "INT-A2" } },
+    create: {
+      id: `${INTEGRATION_PREFIX}-inv-a2`,
+      branchId: branchA2Id,
+      poolId: poolA.id,
+      name: "Item A2",
+      sku: "INT-A2",
+      unit: "kg",
+    },
+    update: { name: "Item A2" },
+  });
+
+  const catA1 = await prisma.menuCategory.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-mc-a1` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-mc-a1`,
+      organizationId: orgAId,
+      branchId: branchA1Id,
+      name: "Mains",
+      sortOrder: 1,
+    },
+    update: { name: "Mains" },
+  });
+
+  const menuItemA1 = await prisma.menuItem.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-mi-a1` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-mi-a1`,
+      categoryId: catA1.id,
+      name: "Burger",
+      price: 10,
+    },
+    update: { name: "Burger" },
+  });
+
+  const catB1 = await prisma.menuCategory.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-mc-b1` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-mc-b1`,
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      name: "Mains",
+      sortOrder: 1,
+    },
+    update: { name: "Mains" },
+  });
+
+  const menuItemB1 = await prisma.menuItem.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-mi-b1` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-mi-b1`,
+      categoryId: catB1.id,
+      name: "Pasta",
+      price: 12,
+    },
+    update: { name: "Pasta" },
+  });
+
   return {
     orgAId,
     orgBId,
@@ -358,6 +446,10 @@ export async function seedIntegrationFixture(
     roomBId: roomB.id,
     accountAId: accountA.id,
     accountBId: accountB.id,
+    itemA1Id: itemA1.id,
+    itemA2Id: itemA2.id,
+    menuItemA1Id: menuItemA1.id,
+    menuItemB1Id: menuItemB1.id,
     tokens: {
       ownerA: "Bearer int-owner-a",
       frontDeskA: "Bearer int-front-desk",

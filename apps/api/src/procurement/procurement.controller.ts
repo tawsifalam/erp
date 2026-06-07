@@ -6,12 +6,20 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { ProcurementService } from "./procurement.service";
 
 @Controller("procurement")
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class ProcurementController {
-  constructor(private readonly procurement: ProcurementService) {}
+  constructor(
+    private readonly procurement: ProcurementService,
+    private readonly tenantScope: TenantScopeService,
+  ) {}
+
+  private resolveBranch(t: TenantContext) {
+    return this.tenantScope.resolveBranchId(t);
+  }
 
   @Get("vendors")
   @RequirePermission(Permission.INVENTORY_READ)
@@ -55,19 +63,19 @@ export class ProcurementController {
 
   @Get("purchase-orders")
   @RequirePermission(Permission.INVENTORY_READ)
-  listPurchaseOrders(@Tenant() t: TenantContext) {
-    return this.procurement.listPurchaseOrders(t.branchId!);
+  async listPurchaseOrders(@Tenant() t: TenantContext) {
+    return this.procurement.listPurchaseOrders((await this.resolveBranch(t))!);
   }
 
   @Get("purchase-orders/:id")
   @RequirePermission(Permission.INVENTORY_READ)
-  getPurchaseOrder(@Tenant() t: TenantContext, @Param("id") id: string) {
-    return this.procurement.getPurchaseOrder(t.branchId!, id);
+  async getPurchaseOrder(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.procurement.getPurchaseOrder((await this.resolveBranch(t))!, id);
   }
 
   @Post("purchase-orders")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  createPurchaseOrder(
+  async createPurchaseOrder(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -77,9 +85,10 @@ export class ProcurementController {
       lines: { inventoryItemId: string; quantity: number; unitPrice: number }[];
     },
   ) {
+    const branchId = (await this.resolveBranch(t))!;
     return this.procurement.createPurchaseOrder({
       organizationId: t.organizationId,
-      branchId: t.branchId!,
+      branchId,
       userId: t.userId,
       ...body,
     });
@@ -87,20 +96,26 @@ export class ProcurementController {
 
   @Post("purchase-orders/:id/submit")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  submitPurchaseOrder(@Tenant() t: TenantContext, @Param("id") id: string) {
-    return this.procurement.submitPurchaseOrder(t.branchId!, id, t.organizationId, t.userId);
+  async submitPurchaseOrder(@Tenant() t: TenantContext, @Param("id") id: string) {
+    return this.procurement.submitPurchaseOrder(
+      (await this.resolveBranch(t))!,
+      id,
+      t.organizationId,
+      t.userId,
+    );
   }
 
   @Post("purchase-orders/:id/receive")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  receiveGoods(
+  async receiveGoods(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Body() body: { purchaseOrderLineId: string; quantity: number },
   ) {
+    const branchId = (await this.resolveBranch(t))!;
     return this.procurement.receiveGoods({
       organizationId: t.organizationId,
-      branchId: t.branchId!,
+      branchId,
       purchaseOrderId: id,
       purchaseOrderLineId: body.purchaseOrderLineId,
       quantity: body.quantity,
@@ -110,23 +125,23 @@ export class ProcurementController {
 
   @Get("vendor-payments")
   @RequirePermission(Permission.INVENTORY_READ)
-  listVendorPayments(@Tenant() t: TenantContext) {
-    return this.procurement.listVendorPayments(t.branchId!);
+  async listVendorPayments(@Tenant() t: TenantContext) {
+    return this.procurement.listVendorPayments((await this.resolveBranch(t))!);
   }
 
   @Get("vendors/:id/ap-balance")
   @RequirePermission(Permission.INVENTORY_READ)
-  vendorApBalance(@Tenant() t: TenantContext, @Param("id") vendorId: string) {
+  async vendorApBalance(@Tenant() t: TenantContext, @Param("id") vendorId: string) {
     return this.procurement.getVendorApBalance(
       t.organizationId,
-      t.branchId!,
+      (await this.resolveBranch(t))!,
       vendorId,
     );
   }
 
   @Post("vendor-payments")
   @RequirePermission(Permission.ACCOUNTING_WRITE)
-  createVendorPayment(
+  async createVendorPayment(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -138,9 +153,10 @@ export class ProcurementController {
       reference?: string;
     },
   ) {
+    const branchId = (await this.resolveBranch(t))!;
     return this.procurement.createVendorPayment({
       organizationId: t.organizationId,
-      branchId: t.branchId!,
+      branchId,
       userId: t.userId,
       ...body,
     });

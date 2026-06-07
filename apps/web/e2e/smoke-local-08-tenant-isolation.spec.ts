@@ -134,6 +134,57 @@ test.describe("Smoke — tenant isolation", () => {
     expect(body.message).toMatch(/Account not found/);
   });
 
+  test("POS orders rejects branchId outside organization", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignBranchId = "00000000-0000-0000-0000-000000000099";
+
+    const res = await fetch(`${apiBase}/api/pos/orders?branchId=${foreignBranchId}`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "X-Organization-Id": auth.organizationId,
+        "X-Branch-Id": auth.branchId,
+      },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  test("HR attendance rejects branchId outside organization", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignBranchId = "00000000-0000-0000-0000-000000000099";
+
+    const res = await fetch(`${apiBase}/api/hr/attendance?branchId=${foreignBranchId}`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "X-Organization-Id": auth.organizationId,
+        "X-Branch-Id": auth.branchId,
+      },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  test("inclusions recipes rejects branchId outside organization", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignBranchId = "00000000-0000-0000-0000-000000000099";
+
+    const res = await fetch(
+      `${apiBase}/api/inclusions/recipes?branchId=${foreignBranchId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          "X-Organization-Id": auth.organizationId,
+          "X-Branch-Id": auth.branchId,
+        },
+      },
+    );
+
+    expect(res.status).toBe(403);
+  });
+
   test("FRONT_DESK without branch grant cannot access another branch in same org", async () => {
     const auth = await loadSmokeAuth();
     test.skip(

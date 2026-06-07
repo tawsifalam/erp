@@ -453,8 +453,10 @@ export async function mockApiRoutes(page: Page) {
   await page.route(
     (url) => isBackendApiUrl(url.href) && new URL(url.href).pathname.endsWith("/notifications"),
     async (route) => {
+      const orgScope = resolveOrgFromRoute(route);
+      if (await fulfillOrgScopeError(route, orgScope)) return;
       if (route.request().method() !== "GET") return fulfillJson(route, {});
-      const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+      const orgId = orgScope.organizationId!;
       const url = new URL(route.request().url());
       const limit = url.searchParams.get("limit")
         ? Number.parseInt(url.searchParams.get("limit")!, 10)
@@ -464,7 +466,9 @@ export async function mockApiRoutes(page: Page) {
   );
 
   await page.route(backendApiRoute("notifications/preferences"), async (route) => {
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
+    const orgId = orgScope.organizationId!;
     if (route.request().method() === "GET") {
       return fulfillJson(route, listNotificationPreferences(String(orgId), notificationUserId));
     }
@@ -472,8 +476,10 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(/\/api\/notifications\/preferences\/([^/]+)$/, async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     if (route.request().method() !== "PATCH") return fulfillJson(route, {});
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = orgScope.organizationId!;
     const typeMatch = route.request().url().match(/\/preferences\/([^/]+)$/);
     const type = typeMatch?.[1];
     if (!type) {
@@ -502,8 +508,10 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(/\/api\/notifications\/[^/]+\/read$/, async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     if (route.request().method() !== "PATCH") return fulfillJson(route, {});
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = orgScope.organizationId!;
     const idMatch = route.request().url().match(/\/notifications\/([^/]+)\/read/);
     const id = idMatch?.[1];
     if (!id) {
@@ -525,15 +533,19 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("notifications/read-all"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     if (route.request().method() !== "PATCH") return fulfillJson(route, {});
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = orgScope.organizationId!;
     markAllNotificationsRead(String(orgId), notificationUserId);
     return fulfillJson(route, { ok: true });
   });
 
   await page.route(backendApiRoute("notifications/unread-count"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     if (route.request().method() !== "GET") return fulfillJson(route, {});
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = orgScope.organizationId!;
     return fulfillJson(route, {
       count: unreadNotificationCount(String(orgId), notificationUserId),
     });
@@ -993,9 +1005,11 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("accounting/"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const url = route.request().url();
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = orgScope.organizationId!;
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleAccountingMutation(method, url, body, String(orgId));
     if (result && typeof result === "object" && "status" in result) {

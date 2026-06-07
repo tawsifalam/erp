@@ -1,4 +1,5 @@
 import { INestApplication } from "@nestjs/common";
+import { MovementDirection, MovementType } from "@erp/types";
 import {
   cleanupIntegrationFixture,
   createIntegrationApp,
@@ -82,5 +83,48 @@ const runIntegration =
 
     expect(res.status).toBe(403);
     expect(res.body.message).toMatch(/do not have access/);
+  });
+
+  it("rejects foreign itemId on inventory movement", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "post",
+      path: "/api/inventory/movements",
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: {
+        itemId: fixture.itemA2Id,
+        movementType: MovementType.ADJUSTMENT,
+        quantity: 1,
+        direction: MovementDirection.OUT,
+      },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Inventory item not found/);
+  });
+
+  it("rejects foreign menuItemId on POS order create", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "post",
+      path: "/api/pos/orders",
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: {
+        lines: [{ menuItemId: fixture.menuItemB1Id, quantity: 1, unitPrice: 10 }],
+      },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Menu item not found/);
+  });
+
+  it("rejects procurement purchase orders without branch header", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: "/api/procurement/purchase-orders",
+      orgId: fixture.orgAId,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/branchId is required/);
   });
 });

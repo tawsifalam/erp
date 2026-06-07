@@ -111,13 +111,8 @@ export class TenantScopeService {
     accountIds: string[],
   ): Promise<void> {
     const uniqueIds = [...new Set(accountIds)];
-    if (uniqueIds.length === 0) return;
-
-    const count = await this.prisma.account.count({
-      where: { organizationId, id: { in: uniqueIds } },
-    });
-    if (count !== uniqueIds.length) {
-      throw new NotFoundException("Account not found");
+    for (const accountId of uniqueIds) {
+      await this.assertAccountInOrganization(organizationId, accountId);
     }
   }
 

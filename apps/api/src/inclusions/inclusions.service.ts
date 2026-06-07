@@ -12,6 +12,7 @@ import {
 import { generatePrefixedId, toNumber } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import {
   POOL_CODE_GUEST,
   POOL_CODE_HOUSEKEEPING,
@@ -35,6 +36,7 @@ export class InclusionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   listPackages(organizationId: string) {
@@ -588,11 +590,11 @@ export class InclusionsService {
   }
 
   private async assertReservation(branchId: string, reservationId: string) {
+    await this.tenantScope.assertReservationInBranch(branchId, reservationId);
     const reservation = await this.prisma.reservation.findFirst({
       where: { id: reservationId, branchId },
     });
-    if (!reservation) throw new NotFoundException("Reservation not found");
-    return reservation;
+    return reservation!;
   }
 
   async assertPackageInOrg(organizationId: string, packageId: string | null | undefined) {

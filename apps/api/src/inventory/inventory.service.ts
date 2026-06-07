@@ -274,6 +274,8 @@ export class InventoryService {
       throw new BadRequestException("unitCost cannot be negative");
     }
 
+    await this.getItem(params.branchId, params.itemId);
+
     const direction = directionFor(
       params.movementType,
       params.quantity,

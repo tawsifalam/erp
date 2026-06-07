@@ -210,20 +210,20 @@ describe("TenantScopeService", () => {
     });
 
     it("assertAccountsInOrganization rejects when any account is foreign", async () => {
-      mockPrisma.account.count.mockResolvedValue(1);
+      mockPrisma.account.findFirst
+        .mockResolvedValueOnce({ id: "acc-1" })
+        .mockResolvedValueOnce(null);
       await expect(
         service.assertAccountsInOrganization("org_a", ["acc-1", "acc-2"]),
       ).rejects.toThrow(NotFoundException);
     });
 
     it("assertAccountsInOrganization passes when all accounts belong to org", async () => {
-      mockPrisma.account.count.mockResolvedValue(2);
+      mockPrisma.account.findFirst.mockResolvedValue({ id: "acc-1" });
       await expect(
         service.assertAccountsInOrganization("org_a", ["acc-1", "acc-2", "acc-1"]),
       ).resolves.toBeUndefined();
-      expect(mockPrisma.account.count).toHaveBeenCalledWith({
-        where: { organizationId: "org_a", id: { in: ["acc-1", "acc-2"] } },
-      });
+      expect(mockPrisma.account.findFirst).toHaveBeenCalledTimes(2);
     });
   });
 });

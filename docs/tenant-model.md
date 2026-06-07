@@ -92,4 +92,4 @@ Throw `NotFoundException` for cross-tenant IDs (avoid org enumeration).
 | Unit | `cd apps/api && pnpm test:unit` |
 | Mock API E2E | `cd apps/web && npx playwright test e2e/tenant-isolation.spec.ts` |
 | Real-stack smoke | `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` (branch-grant denial when `SMOKE_PROPELAUTH_FRONT_DESK_USER_ID` is set) |
-| API integration (2 orgs in PostgreSQL) | `RUN_INTEGRATION=1 cd apps/api && pnpm test:integration` |
+| API integration (2 orgs in PostgreSQL) | `RUN_INTEGRATION=1 cd apps/api && pnpm test:integration` — 7 cases |

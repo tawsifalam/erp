@@ -45,9 +45,9 @@ Items intentionally left out of Phase 1 / 1.5 / 1.6. Grouped by theme; estimate 
 
 | Item | Phase 1 today | Phase 2 target |
 |------|----------------|----------------|
-| **Branch-scoped membership** | Org-wide roles; any branch in header if org member | `UserBranch` grants per branch — [branch-invitations.md](./branch-invitations.md) |
-| **Branch team UI** | Settings → org team only | Settings → **Branch access**; header hides unapproved branches |
-| **`TenantGuard`** | `X-Organization-Id` + org role | Branch membership check on `X-Branch-Id` |
+| **Branch-scoped membership** | ✅ Shipped — `UserBranch` grants per branch | Further polish — [branch-invitations.md](./branch-invitations.md) |
+| **Branch team UI** | ✅ Settings → **Branch access** tab | Header hides unapproved branches for non-admin roles |
+| **`TenantGuard`** | ✅ Org membership + branch grant on `X-Branch-Id` | — |
 
 **Doc:** [organization-onboarding.md](../organization-onboarding.md) § Phase 2 — Branch invitations
 

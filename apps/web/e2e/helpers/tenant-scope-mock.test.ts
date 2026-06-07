@@ -15,7 +15,7 @@ import {
 import { resetBranchAccessState } from "./branch-access-state";
 import { getPmsGuests, getPmsRoomTypes, resetPmsState } from "./pms-state";
 import { getRatePlans, resetRatesState } from "./rates-state";
-import { resetAccountingState } from "./accounting-state";
+import { getAccountingAccounts, resetAccountingState } from "./accounting-state";
 
 describe("tenant-scope-mock", () => {
   beforeEach(() => {
@@ -43,6 +43,12 @@ describe("tenant-scope-mock", () => {
     expect(orgBGuests.every((g) => g.organizationId === MOCK_ORG_B)).toBe(true);
     expect(orgAGuests.some((g) => g.id === "gst_b_001")).toBe(false);
     expect(orgBGuests.some((g) => g.id === "gst_b_001")).toBe(true);
+  });
+
+  it("filters accounting accounts by organization", () => {
+    const orgAAccounts = getAccountingAccounts(MOCK_ORG_A);
+    expect(orgAAccounts.every((a) => a.organizationId === MOCK_ORG_A)).toBe(true);
+    expect(getAccountingAccounts(MOCK_ORG_B).length).toBe(0);
   });
 
   it("filters room types and rate plans by organization", () => {

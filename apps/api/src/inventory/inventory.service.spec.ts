@@ -107,6 +107,28 @@ describe("InventoryService", () => {
   });
 
   describe("createMovement", () => {
+    beforeEach(() => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue({
+        id: "item-1",
+        averageUnitCost: 0,
+        pool: { id: "pool-1", code: "guest", name: "Guest" },
+      });
+    });
+
+    it("throws NotFoundException when itemId is not in branch", async () => {
+      mockPrisma.inventoryItem.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createMovement({
+          itemId: "foreign-item",
+          branchId: "branch-1",
+          movementType: MovementType.SALE,
+          quantity: 1,
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.inventoryMovement.create).not.toHaveBeenCalled();
+    });
+
     it("throws BadRequestException when quantity <= 0", async () => {
       await expect(
         service.createMovement({

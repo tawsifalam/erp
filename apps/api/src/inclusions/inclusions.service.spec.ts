@@ -9,6 +9,7 @@ import {
 import { InclusionsService } from "./inclusions.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { countStayNights } from "./inclusions.constants";
 
 jest.mock("@erp/utils", () => ({
@@ -48,6 +49,10 @@ const mockInventory = {
   assertItemInPool: jest.fn().mockResolvedValue({ id: "item-1" }),
 };
 
+const mockTenantScope = {
+  assertReservationInBranch: jest.fn().mockResolvedValue(undefined),
+};
+
 const mealRecipe = {
   id: "ir-meal",
   branchId: "branch-1",
@@ -61,11 +66,13 @@ describe("InclusionsService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTenantScope.assertReservationInBranch.mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InclusionsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: InventoryService, useValue: mockInventory },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
     service = module.get<InclusionsService>(InclusionsService);

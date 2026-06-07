@@ -189,7 +189,7 @@ export function handleAccountingMutation(
   }
 
   if (url.includes("/accounts")) {
-    if (method === "GET") return getAccountingAccounts();
+    if (method === "GET") return getAccountingAccounts(organizationId);
 
     if (method === "POST") {
       const code = String(body?.code ?? "").trim();

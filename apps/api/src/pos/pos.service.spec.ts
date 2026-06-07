@@ -56,6 +56,7 @@ const mockRealtime = {
 
 const mockTenantScope = {
   assertMenuItemInBranch: jest.fn().mockResolvedValue(undefined),
+  assertOrderInBranch: jest.fn().mockResolvedValue(undefined),
 };
 
 const draftOrder = {
@@ -75,6 +76,7 @@ describe("PosService", () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockTenantScope.assertMenuItemInBranch.mockResolvedValue(undefined);
+    mockTenantScope.assertOrderInBranch.mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PosService,
@@ -342,19 +344,24 @@ describe("PosService", () => {
 
   describe("getOrder", () => {
     it("throws NotFoundException when missing", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue(null);
+      mockTenantScope.assertOrderInBranch.mockRejectedValue(
+        new NotFoundException("Order not found"),
+      );
       await expect(service.getOrder("branch-1", "x")).rejects.toThrow(NotFoundException);
+      expect(mockTenantScope.assertOrderInBranch).toHaveBeenCalledWith("branch-1", "x");
     });
 
     it("does not return order from another branch (IDOR)", async () => {
-      mockPrisma.order.findFirst.mockResolvedValue(null);
+      mockTenantScope.assertOrderInBranch.mockRejectedValue(
+        new NotFoundException("Order not found"),
+      );
       await expect(service.getOrder("branch-1", "order-other-branch")).rejects.toThrow(
         NotFoundException,
       );
-      expect(mockPrisma.order.findFirst).toHaveBeenCalledWith({
-        where: { id: "order-other-branch", branchId: "branch-1" },
-        include: { lines: { include: { menuItem: true } }, kitchenTickets: true },
-      });
+      expect(mockTenantScope.assertOrderInBranch).toHaveBeenCalledWith(
+        "branch-1",
+        "order-other-branch",
+      );
     });
   });
 

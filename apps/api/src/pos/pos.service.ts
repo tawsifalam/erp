@@ -197,12 +197,12 @@ export class PosService {
   }
 
   async getOrder(branchId: string, orderId: string) {
+    await this.tenantScope.assertOrderInBranch(branchId, orderId);
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, branchId },
       include: { lines: { include: { menuItem: true } }, kitchenTickets: true },
     });
-    if (!order) throw new NotFoundException("Order not found");
-    return order;
+    return order!;
   }
 
   async createOrder(

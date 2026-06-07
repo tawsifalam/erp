@@ -34,11 +34,12 @@ export class HrService {
   }
 
   async getEmployee(organizationId: string, employeeId: string) {
+    await this.tenantScope.assertEmployeeInOrganization(organizationId, employeeId);
     const employee = await this.prisma.employee.findFirst({
       where: { id: employeeId, organizationId },
+      include: { branch: true, user: true },
     });
-    if (!employee) throw new NotFoundException("Employee not found");
-    return employee;
+    return employee!;
   }
 
   async assertActiveEmployee(organizationId: string, employeeId: string) {
@@ -173,7 +174,10 @@ export class HrService {
     type: AttendanceType,
   ) {
     if (!branchId) throw new BadRequestException("Branch is required for attendance");
-    await this.assertActiveEmployee(organizationId, employeeId);
+    const employee = await this.assertActiveEmployee(organizationId, employeeId);
+    if (employee.branchId && employee.branchId !== branchId) {
+      throw new BadRequestException("Employee is not assigned to this branch");
+    }
     return this.prisma.attendanceRecord.create({
       data: { employeeId, branchId, type },
     });

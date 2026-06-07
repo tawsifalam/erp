@@ -25,6 +25,15 @@ function hasImplicitBranchAccess(role: string): boolean {
   return role === "ADMIN" || role === "OWNER";
 }
 
+export function assertMockOrganizationAccess(
+  organizationId: string,
+): MockScopeError | null {
+  if (!ORG_BRANCH_IDS[organizationId]) {
+    return { status: 403, message: "Not a member of this organization" };
+  }
+  return null;
+}
+
 export function assertMockBranchInOrg(
   organizationId: string,
   branchId: string,

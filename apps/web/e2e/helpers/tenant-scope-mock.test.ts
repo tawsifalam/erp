@@ -8,18 +8,48 @@ import {
   assertMockAccountsInOrg,
   assertMockBranchGrant,
   assertMockBranchInOrg,
+  assertMockOrganizationAccess,
   assertMockRoomInOrg,
   resolveMockBranchId,
 } from "./tenant-scope-mock";
 import { resetBranchAccessState } from "./branch-access-state";
-import { resetPmsState } from "./pms-state";
+import { getPmsGuests, getPmsRoomTypes, resetPmsState } from "./pms-state";
+import { getRatePlans, resetRatesState } from "./rates-state";
 import { resetAccountingState } from "./accounting-state";
 
 describe("tenant-scope-mock", () => {
   beforeEach(() => {
     resetBranchAccessState();
     resetPmsState();
+    resetRatesState();
     resetAccountingState();
+  });
+
+  it("rejects unknown organization", () => {
+    const err = assertMockOrganizationAccess("org-unknown");
+    expect(err?.status).toBe(403);
+    expect(err?.message).toMatch(/Not a member/);
+  });
+
+  it("allows known mock organizations", () => {
+    expect(assertMockOrganizationAccess(MOCK_ORG_A)).toBeNull();
+    expect(assertMockOrganizationAccess(MOCK_ORG_B)).toBeNull();
+  });
+
+  it("filters guests by organization", () => {
+    const orgAGuests = getPmsGuests(MOCK_ORG_A);
+    const orgBGuests = getPmsGuests(MOCK_ORG_B);
+    expect(orgAGuests.every((g) => g.organizationId === MOCK_ORG_A)).toBe(true);
+    expect(orgBGuests.every((g) => g.organizationId === MOCK_ORG_B)).toBe(true);
+    expect(orgAGuests.some((g) => g.id === "gst_b_001")).toBe(false);
+    expect(orgBGuests.some((g) => g.id === "gst_b_001")).toBe(true);
+  });
+
+  it("filters room types and rate plans by organization", () => {
+    expect(getPmsRoomTypes(MOCK_ORG_B).some((rt) => rt.id === "rt_b_001")).toBe(true);
+    expect(getPmsRoomTypes(MOCK_ORG_A).some((rt) => rt.id === "rt_b_001")).toBe(false);
+    expect(getRatePlans(MOCK_ORG_B)).toHaveLength(0);
+    expect(getRatePlans(MOCK_ORG_A).length).toBeGreaterThan(0);
   });
 
   it("rejects branch from another organization", () => {

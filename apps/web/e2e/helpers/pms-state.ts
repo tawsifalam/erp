@@ -119,6 +119,7 @@ const INITIAL_ROOMS: MockRoom[] = [
 
 export type MockRoomType = {
   id: string;
+  organizationId: string;
   name: string;
   maxAdults: number;
   maxChildren: number;
@@ -126,21 +127,68 @@ export type MockRoomType = {
 
 export type MockGuest = {
   id: string;
+  organizationId: string;
   fullName: string;
   phone?: string;
   email?: string;
 };
 
 const INITIAL_ROOM_TYPES: MockRoomType[] = [
-  { id: "rt_001", name: "Standard Double", maxAdults: 2, maxChildren: 1 },
-  { id: "rt_002", name: "Deluxe Suite", maxAdults: 3, maxChildren: 2 },
-  { id: "rt_003", name: "Economy Single", maxAdults: 1, maxChildren: 0 },
+  {
+    id: "rt_001",
+    organizationId: MOCK_ORG_A,
+    name: "Standard Double",
+    maxAdults: 2,
+    maxChildren: 1,
+  },
+  {
+    id: "rt_002",
+    organizationId: MOCK_ORG_A,
+    name: "Deluxe Suite",
+    maxAdults: 3,
+    maxChildren: 2,
+  },
+  {
+    id: "rt_003",
+    organizationId: MOCK_ORG_A,
+    name: "Economy Single",
+    maxAdults: 1,
+    maxChildren: 0,
+  },
+  {
+    id: "rt_b_001",
+    organizationId: MOCK_ORG_B,
+    name: "Harbor Standard",
+    maxAdults: 2,
+    maxChildren: 1,
+  },
 ];
 
 const INITIAL_GUESTS: MockGuest[] = [
-  { id: "gst_001", fullName: "Rahim Ahmed", phone: "+8801711000001" },
-  { id: "gst_002", fullName: "Fatima Khan", phone: "+8801711000002" },
-  { id: "gst_003", fullName: "Karim Uddin", phone: "+8801711000003" },
+  {
+    id: "gst_001",
+    organizationId: MOCK_ORG_A,
+    fullName: "Rahim Ahmed",
+    phone: "+8801711000001",
+  },
+  {
+    id: "gst_002",
+    organizationId: MOCK_ORG_A,
+    fullName: "Fatima Khan",
+    phone: "+8801711000002",
+  },
+  {
+    id: "gst_003",
+    organizationId: MOCK_ORG_A,
+    fullName: "Karim Uddin",
+    phone: "+8801711000003",
+  },
+  {
+    id: "gst_b_001",
+    organizationId: MOCK_ORG_B,
+    fullName: "Harbor Guest",
+    phone: "+8801711000099",
+  },
 ];
 
 let reservations = clone(INITIAL_RESERVATIONS);
@@ -155,34 +203,51 @@ export function resetPmsState() {
   guests = clone(INITIAL_GUESTS);
 }
 
-export function getPmsReservations() {
-  return reservations;
+export function getPmsReservations(organizationId?: string) {
+  if (!organizationId) return reservations;
+  const orgRoomIds = new Set(
+    rooms.filter((r) => r.organizationId === organizationId).map((r) => r.id),
+  );
+  return reservations.filter((r) => orgRoomIds.has(r.roomId));
 }
 
 export function getPmsRooms() {
   return rooms;
 }
 
-export function getPmsRoomTypes() {
-  return roomTypes;
+export function getPmsRoomTypes(organizationId?: string) {
+  const rows = roomTypes.map((rt) => ({ ...rt }));
+  if (!organizationId) return rows;
+  return rows.filter((rt) => rt.organizationId === organizationId);
 }
 
-export function getPmsGuests() {
-  return guests;
+export function getPmsGuests(organizationId?: string) {
+  const rows = guests.map((g) => ({ ...g }));
+  if (!organizationId) return rows;
+  return rows.filter((g) => g.organizationId === organizationId);
 }
 
-export function handlePmsRoomTypeMutation(method: string, url: string): unknown {
+export function handlePmsRoomTypeMutation(
+  method: string,
+  url: string,
+  organizationId?: string,
+): unknown {
   const idMatch = url.match(/\/room-types\/([^/?]+)/);
   const id = idMatch?.[1];
   if (!id) return {};
 
+  const rt = roomTypes.find((r) => r.id === id);
+  if (organizationId && rt && rt.organizationId !== organizationId) {
+    return { status: 404, message: "Room type not found" };
+  }
+
   if (method === "DELETE") {
-    const idx = roomTypes.findIndex((rt) => rt.id === id);
+    if (!rt) return { status: 404, message: "Room type not found" };
+    const idx = roomTypes.findIndex((row) => row.id === id);
     if (idx >= 0) roomTypes.splice(idx, 1);
     return { id };
   }
 
-  const rt = roomTypes.find((r) => r.id === id);
   return rt ?? {};
 }
 
@@ -190,6 +255,7 @@ export function handlePmsGuestMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
 ): unknown {
   const idMatch = url.match(/\/guests\/([^/?]+)/);
   const id = idMatch?.[1];
@@ -197,6 +263,7 @@ export function handlePmsGuestMutation(
   if (method === "POST") {
     const guest: MockGuest = {
       id: "gst-new",
+      organizationId: organizationId ?? MOCK_ORG_A,
       fullName: String(body?.fullName ?? "New Guest"),
       phone: body?.phone ? String(body.phone) : undefined,
       email: body?.email ? String(body.email) : undefined,
@@ -207,14 +274,16 @@ export function handlePmsGuestMutation(
 
   if (!id) return {};
 
+  const guest = guests.find((g) => g.id === id);
+  if (!guest || (organizationId && guest.organizationId !== organizationId)) {
+    return { status: 404, message: "Guest not found" };
+  }
+
   if (method === "DELETE") {
     const idx = guests.findIndex((g) => g.id === id);
     if (idx >= 0) guests.splice(idx, 1);
     return { id };
   }
-
-  const guest = guests.find((g) => g.id === id);
-  if (!guest) return {};
 
   if (method === "PATCH" && body) {
     if (body.fullName) guest.fullName = String(body.fullName);

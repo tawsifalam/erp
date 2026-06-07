@@ -22,6 +22,7 @@ type MockAttendance = {
 
 type MockPayrollRun = {
   id: string;
+  organizationId: string;
   status: string;
   payslipKey?: string | null;
   periodStart: string;
@@ -61,9 +62,12 @@ const INITIAL_EMPLOYEES: MockEmployee[] = [
   { id: "emp_002", name: "Nasreen Begum", designation: "Front Desk", salary: "35000", status: "ACTIVE" },
 ];
 
+const MOCK_ORG_A = "org-test-001";
+
 const INITIAL_PAYROLL: MockPayrollRun[] = [
   {
     id: "pr_001",
+    organizationId: MOCK_ORG_A,
     status: "COMPLETED",
     payslipKey: "payroll/pr_001.pdf",
     periodStart: "2026-05-01T00:00:00Z",
@@ -112,8 +116,10 @@ export function getHrEmployees() {
   return employees.map((e) => ({ ...e }));
 }
 
-export function getPayrollRuns() {
-  return payrollRuns.map((r) => ({ ...r }));
+export function getPayrollRuns(organizationId?: string) {
+  const rows = payrollRuns.map((r) => ({ ...r }));
+  if (!organizationId) return rows;
+  return rows.filter((r) => r.organizationId === organizationId);
 }
 
 function findEmployee(id: string) {
@@ -128,6 +134,7 @@ export function handleHrMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
 ): unknown {
   if (url.match(/\/hr\/employees\/[^/?]+/) && method === "PATCH") {
     const idMatch = url.match(/\/employees\/([^/?]+)/);
@@ -247,6 +254,7 @@ export function handleHrMutation(
   if (url.includes("/hr/payroll/runs") && method === "POST") {
     const run: MockPayrollRun = {
       id: `pr_${payrollRuns.length + 1}`,
+      organizationId: organizationId ?? MOCK_ORG_A,
       status: "PENDING",
       periodStart: String(body?.periodStart ?? new Date().toISOString()),
       periodEnd: String(body?.periodEnd ?? new Date().toISOString()),
@@ -264,7 +272,7 @@ export function handleHrMutation(
   }
 
   if (url.includes("/payroll/runs") && method === "GET") {
-    return getPayrollRuns();
+    return getPayrollRuns(organizationId);
   }
 
   return {};

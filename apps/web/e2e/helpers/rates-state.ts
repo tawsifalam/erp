@@ -71,8 +71,10 @@ export function resetRatesState() {
   ratePlans = structuredClone(INITIAL_PLANS) as MockRatePlan[];
 }
 
-export function getRatePlans() {
-  return ratePlans.map((p) => ({ ...p, rules: p.rules.map((r) => ({ ...r })) }));
+export function getRatePlans(organizationId?: string) {
+  const rows = ratePlans.map((p) => ({ ...p, rules: p.rules.map((r) => ({ ...r })) }));
+  if (!organizationId) return rows;
+  return rows.filter((p) => p.organizationId === organizationId);
 }
 
 function countNights(checkIn: Date, checkOut: Date) {
@@ -152,20 +154,28 @@ export function quoteStay(
   };
 }
 
+function findRatePlanInOrg(planId: string, organizationId?: string) {
+  const plan = ratePlans.find((p) => p.id === planId);
+  if (!plan) return null;
+  if (organizationId && plan.organizationId !== organizationId) return null;
+  return plan;
+}
+
 export function handleRatePlanMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
 ): unknown {
   if (method === "GET" && url.includes("/rate-plans") && !url.includes("/rules")) {
-    return getRatePlans();
+    return getRatePlans(organizationId);
   }
 
   const planIdMatch = url.match(/\/rate-plans\/([^/?]+)/);
   const planId = planIdMatch?.[1];
 
   if (method === "POST" && url.includes("/rules") && planId) {
-    const plan = ratePlans.find((p) => p.id === planId);
+    const plan = findRatePlanInOrg(planId, organizationId);
     if (!plan) return { status: 404, message: "Rate plan not found" };
     const rule: MockRateRule = {
       id: `rr_${plan.rules.length + 1}`,
@@ -181,7 +191,7 @@ export function handleRatePlanMutation(
   const ruleDelete = url.match(/\/rate-plans\/([^/]+)\/rules\/([^/?]+)/);
   if (method === "DELETE" && ruleDelete) {
     const [, pid, rid] = ruleDelete;
-    const plan = ratePlans.find((p) => p.id === pid);
+    const plan = findRatePlanInOrg(pid, organizationId);
     if (!plan) return { status: 404, message: "Rate plan not found" };
     plan.rules = plan.rules.filter((r) => r.id !== rid);
     return { deleted: true, id: rid };
@@ -191,7 +201,7 @@ export function handleRatePlanMutation(
     const pkgId = body?.inclusionPackageId ? String(body.inclusionPackageId) : null;
     const plan: MockRatePlan = {
       id: `rp_${ratePlans.length + 1}`,
-      organizationId: "org-test-001",
+      organizationId: organizationId ?? "org-test-001",
       roomTypeId: String(body?.roomTypeId ?? "rt_001"),
       name: String(body?.name ?? "New plan"),
       validFrom: String(body?.validFrom ?? "2026-01-01"),
@@ -217,12 +227,14 @@ export function handleRatePlanMutation(
   }
 
   if (method === "DELETE" && planId) {
+    const plan = findRatePlanInOrg(planId, organizationId);
+    if (!plan) return { status: 404, message: "Rate plan not found" };
     ratePlans = ratePlans.filter((p) => p.id !== planId);
     return { deleted: true, id: planId };
   }
 
   if (method === "PATCH" && planId && body) {
-    const plan = ratePlans.find((p) => p.id === planId);
+    const plan = findRatePlanInOrg(planId, organizationId);
     if (!plan) return { status: 404, message: "Rate plan not found" };
     if (body.name) plan.name = String(body.name);
     if (body.validFrom) plan.validFrom = String(body.validFrom);

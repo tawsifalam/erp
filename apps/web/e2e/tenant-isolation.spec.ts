@@ -183,4 +183,66 @@ test.describe("Tenant isolation (mock API)", () => {
     );
     expect(status).toBe(200);
   });
+
+  test("rejects org-level routes for unknown organization", async ({ page }) => {
+    const headers = {
+      "X-Organization-Id": "org-unknown-999",
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    };
+    for (const path of [
+      "/api/pms/guests",
+      "/api/pms/room-types",
+      "/api/pms/rate-plans",
+      "/api/reporting/types",
+      "/api/payroll/runs",
+      "/api/audit/logs",
+      "/api/integrations/adapters",
+    ]) {
+      const { status, body } = await apiStatus(page, path, headers);
+      expect(status, path).toBe(403);
+      expect(body?.message).toMatch(/Not a member/);
+    }
+  });
+
+  test("lists only guests for the selected organization", async ({ page }) => {
+    const orgA = await apiStatus(page, "/api/pms/guests", {
+      "X-Organization-Id": FAKE_ORG_ID,
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    });
+    const orgB = await apiStatus(page, "/api/pms/guests", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const orgAIds = (orgA.body as { id: string }[]).map((g) => g.id);
+    const orgBIds = (orgB.body as { id: string }[]).map((g) => g.id);
+    expect(orgAIds).toContain("gst_001");
+    expect(orgAIds).not.toContain("gst_b_001");
+    expect(orgBIds).toContain("gst_b_001");
+    expect(orgBIds).not.toContain("gst_001");
+  });
+
+  test("returns empty rate plans for organization without plans", async ({ page }) => {
+    const { status, body } = await apiStatus(page, "/api/pms/rate-plans", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(status).toBe(200);
+    expect(body).toEqual([]);
+  });
+
+  test("rejects guest mutation for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/pms/guests/gst_b_001",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "DELETE" },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Guest not found/);
+  });
 });

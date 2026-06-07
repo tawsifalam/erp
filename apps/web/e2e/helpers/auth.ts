@@ -781,6 +781,8 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("inclusions/"), async (route) => {
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -789,6 +791,8 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("pos/orders"), async (route) => {
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/orders\/[^/?]+$/)) {
@@ -800,6 +804,8 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("pos/menu/categories"), async (route) => {
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/categories\/[^/?]+$/)) {
@@ -913,6 +919,8 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("hr/"), async (route) => {
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;

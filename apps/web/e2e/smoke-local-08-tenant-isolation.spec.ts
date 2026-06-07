@@ -29,6 +29,22 @@ test.describe("Smoke — tenant isolation", () => {
     expect(body.message).toMatch(/Branch does not belong/);
   });
 
+  test("PMS rooms rejects branchId outside organization", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignBranchId = "00000000-0000-0000-0000-000000000099";
+
+    const res = await fetch(`${apiBase}/api/pms/rooms?branchId=${foreignBranchId}`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "X-Organization-Id": auth.organizationId,
+        "X-Branch-Id": auth.branchId,
+      },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
   test("reporting dashboard rejects branchId outside organization", async () => {
     const auth = await loadSmokeAuth();
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";

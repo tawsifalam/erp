@@ -77,4 +77,32 @@ test.describe("Tenant isolation (mock API)", () => {
     );
     expect(status).toBe(200);
   });
+
+  test("rejects POS orders for branch outside active organization", async ({ page }) => {
+    const { status } = await apiStatus(page, `/api/pos/orders?branchId=${FAKE_BRANCH_ID_2B}`, {
+      "X-Organization-Id": FAKE_ORG_ID,
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    });
+    expect(status).toBe(403);
+  });
+
+  test("rejects HR attendance for branch outside active organization", async ({ page }) => {
+    const { status } = await apiStatus(page, `/api/hr/attendance?branchId=${FAKE_BRANCH_ID_2B}`, {
+      "X-Organization-Id": FAKE_ORG_ID,
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    });
+    expect(status).toBe(403);
+  });
+
+  test("rejects inclusions recipes for branch outside active organization", async ({ page }) => {
+    const { status } = await apiStatus(
+      page,
+      `/api/inclusions/recipes?branchId=${FAKE_BRANCH_ID_2B}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(status).toBe(403);
+  });
 });

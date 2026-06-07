@@ -10,6 +10,7 @@ import { generatePrefixedId } from "@erp/utils";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { PmsService } from "../pms/pms.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import {
   getIntegrationAdapter,
   INTEGRATION_ADAPTERS,
@@ -48,6 +49,7 @@ export class IntegrationsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly pms: PmsService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   listAdapters() {
@@ -88,10 +90,7 @@ export class IntegrationsService {
     if (!name) throw new BadRequestException("name is required");
 
     if (body.branchId) {
-      const branch = await this.prisma.branch.findFirst({
-        where: { id: body.branchId, organizationId },
-      });
-      if (!branch) throw new BadRequestException("branchId does not belong to this organization");
+      await this.tenantScope.assertBranchInOrganization(organizationId, body.branchId);
     }
 
     this.validateCredentials(adapter, body.credentials);
@@ -152,10 +151,7 @@ export class IntegrationsService {
       throw new BadRequestException("Invalid status");
     }
     if (body.branchId) {
-      const branch = await this.prisma.branch.findFirst({
-        where: { id: body.branchId, organizationId },
-      });
-      if (!branch) throw new BadRequestException("branchId does not belong to this organization");
+      await this.tenantScope.assertBranchInOrganization(organizationId, body.branchId);
     }
     if (body.credentials) {
       this.validateCredentials(adapter, body.credentials);

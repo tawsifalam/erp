@@ -1,12 +1,19 @@
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Role } from "@erp/types";
 import type { TenantContext } from "@erp/types";
 import { TenantScopeService } from "./tenant-scope.service";
 import { UserBranchStatus } from "../../tenants/branch-access.constants";
 
 const mockPrisma = {
-  branch: { findFirst: jest.fn() },
+  branch: { findFirst: jest.fn(), findUnique: jest.fn() },
   userBranch: { findUnique: jest.fn() },
+  guest: { findFirst: jest.fn() },
+  roomType: { findFirst: jest.fn() },
+  room: { findFirst: jest.fn() },
+  menuItem: { findUnique: jest.fn() },
+  employee: { findFirst: jest.fn() },
+  reservation: { findFirst: jest.fn() },
+  order: { findFirst: jest.fn() },
 };
 
 const ownerTenant: TenantContext = {
@@ -130,6 +137,53 @@ describe("TenantScopeService", () => {
       mockPrisma.branch.findFirst.mockResolvedValue(null);
       await expect(service.assertBranchInOrganization("org_a", "br_b1")).rejects.toThrow(
         ForbiddenException,
+      );
+    });
+  });
+
+  describe("entity assertions", () => {
+    it("assertGuestInOrganization rejects guest from another org", async () => {
+      mockPrisma.guest.findFirst.mockResolvedValue(null);
+      await expect(service.assertGuestInOrganization("org_a", "guest-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertRoomTypeInOrganization rejects room type from another org", async () => {
+      mockPrisma.roomType.findFirst.mockResolvedValue(null);
+      await expect(service.assertRoomTypeInOrganization("org_a", "rt-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertRoomInBranch rejects room from another branch", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue(null);
+      await expect(service.assertRoomInBranch("br_a1", "room-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertMenuItemInBranch rejects item from another branch", async () => {
+      mockPrisma.menuItem.findUnique.mockResolvedValue({
+        id: "mi-b",
+        category: { organizationId: "org_b", branchId: "br_b1" },
+      });
+      await expect(service.assertMenuItemInBranch("org_a", "br_a1", "mi-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertReservationInBranch rejects reservation from another branch", async () => {
+      mockPrisma.reservation.findFirst.mockResolvedValue(null);
+      await expect(service.assertReservationInBranch("br_a1", "rsv-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertOrderInBranch rejects order from another branch", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue(null);
+      await expect(service.assertOrderInBranch("br_a1", "ord-b")).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

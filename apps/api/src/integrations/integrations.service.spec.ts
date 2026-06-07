@@ -1,10 +1,16 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ReservationStatus } from "@erp/types";
 import { IntegrationsService } from "./integrations.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { PmsService } from "../pms/pms.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { IntegrationConnectionStatus } from "./integration-connection.constants";
 
 const mockPrisma = {
@@ -32,17 +38,23 @@ const mockPms = {
   createReservation: jest.fn(),
 };
 
+const mockTenantScope = {
+  assertBranchInOrganization: jest.fn().mockResolvedValue(undefined),
+};
+
 describe("IntegrationsService", () => {
   let service: IntegrationsService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTenantScope.assertBranchInOrganization.mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IntegrationsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AuditService, useValue: mockAudit },
         { provide: PmsService, useValue: mockPms },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
     service = module.get(IntegrationsService);
@@ -64,6 +76,20 @@ describe("IntegrationsService", () => {
           name: "Test",
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("rejects branchId outside organization", async () => {
+      mockTenantScope.assertBranchInOrganization.mockRejectedValue(
+        new ForbiddenException("Branch does not belong to this organization"),
+      );
+      await expect(
+        service.createConnection("org-1", "user-1", {
+          adapterKey: "generic_webhook",
+          name: "Hook",
+          branchId: "branch-other",
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.integrationConnection.create).not.toHaveBeenCalled();
     });
 
     it("creates connection and returns webhook secret once", async () => {

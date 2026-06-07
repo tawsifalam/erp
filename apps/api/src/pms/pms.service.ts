@@ -16,6 +16,7 @@ import { InclusionsService } from "../inclusions/inclusions.service";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
 import { RatePricingService } from "./rate-pricing.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 const CANCELLABLE: string[] = [
   ReservationStatus.INQUIRY,
@@ -38,6 +39,7 @@ export class PmsService {
     private readonly inclusions: InclusionsService,
     private readonly audit: AuditService,
     private readonly pricing: RatePricingService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   private async logReservationAudit(
@@ -127,7 +129,7 @@ export class PmsService {
     return room;
   }
 
-  createRoom(
+  async createRoom(
     branchId: string,
     data: {
       roomTypeId: string;
@@ -136,6 +138,8 @@ export class PmsService {
       status?: RoomStatus;
     },
   ) {
+    const organizationId = await this.tenantScope.organizationIdForBranch(branchId);
+    await this.tenantScope.assertRoomTypeInOrganization(organizationId, data.roomTypeId);
     return this.prisma.room.create({
       data: {
         branchId,
@@ -158,6 +162,10 @@ export class PmsService {
     },
   ) {
     await this.getRoom(branchId, roomId);
+    if (data.roomTypeId) {
+      const organizationId = await this.tenantScope.organizationIdForBranch(branchId);
+      await this.tenantScope.assertRoomTypeInOrganization(organizationId, data.roomTypeId);
+    }
     return this.prisma.room.update({
       where: { id: roomId },
       data,
@@ -390,6 +398,9 @@ export class PmsService {
     userId?: string,
   ) {
     this.validateHeadcount(data.adultCount, data.childCount);
+    const organizationId = await this.tenantScope.organizationIdForBranch(branchId);
+    await this.tenantScope.assertGuestInOrganization(organizationId, data.guestId);
+    await this.tenantScope.assertRoomInBranch(branchId, data.roomId);
     const pricing = await this.resolveStayPricing(
       data.roomId,
       data.checkIn,
@@ -410,8 +421,7 @@ export class PmsService {
       }
     }
 
-    const orgId = await this.organizationIdForBranch(branchId);
-    await this.inclusions.assertPackageInOrg(orgId, packageId);
+    await this.inclusions.assertPackageInOrg(organizationId, packageId);
 
     const status = data.status ?? ReservationStatus.CONFIRMED;
     const inclusionData = {
@@ -484,6 +494,14 @@ export class PmsService {
     userId?: string,
   ) {
     const reservation = await this.getReservation(branchId, reservationId);
+    const organizationId = await this.tenantScope.organizationIdForBranch(branchId);
+
+    if (data.guestId) {
+      await this.tenantScope.assertGuestInOrganization(organizationId, data.guestId);
+    }
+    if (data.roomId) {
+      await this.tenantScope.assertRoomInBranch(branchId, data.roomId);
+    }
 
     if (
       reservation.status === ReservationStatus.CHECKED_OUT ||

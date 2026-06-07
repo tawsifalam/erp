@@ -10,6 +10,7 @@ import { PosService } from "./pos.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { AuditService } from "../audit/audit.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
@@ -53,6 +54,10 @@ const mockRealtime = {
   emitRoomStatus: jest.fn(),
 };
 
+const mockTenantScope = {
+  assertMenuItemInBranch: jest.fn().mockResolvedValue(undefined),
+};
+
 const draftOrder = {
   id: "order-1",
   branchId: "branch-1",
@@ -69,6 +74,7 @@ describe("PosService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTenantScope.assertMenuItemInBranch.mockResolvedValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PosService,
@@ -76,6 +82,7 @@ describe("PosService", () => {
         { provide: EventEmitter2, useValue: mockEvents },
         { provide: RealtimeGateway, useValue: mockRealtime },
         { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
     service = module.get(PosService);
@@ -86,6 +93,18 @@ describe("PosService", () => {
       await expect(
         service.createOrder("branch-1", "org-1", { lines: [] }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects menu item from another branch", async () => {
+      mockTenantScope.assertMenuItemInBranch.mockRejectedValue(
+        new NotFoundException("Menu item not found"),
+      );
+      await expect(
+        service.createOrder("branch-1", "org-1", {
+          lines: [{ menuItemId: "mi-other", quantity: 1, unitPrice: 10 }],
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.order.create).not.toHaveBeenCalled();
     });
 
     it("calculates totalAmount from lines", async () => {
@@ -325,6 +344,17 @@ describe("PosService", () => {
     it("throws NotFoundException when missing", async () => {
       mockPrisma.order.findFirst.mockResolvedValue(null);
       await expect(service.getOrder("branch-1", "x")).rejects.toThrow(NotFoundException);
+    });
+
+    it("does not return order from another branch (IDOR)", async () => {
+      mockPrisma.order.findFirst.mockResolvedValue(null);
+      await expect(service.getOrder("branch-1", "order-other-branch")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.order.findFirst).toHaveBeenCalledWith({
+        where: { id: "order-other-branch", branchId: "branch-1" },
+        include: { lines: { include: { menuItem: true } }, kitchenTickets: true },
+      });
     });
   });
 

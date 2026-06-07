@@ -13,6 +13,7 @@ import { OrderCompletedEvent } from "../common/events/order-completed.event";
 import { toNumber, generatePrefixedId } from "@erp/utils";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 const CANCELLABLE: string[] = [OrderStatus.DRAFT, OrderStatus.SUBMITTED];
 const COMPLETABLE: string[] = [
@@ -32,6 +33,7 @@ export class PosService {
     private readonly events: EventEmitter2,
     private readonly realtime: RealtimeGateway,
     private readonly audit: AuditService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   listCategories(branchId: string) {
@@ -205,7 +207,7 @@ export class PosService {
 
   async createOrder(
     branchId: string,
-    _organizationId: string,
+    organizationId: string,
     data: {
       lines: { menuItemId: string; quantity: number; unitPrice: number }[];
       tableNumber?: string;
@@ -219,6 +221,11 @@ export class PosService {
     for (const line of data.lines) {
       if (line.quantity <= 0) throw new BadRequestException("Line quantity must be positive");
       if (line.unitPrice < 0) throw new BadRequestException("Line unitPrice cannot be negative");
+      await this.tenantScope.assertMenuItemInBranch(
+        organizationId,
+        branchId,
+        line.menuItemId,
+      );
     }
 
     if (data.reservationId) {

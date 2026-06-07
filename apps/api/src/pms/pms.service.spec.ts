@@ -13,6 +13,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { InclusionsService } from "../inclusions/inclusions.service";
 import { AuditService } from "../audit/audit.service";
 import { RatePricingService } from "./rate-pricing.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 const mockPrisma = {
   branch: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
@@ -62,12 +63,23 @@ const mockInclusions = {
   assertPackageInOrg: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockTenantScope = {
+  organizationIdForBranch: jest.fn().mockResolvedValue("org-1"),
+  assertGuestInOrganization: jest.fn().mockResolvedValue(undefined),
+  assertRoomInBranch: jest.fn().mockResolvedValue(undefined),
+  assertRoomTypeInOrganization: jest.fn().mockResolvedValue(undefined),
+};
+
 describe("PmsService", () => {
   let service: PmsService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockPrisma.branch.findUnique.mockResolvedValue({ organizationId: "org-1" });
+    mockTenantScope.organizationIdForBranch.mockResolvedValue("org-1");
+    mockTenantScope.assertGuestInOrganization.mockResolvedValue(undefined);
+    mockTenantScope.assertRoomInBranch.mockResolvedValue(undefined);
+    mockTenantScope.assertRoomTypeInOrganization.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -90,6 +102,7 @@ describe("PmsService", () => {
             }),
           },
         },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
 
@@ -200,6 +213,37 @@ describe("PmsService", () => {
         },
         include: { guest: true, room: { include: { roomType: true } }, package: true },
       });
+    });
+
+    it("rejects guest from another organization", async () => {
+      mockTenantScope.assertGuestInOrganization.mockRejectedValue(
+        new NotFoundException("Guest not found"),
+      );
+      await expect(
+        service.createReservation("branch-1", {
+          guestId: "guest-other",
+          roomId: "room-1",
+          checkIn,
+          checkOut,
+          totalAmount: 200,
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.reservation.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects room from another branch", async () => {
+      mockTenantScope.assertRoomInBranch.mockRejectedValue(
+        new NotFoundException("Room not found"),
+      );
+      await expect(
+        service.createReservation("branch-1", {
+          guestId: "g-1",
+          roomId: "room-other",
+          checkIn,
+          checkOut,
+          totalAmount: 200,
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("passes availability check with correct params", async () => {
@@ -582,6 +626,22 @@ describe("PmsService", () => {
         include: { roomType: true },
         orderBy: { roomNumber: "asc" },
       });
+    });
+  });
+
+  describe("createRoom", () => {
+    it("rejects room type from another organization", async () => {
+      mockTenantScope.assertRoomTypeInOrganization.mockRejectedValue(
+        new NotFoundException("Room type not found"),
+      );
+      await expect(
+        service.createRoom("branch-1", {
+          roomTypeId: "rt-other",
+          roomNumber: "101",
+          basePrice: 100,
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.room.create).not.toHaveBeenCalled();
     });
   });
 

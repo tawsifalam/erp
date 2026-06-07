@@ -210,6 +210,16 @@ describe("HrService", () => {
 
       await expect(service.getEmployee("org-1", "missing")).rejects.toThrow(NotFoundException);
     });
+
+    it("does not return employee from another organization (IDOR)", async () => {
+      mockPrisma.employee.findFirst.mockResolvedValue(null);
+      await expect(service.getEmployee("org-1", "emp-other-org")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrisma.employee.findFirst).toHaveBeenCalledWith({
+        where: { id: "emp-other-org", organizationId: "org-1" },
+      });
+    });
   });
 
   describe("updateEmployee", () => {

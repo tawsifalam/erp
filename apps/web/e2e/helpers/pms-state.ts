@@ -316,19 +316,48 @@ export function handlePmsGuestMutation(
   return guest;
 }
 
+function scopedReservationOrError(
+  reservationId: string,
+  organizationId?: string,
+  branchId?: string,
+): MockReservation | { status: number; message: string } {
+  const res = reservations.find((r) => r.id === reservationId);
+  if (!res) return { status: 404, message: "Reservation not found" };
+  const room = rooms.find((r) => r.id === res.roomId);
+  if (!room) return { status: 404, message: "Reservation not found" };
+  if (organizationId && room.organizationId !== organizationId) {
+    return { status: 404, message: "Reservation not found" };
+  }
+  if (branchId && room.branchId !== branchId) {
+    return { status: 404, message: "Reservation not found" };
+  }
+  return res;
+}
+
 export function handlePmsReservationMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/reservations\/([^/?]+)/);
   const id = idMatch?.[1];
 
-  if (method === "POST") {
+  if (method === "POST" && !id) {
+    const guestId = String(body?.guestId ?? "");
+    const guestRecord = guests.find((g) => g.id === guestId);
+    if (!guestRecord || (organizationId && guestRecord.organizationId !== organizationId)) {
+      return { status: 404, message: "Guest not found" };
+    }
+    const roomId = String(body?.roomId ?? "");
+    const roomScoped = scopedRoomOrError(roomId, organizationId, branchId);
+    if ("status" in roomScoped) return roomScoped;
+    const room = roomScoped;
+
     let total: number | undefined =
       body?.totalAmount != null ? Number(body.totalAmount) : undefined;
-    const room = rooms.find((r) => r.id === String(body?.roomId));
-    if (room && body?.checkIn && body?.checkOut) {
+    if (body?.checkIn && body?.checkOut) {
       const q = quoteStay(
         room,
         new Date(String(body.checkIn)),
@@ -338,9 +367,6 @@ export function handlePmsReservationMutation(
       );
       total = total ?? q.totalAmount;
     }
-    const guestId = String(body?.guestId ?? "");
-    const guestRecord = guests.find((g) => g.id === guestId);
-    const roomRecord = rooms.find((r) => r.id === String(body?.roomId ?? ""));
     const newRes: MockReservation = {
       id: "res-new",
       status: String(body?.status ?? "CONFIRMED"),
@@ -349,21 +375,23 @@ export function handlePmsReservationMutation(
       totalAmount: String(total ?? 0),
       paidAmount: String(body?.paidAmount ?? "0"),
       guestId,
-      roomId: String(body?.roomId ?? ""),
-      guest: { fullName: guestRecord?.fullName ?? "New Guest", id: guestId || undefined },
-      room: roomRecord
-        ? {
-            roomNumber: roomRecord.roomNumber,
-            id: roomRecord.id,
-            roomType: roomRecord.roomType,
-          }
-        : { roomNumber: "102", roomType: { name: "Standard Double" } },
+      roomId,
+      guest: { fullName: guestRecord.fullName, id: guestId },
+      room: {
+        roomNumber: room.roomNumber,
+        id: room.id,
+        roomType: room.roomType,
+      },
     };
     reservations.push(newRes);
     return newRes;
   }
 
   if (!id) return {};
+
+  const scoped = scopedReservationOrError(id, organizationId, branchId);
+  if ("status" in scoped) return scoped;
+  const res = scoped;
 
   if (method === "DELETE") {
     const idx = reservations.findIndex((r) => r.id === id);
@@ -375,9 +403,6 @@ export function handlePmsReservationMutation(
     });
     return { id };
   }
-
-  const res = reservations.find((r) => r.id === id);
-  if (!res) return {};
 
   if (url.includes("/confirm")) {
     res.status = "CONFIRMED";
@@ -428,17 +453,25 @@ export function handlePmsReservationMutation(
     return res;
   }
   if (method === "PATCH" && body) {
-    if (body.guestId) res.guestId = String(body.guestId);
-    if (body.roomId) {
-      res.roomId = String(body.roomId);
-      const room = rooms.find((r) => r.id === res.roomId);
-      if (room) {
-        res.room = {
-          roomNumber: room.roomNumber,
-          id: room.id,
-          roomType: room.roomType,
-        };
+    if (body.guestId) {
+      const nextGuestId = String(body.guestId);
+      const guest = guests.find((g) => g.id === nextGuestId);
+      if (!guest || (organizationId && guest.organizationId !== organizationId)) {
+        return { status: 404, message: "Guest not found" };
       }
+      res.guestId = nextGuestId;
+      res.guest = { fullName: guest.fullName, id: nextGuestId };
+    }
+    if (body.roomId) {
+      const nextRoomId = String(body.roomId);
+      const nextRoom = scopedRoomOrError(nextRoomId, organizationId, branchId);
+      if ("status" in nextRoom) return nextRoom;
+      res.roomId = nextRoomId;
+      res.room = {
+        roomNumber: nextRoom.roomNumber,
+        id: nextRoom.id,
+        roomType: nextRoom.roomType,
+      };
     }
     if (body.checkIn) res.checkIn = String(body.checkIn);
     if (body.checkOut) res.checkOut = String(body.checkOut);

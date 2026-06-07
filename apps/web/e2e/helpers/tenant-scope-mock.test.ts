@@ -16,11 +16,16 @@ import {
 import { resetBranchAccessState } from "./branch-access-state";
 import { getPmsGuests, getPmsRooms, getPmsRoomTypes, resetPmsState } from "./pms-state";
 import { getRatePlans, resetRatesState } from "./rates-state";
-import { getAccountingAccounts, resetAccountingState } from "./accounting-state";
+import {
+  getAccountingAccounts,
+  getAccountingJournals,
+  resetAccountingState,
+} from "./accounting-state";
 import { getInventoryItems, resetInventoryState } from "./inventory-state";
 import { getPosOrders, resetPosState } from "./pos-state";
-import { getInclusionRecipes, resetInclusionsState } from "./inclusions-state";
+import { getInclusionPackages, getInclusionRecipes, resetInclusionsState } from "./inclusions-state";
 import { getHrAttendance, resetHrState } from "./hr-state";
+import { getProcurementVendors, resetProcurementState } from "./procurement-state";
 
 describe("tenant-scope-mock", () => {
   beforeEach(() => {
@@ -32,6 +37,7 @@ describe("tenant-scope-mock", () => {
     resetPosState();
     resetInclusionsState();
     resetHrState();
+    resetProcurementState();
   });
 
   it("rejects unknown organization", () => {
@@ -84,6 +90,16 @@ describe("tenant-scope-mock", () => {
 
     expect(getHrAttendance(MOCK_BRANCH_A1).some((a) => a.id === "att_001")).toBe(true);
     expect(getHrAttendance(MOCK_BRANCH_A2).some((a) => a.id === "att_a2_001")).toBe(true);
+
+    expect(getProcurementVendors(MOCK_ORG_A).some((v) => v.id === "ven_001")).toBe(true);
+    expect(getProcurementVendors(MOCK_ORG_B).some((v) => v.id === "ven_b_001")).toBe(true);
+    expect(getProcurementVendors(MOCK_ORG_A).some((v) => v.id === "ven_b_001")).toBe(false);
+
+    expect(getInclusionPackages(MOCK_ORG_A).some((p) => p.id === "ipkg-full")).toBe(true);
+    expect(getInclusionPackages(MOCK_ORG_B).some((p) => p.id === "ipkg-harbor")).toBe(true);
+
+    expect(getAccountingJournals(MOCK_ORG_A).some((j) => j.id === "je_001")).toBe(true);
+    expect(getAccountingJournals(MOCK_ORG_B)).toHaveLength(0);
   });
 
   it("rejects branch from another organization", () => {

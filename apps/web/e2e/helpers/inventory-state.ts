@@ -213,7 +213,9 @@ export function handleInventoryItemMutation(
   if (!id) return {};
 
   const item = items.find((i) => i.id === id);
-  if (!item) return {};
+  if (!item || (branchId && item.branchId !== branchId)) {
+    return { status: 404, message: "Item not found" };
+  }
 
   if (method === "PATCH" && body) {
     if (body.name) item.name = String(body.name);
@@ -266,16 +268,22 @@ export function handleInventoryMovementMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/items\/([^/?]+)\/movements/);
   const itemId = idMatch?.[1];
 
   if (method === "GET" && itemId) {
+    const item = items.find((i) => i.id === itemId);
+    if (!item || (branchId && item.branchId !== branchId)) return [];
     return movements.filter((m) => m.itemId === itemId);
   }
 
   if (method === "POST" && url.includes("/movements") && body) {
     const item = items.find((i) => i.id === String(body.itemId));
+    if (!item || (branchId && item.branchId !== branchId)) {
+      return { status: 404, message: "Item not found" };
+    }
     const qty = Number(body.quantity);
     const movementType = String(body.movementType ?? "PURCHASE");
     let direction: "IN" | "OUT" = "IN";

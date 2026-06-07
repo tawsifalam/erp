@@ -340,6 +340,64 @@ test.describe("Tenant isolation (mock API)", () => {
     expect((body as { id: string }[]).some((p) => p.id === "ipkg-full")).toBe(true);
   });
 
+  test("lists different inclusion packages per organization", async ({ page }) => {
+    const orgA = await apiStatus(page, "/api/inclusions/packages", {
+      "X-Organization-Id": FAKE_ORG_ID,
+    });
+    const orgB = await apiStatus(page, "/api/inclusions/packages", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const aIds = (orgA.body as { id: string }[]).map((p) => p.id);
+    const bIds = (orgB.body as { id: string }[]).map((p) => p.id);
+    expect(aIds).toContain("ipkg-full");
+    expect(bIds).toContain("ipkg-harbor");
+    expect(bIds).not.toContain("ipkg-full");
+  });
+
+  test("lists vendors only for the selected organization", async ({ page }) => {
+    const orgA = await apiStatus(
+      page,
+      `/api/procurement/vendors?branchId=${FAKE_BRANCH_ID}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    const orgB = await apiStatus(
+      page,
+      `/api/procurement/vendors?branchId=${FAKE_BRANCH_ID_2B}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID_2,
+        "X-Branch-Id": FAKE_BRANCH_ID_2B,
+      },
+    );
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const aIds = (orgA.body as { id: string }[]).map((v) => v.id);
+    const bIds = (orgB.body as { id: string }[]).map((v) => v.id);
+    expect(aIds).toContain("ven_001");
+    expect(bIds).toContain("ven_b_001");
+    expect(aIds).not.toContain("ven_b_001");
+  });
+
+  test("lists journals only for the selected organization", async ({ page }) => {
+    const orgA = await apiStatus(page, "/api/accounting/journals", {
+      "X-Organization-Id": FAKE_ORG_ID,
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    });
+    const orgB = await apiStatus(page, "/api/accounting/journals", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    expect((orgA.body as { id: string }[]).some((j) => j.id === "je_001")).toBe(true);
+    expect(orgB.body).toEqual([]);
+  });
+
   test("lists different inclusion recipes per branch in same organization", async ({
     page,
   }) => {
@@ -394,6 +452,48 @@ test.describe("Tenant isolation (mock API)", () => {
     );
     expect(status).toBe(404);
     expect(body?.message).toMatch(/Room not found/);
+  });
+
+  test("rejects reservation cancel for reservation in another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/pms/reservations/res-001/cancel",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID_2,
+      },
+      { method: "POST" },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Reservation not found/);
+  });
+
+  test("rejects inventory item PATCH for item in another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/inventory/items/inv-a2-001",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "PATCH", body: { name: "Stolen Flour" } },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Item not found/);
+  });
+
+  test("rejects POS order submit for order in another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/pos/orders/ord_a2_001/submit",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "POST" },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Order not found/);
   });
 
   test("rejects POS menu item PATCH for item in another branch", async ({ page }) => {

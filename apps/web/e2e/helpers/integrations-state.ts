@@ -228,13 +228,19 @@ export function handleIntegrationWebhook(
       if (!roomId || !checkIn || !checkOut) {
         throw new Error("booking.import requires roomId, checkIn, and checkOut");
       }
-      handlePmsReservationMutation("POST", "http://localhost:3001/api/pms/reservations", {
-        guestId: "gst_001",
-        roomId,
-        checkIn,
-        checkOut,
-        status: "INQUIRY",
-      });
+      handlePmsReservationMutation(
+        "POST",
+        "http://localhost:3001/api/pms/reservations",
+        {
+          guestId: "gst_001",
+          roomId,
+          checkIn,
+          checkOut,
+          status: "INQUIRY",
+        },
+        conn.organizationId,
+        conn.branchId,
+      );
     } else if (CHANNEL_KEYS.has(conn.adapterKey) && eventType !== "booking.import") {
       throw new Error(`Unsupported event for channel adapter: ${eventType}`);
     }
@@ -358,7 +364,7 @@ function requireChannelConnection(orgId: string, connectionId: string) {
 function exportAvailability(orgId: string, connectionId: string, from: string, to: string) {
   const conn = requireChannelConnection(orgId, connectionId);
   if ("status" in conn) return conn;
-  const rooms = getPmsRooms();
+  const rooms = getPmsRooms(conn.branchId);
   const byType = new Map<string, { roomTypeName: string; totalRooms: number }>();
   for (const room of rooms) {
     const name = room.roomType?.name ?? "Room";

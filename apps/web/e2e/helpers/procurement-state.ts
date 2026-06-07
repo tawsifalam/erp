@@ -4,8 +4,14 @@ import { recordAudit } from "./audit-state";
 import { recordVendorPaymentJournal } from "./accounting-state";
 import { getInventoryItems } from "./inventory-state";
 
+const MOCK_ORG_A = "org-test-001";
+const MOCK_ORG_B = "org-test-002";
+const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_A2 = "branch-test-002";
+
 export type MockVendor = {
   id: string;
+  organizationId: string;
   name: string;
   contactName?: string | null;
   email?: string | null;
@@ -24,6 +30,7 @@ export type MockPoLine = {
 
 export type MockPurchaseOrder = {
   id: string;
+  branchId: string;
   status: string;
   vendorId: string;
   vendor: { id: string; name: string };
@@ -33,9 +40,18 @@ export type MockPurchaseOrder = {
 const INITIAL_VENDORS: MockVendor[] = [
   {
     id: "ven_001",
+    organizationId: MOCK_ORG_A,
     name: "Fresh Foods Ltd",
     contactName: "Rashid",
     email: "orders@freshfoods.example",
+    isActive: true,
+  },
+  {
+    id: "ven_b_001",
+    organizationId: MOCK_ORG_B,
+    name: "Harbor Provisions",
+    contactName: "Samira",
+    email: "orders@harbor.example",
     isActive: true,
   },
 ];
@@ -79,21 +95,41 @@ export function resetProcurementState() {
   vendorPayments = [];
 }
 
-export function getProcurementVendors() {
-  return vendors.map((v) => ({ ...v }));
+export function getProcurementVendors(organizationId?: string) {
+  const rows = vendors.map((v) => ({ ...v }));
+  if (!organizationId) return rows;
+  return rows.filter((v) => v.organizationId === organizationId);
 }
 
-export function getProcurementPurchaseOrders() {
-  return purchaseOrders.map((po) => ({
+export function getProcurementPurchaseOrders(branchId?: string) {
+  let rows = purchaseOrders;
+  if (branchId) rows = rows.filter((po) => po.branchId === branchId);
+  return rows.map((po) => ({
     ...po,
     lines: po.lines.map((l) => ({ ...l, inventoryItem: { ...l.inventoryItem } })),
   }));
+}
+
+function findVendorInOrg(vendorId: string, organizationId?: string) {
+  const vendor = vendors.find((v) => v.id === vendorId);
+  if (!vendor) return null;
+  if (organizationId && vendor.organizationId !== organizationId) return null;
+  return vendor;
+}
+
+function findPoInBranch(poId: string, branchId?: string) {
+  const po = purchaseOrders.find((p) => p.id === poId);
+  if (!po) return null;
+  if (branchId && po.branchId !== branchId) return null;
+  return po;
 }
 
 export function handleProcurementMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
+  branchId?: string,
 ): unknown {
   if (method === "GET" && url.includes("/vendor-payments")) {
     return vendorPayments.map((p) => ({ ...p }));
@@ -101,13 +137,15 @@ export function handleProcurementMutation(
 
   if (method === "GET" && url.match(/\/vendors\/[^/]+\/ap-balance/)) {
     const vendorId = url.match(/\/vendors\/([^/]+)\/ap-balance/)?.[1];
-    if (!vendorId) return { status: 404, message: "Vendor not found" };
+    if (!vendorId || !findVendorInOrg(vendorId, organizationId)) {
+      return { status: 404, message: "Vendor not found" };
+    }
     return computeVendorAp(vendorId);
   }
 
   if (method === "POST" && url.includes("/vendor-payments")) {
     const vendorId = String(body?.vendorId ?? "");
-    const vendor = vendors.find((v) => v.id === vendorId);
+    const vendor = findVendorInOrg(vendorId, organizationId);
     if (!vendor) return { status: 404, message: "Vendor not found" };
     const amount = Number(body?.amount ?? 0);
     if (amount <= 0) return { status: 400, message: "amount must be positive" };
@@ -132,7 +170,7 @@ export function handleProcurementMutation(
         : null,
     };
     vendorPayments.unshift(payment);
-    recordVendorPaymentJournal(vendor.name, amount);
+    recordVendorPaymentJournal(vendor.name, amount, vendor.organizationId);
     recordAudit({
       action: "CREATE",
       entityType: "vendor_payment",
@@ -143,12 +181,13 @@ export function handleProcurementMutation(
   }
 
   if (method === "GET" && url.includes("/vendors") && !url.includes("/ap-balance")) {
-    return getProcurementVendors();
+    return getProcurementVendors(organizationId);
   }
 
   if (method === "POST" && url.includes("/vendors")) {
     const vendor: MockVendor = {
       id: `ven_${vendors.length + 1}`,
+      organizationId: organizationId ?? MOCK_ORG_A,
       name: String(body?.name ?? "New vendor"),
       contactName: body?.contactName ? String(body.contactName) : null,
       email: body?.email ? String(body.email) : null,
@@ -165,21 +204,26 @@ export function handleProcurementMutation(
   }
 
   if (method === "GET" && url.includes("/purchase-orders") && !url.includes("/submit") && !url.includes("/receive")) {
-    return getProcurementPurchaseOrders();
+    return getProcurementPurchaseOrders(branchId);
   }
 
   const poIdMatch = url.match(/\/purchase-orders\/([^/]+)/);
   const poId = poIdMatch?.[1];
 
   if (method === "POST" && url.includes("/purchase-orders") && !url.includes("/submit") && !url.includes("/receive")) {
+    const vendorId = String(body?.vendorId ?? "");
+    const vendor = findVendorInOrg(vendorId, organizationId);
+    if (!vendor) return { status: 404, message: "Vendor not found" };
     const itemId = String(body?.lines && Array.isArray(body.lines) ? (body.lines[0] as { inventoryItemId: string }).inventoryItemId : "");
-    const item = getInventoryItems().find((i) => i.id === itemId);
+    const item = getInventoryItems(branchId).find((i) => i.id === itemId);
+    if (!item) return { status: 404, message: "Inventory item not found" };
     const lineId = `pol_${purchaseOrders.length + 1}`;
     const po: MockPurchaseOrder = {
       id: `po_${purchaseOrders.length + 1}`,
+      branchId: branchId ?? MOCK_BRANCH_A1,
       status: "DRAFT",
-      vendorId: String(body?.vendorId ?? ""),
-      vendor: vendors.find((v) => v.id === body?.vendorId) ?? { id: "", name: "Unknown" },
+      vendorId,
+      vendor: { id: vendor.id, name: vendor.name },
       lines: [
         {
           id: lineId,
@@ -205,7 +249,7 @@ export function handleProcurementMutation(
   }
 
   if (method === "POST" && poId && url.includes("/submit")) {
-    const po = purchaseOrders.find((p) => p.id === poId);
+    const po = findPoInBranch(poId, branchId);
     if (!po) return { status: 404, message: "PO not found" };
     po.status = "SUBMITTED";
     recordAudit({ action: "SUBMIT", entityType: "purchase_order", entityId: poId });
@@ -213,7 +257,7 @@ export function handleProcurementMutation(
   }
 
   if (method === "POST" && poId && url.includes("/receive") && body) {
-    const po = purchaseOrders.find((p) => p.id === poId);
+    const po = findPoInBranch(poId, branchId);
     if (!po) return { status: 404, message: "PO not found" };
     const lineId = String(body.purchaseOrderLineId);
     const line = po.lines.find((l) => l.id === lineId);

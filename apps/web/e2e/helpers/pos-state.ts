@@ -219,14 +219,16 @@ export function handlePosCategoryMutation(
 
   if (!id) return {};
 
+  const cat = categories.find((c) => c.id === id);
+  if (!cat || (branchId && cat.branchId !== branchId)) {
+    return { status: 404, message: "Category not found" };
+  }
+
   if (method === "DELETE") {
     const idx = categories.findIndex((c) => c.id === id);
     if (idx >= 0) categories.splice(idx, 1);
     return { id };
   }
-
-  const cat = categories.find((c) => c.id === id);
-  if (!cat) return {};
 
   if (method === "PATCH" && body) {
     if (body.name) cat.name = String(body.name);
@@ -331,7 +333,9 @@ export function handlePosOrderMutation(
   if (!id) return {};
 
   const order = orders.find((o) => o.id === id);
-  if (!order) return {};
+  if (!order || (branchId && order.branchId !== branchId)) {
+    return { status: 404, message: "Order not found" };
+  }
 
   if (url.includes("/submit")) {
     order.status = "SUBMITTED";

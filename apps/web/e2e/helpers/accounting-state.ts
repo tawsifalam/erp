@@ -11,6 +11,7 @@ type MockAccount = {
 
 type MockFiscalPeriod = {
   id: string;
+  organizationId: string;
   name: string;
   startDate: string;
   endDate: string;
@@ -20,6 +21,7 @@ type MockFiscalPeriod = {
 
 type MockJournal = {
   id: string;
+  organizationId: string;
   description?: string;
   createdAt: string;
   reversedAt?: string | null;
@@ -39,6 +41,7 @@ const INITIAL_ACCOUNTS: MockAccount[] = [
 const INITIAL_FISCAL_PERIODS: MockFiscalPeriod[] = [
   {
     id: "fp_demo",
+    organizationId: MOCK_ORG_A,
     name: "FY 2026",
     startDate: "2026-01-01T00:00:00.000Z",
     endDate: "2026-12-31T23:59:59.999Z",
@@ -50,6 +53,7 @@ const INITIAL_FISCAL_PERIODS: MockFiscalPeriod[] = [
 const INITIAL_JOURNALS: MockJournal[] = [
   {
     id: "je_001",
+    organizationId: MOCK_ORG_A,
     description: "Room payment",
     createdAt: "2026-05-28T10:00:00Z",
     lines: [
@@ -75,12 +79,16 @@ export function getAccountingAccounts(organizationId?: string) {
   return rows.filter((a) => a.organizationId === organizationId);
 }
 
-export function getFiscalPeriods() {
-  return fiscalPeriods.map((p) => ({ ...p }));
+export function getFiscalPeriods(organizationId?: string) {
+  const rows = fiscalPeriods.map((p) => ({ ...p }));
+  if (!organizationId) return rows;
+  return rows.filter((p) => p.organizationId === organizationId);
 }
 
-export function getAccountingJournals() {
-  return journals.map((j) => ({
+export function getAccountingJournals(organizationId?: string) {
+  let rows = journals;
+  if (organizationId) rows = rows.filter((j) => j.organizationId === organizationId);
+  return rows.map((j) => ({
     ...j,
     reversedAt: j.reversedAt ?? null,
     reversesEntryId: j.reversesEntryId ?? null,
@@ -88,9 +96,14 @@ export function getAccountingJournals() {
 }
 
 /** Called from procurement mock when a vendor payment is recorded. */
-export function recordVendorPaymentJournal(vendorName: string, amount: number) {
+export function recordVendorPaymentJournal(
+  vendorName: string,
+  amount: number,
+  organizationId: string = MOCK_ORG_A,
+) {
   const entry: MockJournal = {
     id: `je_${journals.length + 1}`,
+    organizationId,
     description: `Vendor payment — ${vendorName}`,
     createdAt: new Date().toISOString(),
     lines: [
@@ -148,7 +161,7 @@ export function handleAccountingMutation(
   organizationId?: string,
 ): unknown {
   if (url.includes("/fiscal-periods")) {
-    if (method === "GET") return getFiscalPeriods();
+    if (method === "GET") return getFiscalPeriods(organizationId);
 
     if (method === "POST") {
       const name = String(body?.name ?? "").trim();
@@ -159,6 +172,7 @@ export function handleAccountingMutation(
       }
       const period: MockFiscalPeriod = {
         id: `fp_${fiscalPeriods.length + 1}`,
+        organizationId: organizationId ?? MOCK_ORG_A,
         name,
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
@@ -171,7 +185,9 @@ export function handleAccountingMutation(
 
     const closeMatch = url.match(/\/fiscal-periods\/([^/]+)\/close/);
     if (method === "PATCH" && closeMatch) {
-      const p = fiscalPeriods.find((x) => x.id === closeMatch[1]);
+      const p = fiscalPeriods.find(
+        (x) => x.id === closeMatch[1] && (!organizationId || x.organizationId === organizationId),
+      );
       if (!p) return { status: 404, message: "Fiscal period not found" };
       p.status = "CLOSED";
       p.closedAt = new Date().toISOString();
@@ -180,7 +196,9 @@ export function handleAccountingMutation(
 
     const reopenMatch = url.match(/\/fiscal-periods\/([^/]+)\/reopen/);
     if (method === "PATCH" && reopenMatch) {
-      const p = fiscalPeriods.find((x) => x.id === reopenMatch[1]);
+      const p = fiscalPeriods.find(
+        (x) => x.id === reopenMatch[1] && (!organizationId || x.organizationId === organizationId),
+      );
       if (!p) return { status: 404, message: "Fiscal period not found" };
       p.status = "OPEN";
       p.closedAt = null;
@@ -210,11 +228,14 @@ export function handleAccountingMutation(
   }
 
   if (url.includes("/journals")) {
-    if (method === "GET") return getAccountingJournals();
+    if (method === "GET") return getAccountingJournals(organizationId);
 
     const reverseMatch = url.match(/\/journals\/([^/]+)\/reverse/);
     if (method === "POST" && reverseMatch) {
-      const original = journals.find((j) => j.id === reverseMatch[1]);
+      const original = journals.find(
+        (j) =>
+          j.id === reverseMatch[1] && (!organizationId || j.organizationId === organizationId),
+      );
       if (!original) return { status: 404, message: "Journal entry not found" };
       if (original.reversesEntryId) {
         return { status: 400, message: "Cannot reverse a reversal entry" };
@@ -224,6 +245,7 @@ export function handleAccountingMutation(
       }
       const reversal: MockJournal = {
         id: `je_${journals.length + 1}`,
+        organizationId: original.organizationId,
         description: `Reversal of: ${original.description ?? original.id}`,
         createdAt: new Date().toISOString(),
         reversesEntryId: original.id,
@@ -271,6 +293,7 @@ export function handleAccountingMutation(
 
       const entry: MockJournal = {
         id: `je_${journals.length + 1}`,
+        organizationId: orgId,
         description: body?.description ? String(body.description) : undefined,
         createdAt: new Date().toISOString(),
         lines: lines.map((l) => {

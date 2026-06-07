@@ -737,7 +737,20 @@ export async function mockApiRoutes(page: Page) {
       );
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handlePmsReservationMutation(method, url, body);
+    const result = handlePmsReservationMutation(
+      method,
+      url,
+      body,
+      orgScope.organizationId,
+      scope.branchId,
+    );
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 
@@ -788,12 +801,20 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("procurement/"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const scope = resolveBranchFromRoute(route);
     if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleProcurementMutation(method, url, body);
+    const result = handleProcurementMutation(
+      method,
+      url,
+      body,
+      orgScope.organizationId,
+      scope.branchId,
+    );
     if (isMockApiError(result)) {
       const err = result;
       return route.fulfill({
@@ -911,12 +932,33 @@ export async function mockApiRoutes(page: Page) {
     if (url.includes("/packages")) {
       const orgScope = resolveOrgFromRoute(route);
       if (await fulfillOrgScopeError(route, orgScope)) return;
-      const result = handleInclusionsMutation(method, url, body);
+      const result = handleInclusionsMutation(
+        method,
+        url,
+        body,
+        undefined,
+        orgScope.organizationId,
+      );
       return fulfillJson(route, result);
     }
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const scope = resolveBranchFromRoute(route);
     if (await fulfillBranchScopeError(route, scope)) return;
-    const result = handleInclusionsMutation(method, url, body, scope.branchId);
+    const result = handleInclusionsMutation(
+      method,
+      url,
+      body,
+      scope.branchId,
+      orgScope.organizationId,
+    );
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 
@@ -930,6 +972,13 @@ export async function mockApiRoutes(page: Page) {
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handlePosOrderMutation(method, url, body, scope.branchId);
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 
@@ -943,6 +992,13 @@ export async function mockApiRoutes(page: Page) {
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handlePosCategoryMutation(method, url, body, scope.branchId);
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 
@@ -964,8 +1020,8 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("inventory/pools"), async (route) => {
-    const scope = resolveBranchFromRoute(route);
-    if (await fulfillBranchScopeError(route, scope)) return;
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -980,15 +1036,12 @@ export async function mockApiRoutes(page: Page) {
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handleInventoryItemMutation(method, url, body, scope.branchId);
-    if (result && typeof result === "object" && "status" in result) {
-      const err = result as { status: number; message: string };
-      if (err.status === 409) {
-        return route.fulfill({
-          status: err.status,
-          contentType: "application/json",
-          body: JSON.stringify({ message: err.message }),
-        });
-      }
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
     }
     return fulfillJson(route, result);
   });
@@ -999,7 +1052,14 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleInventoryMovementMutation(method, url, body);
+    const result = handleInventoryMovementMutation(method, url, body, scope.branchId);
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 
@@ -1013,7 +1073,14 @@ export async function mockApiRoutes(page: Page) {
       const method = route.request().method();
       const url = route.request().url();
       const body = route.request().postDataJSON() as Record<string, unknown> | null;
-      const result = handleInventoryMovementMutation(method, url, body);
+      const result = handleInventoryMovementMutation(method, url, body, scope.branchId);
+      if (isMockApiError(result)) {
+        return route.fulfill({
+          status: result.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: result.message }),
+        });
+      }
       return fulfillJson(route, result);
     },
   );

@@ -1,5 +1,9 @@
 /** Mutable inclusions state for Playwright route mocks. */
 
+import { getPmsReservations } from "./pms-state";
+
+const MOCK_ORG_A = "org-test-001";
+const MOCK_ORG_B = "org-test-002";
 const MOCK_BRANCH_A1 = "branch-test-001";
 const MOCK_BRANCH_A2 = "branch-test-002";
 
@@ -16,6 +20,7 @@ export type MockAllowance = {
 
 export type MockInclusionPackage = {
   id: string;
+  organizationId: string;
   name: string;
   isDefault: boolean;
   isActive: boolean;
@@ -45,6 +50,7 @@ export type MockInclusionRecipe = {
 const INITIAL_PACKAGES: MockInclusionPackage[] = [
   {
     id: "ipkg-full",
+    organizationId: MOCK_ORG_A,
     name: "Full board (3 meals)",
     isDefault: true,
     isActive: true,
@@ -89,12 +95,31 @@ const INITIAL_PACKAGES: MockInclusionPackage[] = [
   },
   {
     id: "ipkg-budget",
+    organizationId: MOCK_ORG_A,
     name: "Budget (1 meal)",
     isDefault: false,
     isActive: true,
     rules: [
       {
         id: "ipr-budget",
+        inclusionType: "MEAL",
+        inclusionRecipeId: "ir-breakfast",
+        quantityPerGuestPerNight: 1,
+        quantityPerGuestPerStay: null,
+        autoIssueOnCheckIn: false,
+        recipe: { id: "ir-breakfast", name: "Breakfast meal", inclusionType: "MEAL" },
+      },
+    ],
+  },
+  {
+    id: "ipkg-harbor",
+    organizationId: MOCK_ORG_B,
+    name: "Harbor breakfast",
+    isDefault: true,
+    isActive: true,
+    rules: [
+      {
+        id: "ipr-harbor",
         inclusionType: "MEAL",
         inclusionRecipeId: "ir-breakfast",
         quantityPerGuestPerNight: 1,
@@ -288,8 +313,13 @@ export function resetInclusionsState() {
   }
 }
 
-export function getInclusionPackages() {
-  return packages;
+export function getInclusionPackages(organizationId?: string) {
+  const rows = packages.map((p) => ({
+    ...p,
+    rules: p.rules.map((r) => ({ ...r, recipe: { ...r.recipe } })),
+  }));
+  if (!organizationId) return rows;
+  return rows.filter((p) => p.organizationId === organizationId);
 }
 
 export function getInclusionRecipes(branchId?: string) {
@@ -307,12 +337,14 @@ export function handleInclusionsMutation(
   url: string,
   body: Record<string, unknown> | null,
   branchId?: string,
+  organizationId?: string,
 ): unknown {
   if (url.includes("/packages")) {
-    if (method === "GET") return packages;
+    if (method === "GET") return getInclusionPackages(organizationId);
     if (method === "POST" && body) {
       const pkg: MockInclusionPackage = {
         id: "ipkg-new",
+        organizationId: organizationId ?? MOCK_ORG_A,
         name: String(body.name ?? "New package"),
         isDefault: Boolean(body.isDefault),
         isActive: true,
@@ -342,12 +374,17 @@ export function handleInclusionsMutation(
 
   const allowanceMatch = url.match(/\/reservations\/([^/?]+)\/allowances/);
   if (allowanceMatch && method === "GET") {
-    return getReservationAllowances(allowanceMatch[1]);
+    const resId = allowanceMatch[1];
+    const inScope = getPmsReservations(organizationId, branchId).some((r) => r.id === resId);
+    if (!inScope) return { status: 404, message: "Reservation not found" };
+    return getReservationAllowances(resId);
   }
 
   const consumeMatch = url.match(/\/reservations\/([^/?]+)\/consume/);
   if (consumeMatch && method === "POST" && body) {
     const resId = consumeMatch[1];
+    const inScope = getPmsReservations(organizationId, branchId).some((r) => r.id === resId);
+    if (!inScope) return { status: 404, message: "Reservation not found" };
     const list = allowancesByReservation[resId] ?? [];
     const allowance = list.find(
       (a) =>

@@ -3,6 +3,7 @@ import { recordNotification } from "./notification-state";
 
 type MockEmployee = {
   id: string;
+  organizationId: string;
   name: string;
   designation: string;
   salary: string;
@@ -38,6 +39,7 @@ type MockPayrollRun = {
 
 type MockStaffMealRecipe = {
   id: string;
+  branchId: string;
   name: string;
   lines: {
     inventoryItemId: string;
@@ -57,14 +59,30 @@ type MockStaffMeal = {
   recipe: { name: string };
 };
 
-const INITIAL_EMPLOYEES: MockEmployee[] = [
-  { id: "emp_001", name: "Karim Hossain", designation: "Head Chef", salary: "45000", status: "ACTIVE" },
-  { id: "emp_002", name: "Nasreen Begum", designation: "Front Desk", salary: "35000", status: "ACTIVE" },
-];
-
 const MOCK_ORG_A = "org-test-001";
 const MOCK_BRANCH_A1 = "branch-test-001";
 const MOCK_BRANCH_A2 = "branch-test-002";
+
+const INITIAL_EMPLOYEES: MockEmployee[] = [
+  {
+    id: "emp_001",
+    organizationId: MOCK_ORG_A,
+    name: "Karim Hossain",
+    designation: "Head Chef",
+    salary: "45000",
+    status: "ACTIVE",
+    branchId: MOCK_BRANCH_A1,
+  },
+  {
+    id: "emp_002",
+    organizationId: MOCK_ORG_A,
+    name: "Nasreen Begum",
+    designation: "Front Desk",
+    salary: "35000",
+    status: "ACTIVE",
+    branchId: MOCK_BRANCH_A2,
+  },
+];
 
 const INITIAL_PAYROLL: MockPayrollRun[] = [
   {
@@ -89,6 +107,7 @@ const INITIAL_PAYROLL: MockPayrollRun[] = [
 const INITIAL_RECIPES: MockStaffMealRecipe[] = [
   {
     id: "smr_001",
+    branchId: MOCK_BRANCH_A1,
     name: "Staff Lunch",
     lines: [
       {
@@ -139,8 +158,23 @@ export function getHrAttendance(branchId?: string) {
   return rows.filter((a) => a.branchId === branchId);
 }
 
-export function getHrEmployees() {
-  return employees.map((e) => ({ ...e }));
+export function getHrEmployees(organizationId?: string) {
+  const rows = employees.map((e) => ({ ...e }));
+  if (!organizationId) return rows;
+  return rows.filter((e) => e.organizationId === organizationId);
+}
+
+function getStaffMealRecipes(branchId?: string) {
+  const rows = staffMealRecipes.map((r) => ({ ...r, lines: r.lines.map((l) => ({ ...l })) }));
+  if (!branchId) return rows;
+  return rows.filter((r) => r.branchId === branchId);
+}
+
+function findEmployeeInOrg(id: string, organizationId?: string) {
+  const emp = employees.find((e) => e.id === id);
+  if (!emp) return null;
+  if (organizationId && emp.organizationId !== organizationId) return null;
+  return emp;
 }
 
 export function getPayrollRuns(organizationId?: string) {
@@ -167,7 +201,7 @@ export function handleHrMutation(
   if (url.match(/\/hr\/employees\/[^/?]+/) && method === "PATCH") {
     const idMatch = url.match(/\/employees\/([^/?]+)/);
     const id = idMatch?.[1];
-    const emp = id ? findEmployee(id) : undefined;
+    const emp = id ? findEmployeeInOrg(id, organizationId) : null;
     if (!emp) return { status: 404, message: "Employee not found" };
     if (body?.name) emp.name = String(body.name);
     if (body?.designation) emp.designation = String(body.designation);
@@ -190,15 +224,16 @@ export function handleHrMutation(
   }
 
   if (url.includes("/hr/employees")) {
-    if (method === "GET") return getHrEmployees();
+    if (method === "GET") return getHrEmployees(organizationId);
     if (method === "POST") {
       const emp: MockEmployee = {
         id: "emp_new",
+        organizationId: organizationId ?? MOCK_ORG_A,
         name: String(body?.name ?? "New Employee"),
         designation: String(body?.designation ?? "Staff"),
         salary: String(body?.salary ?? "0"),
         status: "ACTIVE",
-        branchId: body?.branchId ? String(body.branchId) : undefined,
+        branchId: body?.branchId ? String(body.branchId) : branchId,
       };
       employees.push(emp);
       recordAudit({
@@ -213,15 +248,18 @@ export function handleHrMutation(
 
   if (url.includes("/hr/attendance/clock") && method === "POST") {
     const employeeId = String(body?.employeeId ?? "");
-    const emp = findEmployee(employeeId);
+    const emp = findEmployeeInOrg(employeeId, organizationId);
     if (!emp) return { status: 404, message: "Employee not found" };
     if (emp.status === "TERMINATED") {
       return { status: 400, message: "Employee is terminated" };
     }
+    if (emp.branchId && branchId && emp.branchId !== branchId) {
+      return { status: 403, message: "Employee does not belong to this branch" };
+    }
     const record: MockAttendance = {
       id: `att_${attendance.length + 1}`,
       employeeId,
-      branchId: "branch-test-001",
+      branchId: branchId ?? emp.branchId ?? MOCK_BRANCH_A1,
       type: String(body?.type ?? "CLOCK_IN"),
       recordedAt: new Date().toISOString(),
       employee: { id: emp.id, name: emp.name },
@@ -235,11 +273,12 @@ export function handleHrMutation(
   }
 
   if (url.includes("/hr/staff-meal-recipes")) {
-    if (method === "GET") return staffMealRecipes.map((r) => ({ ...r }));
+    if (method === "GET") return getStaffMealRecipes(branchId);
     if (method === "POST") {
       const lines = (body?.lines as { inventoryItemId: string; quantity: number }[]) ?? [];
       const recipe: MockStaffMealRecipe = {
         id: `smr_${staffMealRecipes.length + 1}`,
+        branchId: branchId ?? MOCK_BRANCH_A1,
         name: String(body?.name ?? "Meal"),
         lines: lines.map((l) => ({
           inventoryItemId: l.inventoryItemId,
@@ -261,9 +300,12 @@ export function handleHrMutation(
     if (method === "POST") {
       const employeeId = String(body?.employeeId ?? "");
       const recipeId = String(body?.staffMealRecipeId ?? "");
-      const emp = findEmployee(employeeId);
+      const emp = findEmployeeInOrg(employeeId, organizationId);
       const recipe = findRecipe(recipeId);
       if (!emp || !recipe) return { status: 404, message: "Not found" };
+      if (branchId && recipe.branchId !== branchId) {
+        return { status: 404, message: "Staff meal recipe not found" };
+      }
       const meal: MockStaffMeal = {
         id: `sm_${staffMeals.length + 1}`,
         employeeId,

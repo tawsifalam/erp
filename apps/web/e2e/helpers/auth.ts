@@ -731,7 +731,10 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET") {
-      return fulfillJson(route, getPmsReservations(orgScope.organizationId));
+      return fulfillJson(
+        route,
+        getPmsReservations(orgScope.organizationId, scope.branchId),
+      );
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handlePmsReservationMutation(method, url, body);
@@ -778,7 +781,10 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("pms/availability"), async (route) => {
     const scope = resolveBranchFromRoute(route);
     if (await fulfillBranchScopeError(route, scope)) return;
-    return fulfillJson(route, getPmsRooms().filter((r) => r.status === "VACANT"));
+    return fulfillJson(
+      route,
+      getPmsRooms(scope.branchId).filter((r) => r.status === "VACANT"),
+    );
   });
 
   await page.route(backendApiRoute("procurement/"), async (route) => {
@@ -867,7 +873,7 @@ export async function mockApiRoutes(page: Page) {
     if (method === "GET" && !url.match(/\/rooms\/[^/?]+$/)) {
       const scope = resolveBranchFromRoute(route);
       if (await fulfillBranchScopeError(route, scope)) return;
-      return fulfillJson(route, getPmsRooms());
+      return fulfillJson(route, getPmsRooms(scope.branchId));
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
     const result = handlePmsRoomMutation(method, url, body);
@@ -875,12 +881,25 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("inclusions/"), async (route) => {
-    const scope = resolveBranchFromRoute(route);
-    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
-    const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleInclusionsMutation(method, url, body);
+    let body: Record<string, unknown> | null = null;
+    if (method !== "GET" && method !== "DELETE") {
+      try {
+        body = (route.request().postDataJSON() ?? null) as Record<string, unknown> | null;
+      } catch {
+        body = null;
+      }
+    }
+    if (url.includes("/packages")) {
+      const orgScope = resolveOrgFromRoute(route);
+      if (await fulfillOrgScopeError(route, orgScope)) return;
+      const result = handleInclusionsMutation(method, url, body);
+      return fulfillJson(route, result);
+    }
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
+    const result = handleInclusionsMutation(method, url, body, scope.branchId);
     return fulfillJson(route, result);
   });
 
@@ -890,10 +909,10 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/orders\/[^/?]+$/)) {
-      return fulfillJson(route, getPosOrders());
+      return fulfillJson(route, getPosOrders(scope.branchId));
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handlePosOrderMutation(method, url, body);
+    const result = handlePosOrderMutation(method, url, body, scope.branchId);
     return fulfillJson(route, result);
   });
 
@@ -903,10 +922,10 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/categories\/[^/?]+$/)) {
-      return fulfillJson(route, getPosCategories());
+      return fulfillJson(route, getPosCategories(scope.branchId));
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handlePosCategoryMutation(method, url, body);
+    const result = handlePosCategoryMutation(method, url, body, scope.branchId);
     return fulfillJson(route, result);
   });
 
@@ -936,7 +955,7 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleInventoryItemMutation(method, url, body);
+    const result = handleInventoryItemMutation(method, url, body, scope.branchId);
     if (result && typeof result === "object" && "status" in result) {
       const err = result as { status: number; message: string };
       if (err.status === 409) {
@@ -1026,12 +1045,20 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("hr/"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const scope = resolveBranchFromRoute(route);
     if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleHrMutation(method, url, body);
+    const result = handleHrMutation(
+      method,
+      url,
+      body,
+      orgScope.organizationId,
+      scope.branchId,
+    );
     if (result && typeof result === "object" && "status" in result) {
       const err = result as { status: number; message: string };
       if (err.status === 404 || err.status === 400) {
@@ -1072,27 +1099,36 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("reporting/jobs"), async (route) => {
     const orgScope = resolveOrgFromRoute(route);
     if (await fulfillOrgScopeError(route, orgScope)) return;
-    const scope = resolveBranchFromRoute(route, false);
-    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && url.includes("/download")) {
-      const isPdf = url.includes("rpt_") && getReportJobs().some((j) => url.includes(j.id) && j.fileUrl?.endsWith(".pdf"));
+      const isPdf =
+        url.includes("rpt_") &&
+        getReportJobs(orgScope.organizationId).some(
+          (j) => url.includes(j.id) && j.fileUrl?.endsWith(".pdf"),
+        );
       return route.fulfill({
         status: 200,
         contentType: isPdf ? "application/pdf" : "text/csv",
         body: Buffer.from(isPdf ? "%PDF-1.4\n% Mock report" : "type,value\nbranch_summary,1"),
       });
     }
-    const result = handleReportingMutation(method, url, null);
+    const result = handleReportingMutation(method, url, null, orgScope.organizationId);
     return fulfillJson(route, result);
   });
 
   await page.route(backendApiRoute("reporting/export"), async (route) => {
-    const scope = resolveBranchFromRoute(route);
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
+    const scope = resolveBranchFromRoute(route, false);
     if (await fulfillBranchScopeError(route, scope)) return;
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleReportingMutation(route.request().method(), route.request().url(), body);
+    const result = handleReportingMutation(
+      route.request().method(),
+      route.request().url(),
+      body,
+      orgScope.organizationId,
+    );
     return fulfillJson(route, result);
   });
 }

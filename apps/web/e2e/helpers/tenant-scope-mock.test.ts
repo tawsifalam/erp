@@ -13,9 +13,13 @@ import {
   resolveMockBranchId,
 } from "./tenant-scope-mock";
 import { resetBranchAccessState } from "./branch-access-state";
-import { getPmsGuests, getPmsRoomTypes, resetPmsState } from "./pms-state";
+import { getPmsGuests, getPmsRooms, getPmsRoomTypes, resetPmsState } from "./pms-state";
 import { getRatePlans, resetRatesState } from "./rates-state";
 import { getAccountingAccounts, resetAccountingState } from "./accounting-state";
+import { getInventoryItems, resetInventoryState } from "./inventory-state";
+import { getPosOrders, resetPosState } from "./pos-state";
+import { getInclusionRecipes, resetInclusionsState } from "./inclusions-state";
+import { getHrAttendance, resetHrState } from "./hr-state";
 
 describe("tenant-scope-mock", () => {
   beforeEach(() => {
@@ -23,6 +27,10 @@ describe("tenant-scope-mock", () => {
     resetPmsState();
     resetRatesState();
     resetAccountingState();
+    resetInventoryState();
+    resetPosState();
+    resetInclusionsState();
+    resetHrState();
   });
 
   it("rejects unknown organization", () => {
@@ -56,6 +64,25 @@ describe("tenant-scope-mock", () => {
     expect(getPmsRoomTypes(MOCK_ORG_A).some((rt) => rt.id === "rt_b_001")).toBe(false);
     expect(getRatePlans(MOCK_ORG_B)).toHaveLength(0);
     expect(getRatePlans(MOCK_ORG_A).length).toBeGreaterThan(0);
+  });
+
+  it("filters branch-scoped list data within the same organization", () => {
+    expect(getPmsRooms(MOCK_BRANCH_A1).some((r) => r.id === "rm_101")).toBe(true);
+    expect(getPmsRooms(MOCK_BRANCH_A1).some((r) => r.id === "rm_a2_201")).toBe(false);
+    expect(getPmsRooms(MOCK_BRANCH_A2).some((r) => r.id === "rm_a2_201")).toBe(true);
+
+    expect(getInventoryItems(MOCK_BRANCH_A1).some((i) => i.id === "inv-001")).toBe(true);
+    expect(getInventoryItems(MOCK_BRANCH_A2).some((i) => i.id === "inv-a2-001")).toBe(true);
+    expect(getInventoryItems(MOCK_BRANCH_A2).some((i) => i.id === "inv-001")).toBe(false);
+
+    expect(getPosOrders(MOCK_BRANCH_A1).some((o) => o.id === "ord_001")).toBe(true);
+    expect(getPosOrders(MOCK_BRANCH_A2).some((o) => o.id === "ord_a2_001")).toBe(true);
+
+    expect(getInclusionRecipes(MOCK_BRANCH_A1).some((r) => r.id === "ir-breakfast")).toBe(true);
+    expect(getInclusionRecipes(MOCK_BRANCH_A2).some((r) => r.id === "ir-cafe-pastry")).toBe(true);
+
+    expect(getHrAttendance(MOCK_BRANCH_A1).some((a) => a.id === "att_001")).toBe(true);
+    expect(getHrAttendance(MOCK_BRANCH_A2).some((a) => a.id === "att_a2_001")).toBe(true);
   });
 
   it("rejects branch from another organization", () => {

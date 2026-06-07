@@ -1,5 +1,8 @@
 /** Mutable inclusions state for Playwright route mocks. */
 
+const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_A2 = "branch-test-002";
+
 export type MockAllowance = {
   id: string;
   inclusionType: string;
@@ -29,6 +32,7 @@ export type MockInclusionPackage = {
 
 export type MockInclusionRecipe = {
   id: string;
+  branchId: string;
   name: string;
   inclusionType: string;
   lines: {
@@ -105,6 +109,7 @@ const INITIAL_PACKAGES: MockInclusionPackage[] = [
 const INITIAL_RECIPES: MockInclusionRecipe[] = [
   {
     id: "ir-breakfast",
+    branchId: MOCK_BRANCH_A1,
     name: "Breakfast meal",
     inclusionType: "MEAL",
     lines: [
@@ -122,6 +127,7 @@ const INITIAL_RECIPES: MockInclusionRecipe[] = [
   },
   {
     id: "ir-lunch",
+    branchId: MOCK_BRANCH_A1,
     name: "Lunch meal",
     inclusionType: "MEAL",
     lines: [
@@ -139,6 +145,7 @@ const INITIAL_RECIPES: MockInclusionRecipe[] = [
   },
   {
     id: "ir-dinner",
+    branchId: MOCK_BRANCH_A1,
     name: "Dinner meal",
     inclusionType: "MEAL",
     lines: [
@@ -155,7 +162,21 @@ const INITIAL_RECIPES: MockInclusionRecipe[] = [
     ],
   },
   {
+    id: "ir-cafe-pastry",
+    branchId: MOCK_BRANCH_A2,
+    name: "Café pastry",
+    inclusionType: "MEAL",
+    lines: [
+      {
+        inventoryItemId: "inv-a2-001",
+        quantity: 0.05,
+        inventoryItem: { id: "inv-a2-001", name: "Café Flour", unit: "kg" },
+      },
+    ],
+  },
+  {
     id: "ir-kit",
+    branchId: MOCK_BRANCH_A1,
     name: "Standard amenity kit",
     inclusionType: "AMENITY_KIT",
     lines: [
@@ -271,8 +292,10 @@ export function getInclusionPackages() {
   return packages;
 }
 
-export function getInclusionRecipes() {
-  return recipes;
+export function getInclusionRecipes(branchId?: string) {
+  const rows = recipes.map((r) => ({ ...r, lines: r.lines.map((l) => ({ ...l })) }));
+  if (!branchId) return rows;
+  return rows.filter((r) => r.branchId === branchId);
 }
 
 export function getReservationAllowances(reservationId: string) {
@@ -283,6 +306,7 @@ export function handleInclusionsMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  branchId?: string,
 ): unknown {
   if (url.includes("/packages")) {
     if (method === "GET") return packages;
@@ -301,10 +325,11 @@ export function handleInclusionsMutation(
   }
 
   if (url.includes("/recipes")) {
-    if (method === "GET") return recipes;
+    if (method === "GET") return getInclusionRecipes(branchId);
     if ((method === "POST" || method === "PUT") && body) {
       const recipe: MockInclusionRecipe = {
         id: "ir-new",
+        branchId: branchId ?? MOCK_BRANCH_A1,
         name: String(body.name ?? "Recipe"),
         inclusionType: String(body.inclusionType ?? "MEAL"),
         lines: [],

@@ -2,6 +2,9 @@
 
 import { recordAudit } from "./audit-state";
 
+const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_A2 = "branch-test-002";
+
 export type MockMenuItem = {
   id: string;
   name: string;
@@ -11,6 +14,7 @@ export type MockMenuItem = {
 
 export type MockMenuCategory = {
   id: string;
+  branchId: string;
   name: string;
   sortOrder: number;
   items: MockMenuItem[];
@@ -27,6 +31,7 @@ export type MockOrderLine = {
 
 export type MockOrder = {
   id: string;
+  branchId: string;
   status: string;
   paymentStatus: string;
   totalAmount: string;
@@ -44,6 +49,7 @@ function clone<T>(v: T): T {
 const INITIAL_CATEGORIES: MockMenuCategory[] = [
   {
     id: "mc_001",
+    branchId: MOCK_BRANCH_A1,
     name: "Mains",
     sortOrder: 1,
     items: [
@@ -53,15 +59,24 @@ const INITIAL_CATEGORIES: MockMenuCategory[] = [
   },
   {
     id: "mc_002",
+    branchId: MOCK_BRANCH_A1,
     name: "Beverages",
     sortOrder: 2,
     items: [{ id: "mi_003", name: "Tea", price: "50" }],
+  },
+  {
+    id: "mc_a2_001",
+    branchId: MOCK_BRANCH_A2,
+    name: "Café bites",
+    sortOrder: 1,
+    items: [{ id: "mi_a2_001", name: "Croissant", price: "120" }],
   },
 ];
 
 const INITIAL_ORDERS: MockOrder[] = [
   {
     id: "ord_draft",
+    branchId: MOCK_BRANCH_A1,
     status: "DRAFT",
     paymentStatus: "UNPAID",
     totalAmount: "320",
@@ -81,6 +96,7 @@ const INITIAL_ORDERS: MockOrder[] = [
   },
   {
     id: "ord_001",
+    branchId: MOCK_BRANCH_A1,
     status: "SUBMITTED",
     paymentStatus: "UNPAID",
     totalAmount: "640",
@@ -100,6 +116,7 @@ const INITIAL_ORDERS: MockOrder[] = [
   },
   {
     id: "ord_cancelled",
+    branchId: MOCK_BRANCH_A1,
     status: "CANCELLED",
     paymentStatus: "UNPAID",
     totalAmount: "50",
@@ -118,7 +135,28 @@ const INITIAL_ORDERS: MockOrder[] = [
     ],
   },
   {
+    id: "ord_a2_001",
+    branchId: MOCK_BRANCH_A2,
+    status: "SUBMITTED",
+    paymentStatus: "UNPAID",
+    totalAmount: "120",
+    paidAmount: "0",
+    tableNumber: "C-2",
+    createdAt: new Date().toISOString(),
+    lines: [
+      {
+        id: "ol_a2_1",
+        quantity: 1,
+        unitPrice: "120",
+        lineTotal: "120",
+        menuItemId: "mi_a2_001",
+        menuItem: { name: "Croissant", id: "mi_a2_001" },
+      },
+    ],
+  },
+  {
     id: "ord_002",
+    branchId: MOCK_BRANCH_A1,
     status: "COMPLETED",
     paymentStatus: "PAID",
     totalAmount: "870",
@@ -146,18 +184,23 @@ export function resetPosState() {
   orders = clone(INITIAL_ORDERS);
 }
 
-export function getPosCategories() {
-  return categories;
+export function getPosCategories(branchId?: string) {
+  const rows = categories.map((c) => ({ ...c, items: c.items.map((i) => ({ ...i })) }));
+  if (!branchId) return rows;
+  return rows.filter((c) => c.branchId === branchId);
 }
 
-export function getPosOrders() {
-  return orders;
+export function getPosOrders(branchId?: string) {
+  const rows = orders.map((o) => ({ ...o, lines: o.lines.map((l) => ({ ...l })) }));
+  if (!branchId) return rows;
+  return rows.filter((o) => o.branchId === branchId);
 }
 
 export function handlePosCategoryMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/categories\/([^/?]+)/);
   const id = idMatch?.[1];
@@ -165,6 +208,7 @@ export function handlePosCategoryMutation(
   if (method === "POST") {
     const cat: MockMenuCategory = {
       id: "mc_new",
+      branchId: branchId ?? MOCK_BRANCH_A1,
       name: String(body?.name ?? "New Category"),
       sortOrder: Number(body?.sortOrder ?? 0),
       items: [],
@@ -242,6 +286,7 @@ export function handlePosOrderMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/orders\/([^/?]+)/);
   const id = idMatch?.[1];
@@ -251,6 +296,7 @@ export function handlePosOrderMutation(
     const total = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
     const order: MockOrder = {
       id: "ord_new",
+      branchId: branchId ?? MOCK_BRANCH_A1,
       status: "DRAFT",
       paymentStatus: "UNPAID",
       totalAmount: String(total),

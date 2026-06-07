@@ -235,6 +235,104 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(body).toEqual([]);
   });
 
+  test("lists different inventory items per branch in same organization", async ({ page }) => {
+    const branchA1 = await apiStatus(
+      page,
+      `/api/inventory/items?branchId=${FAKE_BRANCH_ID}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    const branchA2 = await apiStatus(
+      page,
+      `/api/inventory/items?branchId=${FAKE_BRANCH_ID_2}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(branchA1.status).toBe(200);
+    expect(branchA2.status).toBe(200);
+    const a1Ids = (branchA1.body as { id: string }[]).map((i) => i.id);
+    const a2Ids = (branchA2.body as { id: string }[]).map((i) => i.id);
+    expect(a1Ids).toContain("inv-001");
+    expect(a2Ids).toContain("inv-a2-001");
+    expect(a2Ids).not.toContain("inv-001");
+  });
+
+  test("lists different PMS rooms per branch in same organization", async ({ page }) => {
+    const branchA1 = await apiStatus(page, `/api/pms/rooms?branchId=${FAKE_BRANCH_ID}`, {
+      "X-Organization-Id": FAKE_ORG_ID,
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    });
+    const branchA2 = await apiStatus(
+      page,
+      `/api/pms/rooms?branchId=${FAKE_BRANCH_ID_2}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(branchA1.status).toBe(200);
+    expect(branchA2.status).toBe(200);
+    const a1Ids = (branchA1.body as { id: string }[]).map((r) => r.id);
+    const a2Ids = (branchA2.body as { id: string }[]).map((r) => r.id);
+    expect(a1Ids).toContain("rm_101");
+    expect(a2Ids).toContain("rm_a2_201");
+    expect(a2Ids).not.toContain("rm_101");
+  });
+
+  test("lists different POS orders per branch in same organization", async ({ page }) => {
+    const branchA1 = await apiStatus(page, `/api/pos/orders?branchId=${FAKE_BRANCH_ID}`, {
+      "X-Organization-Id": FAKE_ORG_ID,
+      "X-Branch-Id": FAKE_BRANCH_ID,
+    });
+    const branchA2 = await apiStatus(
+      page,
+      `/api/pos/orders?branchId=${FAKE_BRANCH_ID_2}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(branchA1.status).toBe(200);
+    expect(branchA2.status).toBe(200);
+    const a1Ids = (branchA1.body as { id: string }[]).map((o) => o.id);
+    const a2Ids = (branchA2.body as { id: string }[]).map((o) => o.id);
+    expect(a1Ids).toContain("ord_001");
+    expect(a2Ids).toContain("ord_a2_001");
+    expect(a1Ids).not.toContain("ord_a2_001");
+  });
+
+  test("lists different inclusion recipes per branch in same organization", async ({
+    page,
+  }) => {
+    const branchA1 = await apiStatus(
+      page,
+      `/api/inclusions/recipes?branchId=${FAKE_BRANCH_ID}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    const branchA2 = await apiStatus(
+      page,
+      `/api/inclusions/recipes?branchId=${FAKE_BRANCH_ID_2}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(branchA1.status).toBe(200);
+    expect(branchA2.status).toBe(200);
+    const a1Ids = (branchA1.body as { id: string }[]).map((r) => r.id);
+    const a2Ids = (branchA2.body as { id: string }[]).map((r) => r.id);
+    expect(a1Ids).toContain("ir-breakfast");
+    expect(a2Ids).toContain("ir-cafe-pastry");
+    expect(a2Ids).not.toContain("ir-breakfast");
+  });
+
   test("rejects guest mutation for foreign organization", async ({ page }) => {
     const { status, body } = await apiStatus(
       page,

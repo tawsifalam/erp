@@ -1,7 +1,12 @@
 import { recordNotification } from "./notification-state";
 
+const MOCK_ORG_A = "org-test-001";
+const MOCK_BRANCH_A1 = "branch-test-001";
+
 type MockReportJob = {
   id: string;
+  organizationId: string;
+  branchId?: string | null;
   type: string;
   status: string;
   fileUrl?: string | null;
@@ -30,6 +35,8 @@ const REPORT_TYPES = [
 const INITIAL_JOBS: MockReportJob[] = [
   {
     id: "rpt_001",
+    organizationId: MOCK_ORG_A,
+    branchId: MOCK_BRANCH_A1,
     type: "branch_summary",
     status: "COMPLETED",
     fileUrl: "https://example.com/report.csv",
@@ -44,21 +51,24 @@ export function resetReportingState() {
   reportJobs = structuredClone(INITIAL_JOBS) as MockReportJob[];
 }
 
-export function getReportJobs() {
-  return reportJobs.map((j) => ({ ...j }));
+export function getReportJobs(organizationId?: string) {
+  const rows = reportJobs.map((j) => ({ ...j }));
+  if (!organizationId) return rows;
+  return rows.filter((j) => j.organizationId === organizationId);
 }
 
 export function handleReportingMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
 ): unknown {
   if (url.includes("/reporting/types") && method === "GET") {
     return REPORT_TYPES.map((t) => ({ ...t }));
   }
 
   if (url.includes("/reporting/jobs") && method === "GET") {
-    return getReportJobs();
+    return getReportJobs(organizationId);
   }
 
   if (url.includes("/reporting/export") && method === "POST") {
@@ -67,6 +77,8 @@ export function handleReportingMutation(
     const isPdf = format === "pdf";
     const job: MockReportJob = {
       id: `rpt_${reportJobs.length + 1}`,
+      organizationId: organizationId ?? MOCK_ORG_A,
+      branchId: body?.branchId ? String(body.branchId) : MOCK_BRANCH_A1,
       type: type === "summary" ? "branch_summary" : type,
       status: "COMPLETED",
       fileUrl: isPdf ? "https://example.com/report-new.pdf" : "https://example.com/report-new.csv",

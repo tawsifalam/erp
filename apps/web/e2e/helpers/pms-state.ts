@@ -5,6 +5,7 @@ import { quoteStay } from "./rates-state";
 const MOCK_ORG_A = "org-test-001";
 const MOCK_ORG_B = "org-test-002";
 const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_A2 = "branch-test-002";
 const MOCK_BRANCH_B1 = "branch-test-003";
 
 export type MockReservation = {
@@ -106,6 +107,16 @@ const INITIAL_ROOMS: MockRoom[] = [
     roomType: { name: "Standard Double", id: "rt_001" },
   },
   {
+    id: "rm_a2_201",
+    roomNumber: "201",
+    status: "VACANT",
+    basePrice: "3800",
+    roomTypeId: "rt_001",
+    branchId: MOCK_BRANCH_A2,
+    organizationId: MOCK_ORG_A,
+    roomType: { name: "Standard Double", id: "rt_001" },
+  },
+  {
     id: "rm_b_101",
     roomNumber: "B-101",
     status: "VACANT",
@@ -203,16 +214,27 @@ export function resetPmsState() {
   guests = clone(INITIAL_GUESTS);
 }
 
-export function getPmsReservations(organizationId?: string) {
-  if (!organizationId) return reservations;
-  const orgRoomIds = new Set(
-    rooms.filter((r) => r.organizationId === organizationId).map((r) => r.id),
-  );
-  return reservations.filter((r) => orgRoomIds.has(r.roomId));
+export function getPmsReservations(organizationId?: string, branchId?: string) {
+  let rows = reservations;
+  if (organizationId) {
+    const orgRoomIds = new Set(
+      rooms.filter((r) => r.organizationId === organizationId).map((r) => r.id),
+    );
+    rows = rows.filter((r) => orgRoomIds.has(r.roomId));
+  }
+  if (branchId) {
+    const branchRoomIds = new Set(
+      rooms.filter((r) => r.branchId === branchId).map((r) => r.id),
+    );
+    rows = rows.filter((r) => branchRoomIds.has(r.roomId));
+  }
+  return rows;
 }
 
-export function getPmsRooms() {
-  return rooms;
+export function getPmsRooms(branchId?: string) {
+  const rows = rooms.map((r) => ({ ...r }));
+  if (!branchId) return rows;
+  return rows.filter((r) => r.branchId === branchId);
 }
 
 export function getPmsRoomTypes(organizationId?: string) {

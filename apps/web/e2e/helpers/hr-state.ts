@@ -63,6 +63,8 @@ const INITIAL_EMPLOYEES: MockEmployee[] = [
 ];
 
 const MOCK_ORG_A = "org-test-001";
+const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_A2 = "branch-test-002";
 
 const INITIAL_PAYROLL: MockPayrollRun[] = [
   {
@@ -98,18 +100,43 @@ const INITIAL_RECIPES: MockStaffMealRecipe[] = [
   },
 ];
 
+const INITIAL_ATTENDANCE: MockAttendance[] = [
+  {
+    id: "att_001",
+    employeeId: "emp_001",
+    branchId: MOCK_BRANCH_A1,
+    type: "CLOCK_IN",
+    recordedAt: "2026-06-01T08:00:00Z",
+    employee: { id: "emp_001", name: "Karim Hossain" },
+  },
+  {
+    id: "att_a2_001",
+    employeeId: "emp_002",
+    branchId: MOCK_BRANCH_A2,
+    type: "CLOCK_IN",
+    recordedAt: "2026-06-01T09:00:00Z",
+    employee: { id: "emp_002", name: "Nasreen Begum" },
+  },
+];
+
 let employees = structuredClone(INITIAL_EMPLOYEES) as MockEmployee[];
 let payrollRuns = structuredClone(INITIAL_PAYROLL) as MockPayrollRun[];
 let staffMealRecipes = structuredClone(INITIAL_RECIPES) as MockStaffMealRecipe[];
-const attendance: MockAttendance[] = [];
+let attendance = structuredClone(INITIAL_ATTENDANCE) as MockAttendance[];
 const staffMeals: MockStaffMeal[] = [];
 
 export function resetHrState() {
   employees = structuredClone(INITIAL_EMPLOYEES) as MockEmployee[];
   payrollRuns = structuredClone(INITIAL_PAYROLL) as MockPayrollRun[];
   staffMealRecipes = structuredClone(INITIAL_RECIPES) as MockStaffMealRecipe[];
-  attendance.length = 0;
+  attendance = structuredClone(INITIAL_ATTENDANCE) as MockAttendance[];
   staffMeals.length = 0;
+}
+
+export function getHrAttendance(branchId?: string) {
+  const rows = attendance.map((a) => ({ ...a }));
+  if (!branchId) return rows;
+  return rows.filter((a) => a.branchId === branchId);
 }
 
 export function getHrEmployees() {
@@ -135,6 +162,7 @@ export function handleHrMutation(
   url: string,
   body: Record<string, unknown> | null,
   organizationId?: string,
+  branchId?: string,
 ): unknown {
   if (url.match(/\/hr\/employees\/[^/?]+/) && method === "PATCH") {
     const idMatch = url.match(/\/employees\/([^/?]+)/);
@@ -203,7 +231,7 @@ export function handleHrMutation(
   }
 
   if (url.includes("/hr/attendance") && method === "GET") {
-    return attendance.map((a) => ({ ...a }));
+    return getHrAttendance(branchId);
   }
 
   if (url.includes("/hr/staff-meal-recipes")) {

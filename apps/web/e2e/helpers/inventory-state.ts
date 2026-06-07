@@ -10,8 +10,12 @@ type MockPool = {
   sortOrder: number;
 };
 
+const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_A2 = "branch-test-002";
+
 type MockInventoryItem = {
   id: string;
+  branchId: string;
   name: string;
   sku: string;
   unit: string;
@@ -55,6 +59,7 @@ const staffPool = { id: "ivp-staff", code: "staff", name: "Staff pantry" };
 const INITIAL_ITEMS: MockInventoryItem[] = [
   {
     id: "inv-001",
+    branchId: MOCK_BRANCH_A1,
     name: "Basmati Rice",
     sku: "RICE-BAS-25",
     unit: "kg",
@@ -64,6 +69,7 @@ const INITIAL_ITEMS: MockInventoryItem[] = [
   },
   {
     id: "inv-002",
+    branchId: MOCK_BRANCH_A1,
     name: "Olive Oil",
     sku: "OIL-OLV-5L",
     unit: "litre",
@@ -73,6 +79,7 @@ const INITIAL_ITEMS: MockInventoryItem[] = [
   },
   {
     id: "inv-003",
+    branchId: MOCK_BRANCH_A1,
     name: "Chicken Breast",
     sku: "MEAT-CHK-01",
     unit: "kg",
@@ -81,7 +88,18 @@ const INITIAL_ITEMS: MockInventoryItem[] = [
     pool: guestPool,
   },
   {
+    id: "inv-a2-001",
+    branchId: MOCK_BRANCH_A2,
+    name: "Café Flour",
+    sku: "CAFE-FLR-10",
+    unit: "kg",
+    lowStockThreshold: 8,
+    currentStock: 25,
+    pool: guestPool,
+  },
+  {
     id: "inv-staff-001",
+    branchId: MOCK_BRANCH_A1,
     name: "Staff Lunch Rice",
     sku: "STAFF-RICE",
     unit: "kg",
@@ -101,8 +119,10 @@ export function resetInventoryState() {
   movements.length = 0;
 }
 
-export function getInventoryItems() {
-  return items.map((i) => ({ ...i }));
+export function getInventoryItems(branchId?: string) {
+  const rows = items.map((i) => ({ ...i }));
+  if (!branchId) return rows;
+  return rows.filter((i) => i.branchId === branchId);
 }
 
 export function getInventoryPools() {
@@ -155,13 +175,14 @@ export function handleInventoryItemMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/items\/([^/?]+)/);
   const id = idMatch?.[1];
 
   if (method === "GET" && !id) {
     const poolCode = poolFromUrl(url);
-    const all = getInventoryItems();
+    const all = getInventoryItems(branchId);
     return poolCode ? all.filter((i) => i.pool.code === poolCode) : all;
   }
 
@@ -170,6 +191,7 @@ export function handleInventoryItemMutation(
     const pool = pools.find((p) => p.id === poolId) ?? guestPool;
     const item: MockInventoryItem = {
       id: "inv_new",
+      branchId: branchId ?? MOCK_BRANCH_A1,
       name: String(body?.name ?? "New Item"),
       sku: String(body?.sku ?? "SKU-NEW"),
       unit: String(body?.unit ?? "unit"),

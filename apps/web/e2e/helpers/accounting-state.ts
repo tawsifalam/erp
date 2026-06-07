@@ -1,6 +1,13 @@
 import { recordAudit } from "./audit-state";
+const MOCK_ORG_A = "org-test-001";
 
-type MockAccount = { id: string; code: string; name: string; type: string };
+type MockAccount = {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  organizationId: string;
+};
 
 type MockFiscalPeriod = {
   id: string;
@@ -21,12 +28,12 @@ type MockJournal = {
 };
 
 const INITIAL_ACCOUNTS: MockAccount[] = [
-  { id: "acc_1000", code: "1000", name: "Cash", type: "ASSET" },
-  { id: "acc_1100", code: "1100", name: "Bank Account", type: "ASSET" },
-  { id: "acc_1300", code: "1300", name: "Accounts Receivable", type: "ASSET" },
-  { id: "acc_4000", code: "4000", name: "Room Revenue", type: "REVENUE" },
-  { id: "acc_4100", code: "4100", name: "F&B Revenue", type: "REVENUE" },
-  { id: "acc_5200", code: "5200", name: "Utilities Expense", type: "EXPENSE" },
+  { id: "acc_1000", code: "1000", name: "Cash", type: "ASSET", organizationId: MOCK_ORG_A },
+  { id: "acc_1100", code: "1100", name: "Bank Account", type: "ASSET", organizationId: MOCK_ORG_A },
+  { id: "acc_1300", code: "1300", name: "Accounts Receivable", type: "ASSET", organizationId: MOCK_ORG_A },
+  { id: "acc_4000", code: "4000", name: "Room Revenue", type: "REVENUE", organizationId: MOCK_ORG_A },
+  { id: "acc_4100", code: "4100", name: "F&B Revenue", type: "REVENUE", organizationId: MOCK_ORG_A },
+  { id: "acc_5200", code: "5200", name: "Utilities Expense", type: "EXPENSE", organizationId: MOCK_ORG_A },
 ];
 
 const INITIAL_FISCAL_PERIODS: MockFiscalPeriod[] = [
@@ -62,8 +69,10 @@ export function resetAccountingState() {
   journals = structuredClone(INITIAL_JOURNALS) as MockJournal[];
 }
 
-export function getAccountingAccounts() {
-  return accounts.map((a) => ({ ...a }));
+export function getAccountingAccounts(organizationId?: string) {
+  const rows = accounts.map((a) => ({ ...a }));
+  if (!organizationId) return rows;
+  return rows.filter((a) => a.organizationId === organizationId);
 }
 
 export function getFiscalPeriods() {
@@ -136,6 +145,7 @@ export function handleAccountingMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
 ): unknown {
   if (url.includes("/fiscal-periods")) {
     if (method === "GET") return getFiscalPeriods();
@@ -192,6 +202,7 @@ export function handleAccountingMutation(
         code,
         name,
         type: String(body?.type ?? "ASSET"),
+        organizationId: organizationId ?? MOCK_ORG_A,
       };
       accounts.push(account);
       return account;
@@ -235,6 +246,11 @@ export function handleAccountingMutation(
 
     if (method === "POST") {
       const lines = (body?.lines as { accountId: string; debit: number; credit: number }[]) ?? [];
+      const orgId = organizationId ?? MOCK_ORG_A;
+      const allowedAccounts = new Set(getAccountingAccounts(orgId).map((a) => a.id));
+      if (lines.some((l) => !allowedAccounts.has(l.accountId))) {
+        return { status: 404, message: "Account not found" };
+      }
       const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
       const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
       if (lines.length < 2) {

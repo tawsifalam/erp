@@ -2,6 +2,10 @@
 
 import { recordAudit } from "./audit-state";
 import { quoteStay } from "./rates-state";
+const MOCK_ORG_A = "org-test-001";
+const MOCK_ORG_B = "org-test-002";
+const MOCK_BRANCH_A1 = "branch-test-001";
+const MOCK_BRANCH_B1 = "branch-test-003";
 
 export type MockReservation = {
   id: string;
@@ -22,6 +26,8 @@ export type MockRoom = {
   status: string;
   basePrice: string;
   roomTypeId: string;
+  branchId: string;
+  organizationId: string;
   roomType: { name: string; id?: string };
 };
 
@@ -75,6 +81,8 @@ const INITIAL_ROOMS: MockRoom[] = [
     status: "OCCUPIED",
     basePrice: "3500",
     roomTypeId: "rt_001",
+    branchId: MOCK_BRANCH_A1,
+    organizationId: MOCK_ORG_A,
     roomType: { name: "Standard Double", id: "rt_001" },
   },
   {
@@ -83,6 +91,8 @@ const INITIAL_ROOMS: MockRoom[] = [
     status: "OCCUPIED",
     basePrice: "5500",
     roomTypeId: "rt_002",
+    branchId: MOCK_BRANCH_A1,
+    organizationId: MOCK_ORG_A,
     roomType: { name: "Deluxe Suite", id: "rt_002" },
   },
   {
@@ -91,6 +101,18 @@ const INITIAL_ROOMS: MockRoom[] = [
     status: "VACANT",
     basePrice: "3500",
     roomTypeId: "rt_001",
+    branchId: MOCK_BRANCH_A1,
+    organizationId: MOCK_ORG_A,
+    roomType: { name: "Standard Double", id: "rt_001" },
+  },
+  {
+    id: "rm_b_101",
+    roomNumber: "B-101",
+    status: "VACANT",
+    basePrice: "4000",
+    roomTypeId: "rt_001",
+    branchId: MOCK_BRANCH_B1,
+    organizationId: MOCK_ORG_B,
     roomType: { name: "Standard Double", id: "rt_001" },
   },
 ];

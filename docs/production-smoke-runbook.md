@@ -181,6 +181,35 @@ Not required for Phase 1 sign-off; run if time allows.
 
 ---
 
+## 9. Tenant isolation (security)
+
+**Goal:** Confirm users cannot read or mutate another organization’s data via header or query overrides.
+
+Automated locally: `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` (real API + PropelAuth).
+
+| Step | Action | Pass | Evidence |
+|------|--------|:----:|----------|
+| T1 | `GET /api/inventory/items?branchId=<foreign-branch-uuid>` with valid org headers → **403** | ☐ | |
+| T2 | `GET /api/pms/rooms?branchId=<foreign-branch-uuid>` → **403** | ☐ | |
+| T3 | `GET /api/reporting/dashboard?branchId=<foreign-branch-uuid>` → **403** | ☐ | |
+| T4 | `GET /api/pms/pricing/quote?roomId=<unknown-room-uuid>&checkIn=...&checkOut=...` → **404** | ☐ | |
+| T5 | `POST /api/accounting/journals` with a foreign `accountId` in lines → **404** | ☐ | |
+
+Manual curl (replace `$TOKEN`, `$ORG`, `$BRANCH`):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG" \
+  -H "X-Branch-Id: $BRANCH" \
+  "$API/api/inventory/items?branchId=00000000-0000-0000-0000-000000000099"
+# expect 403
+```
+
+See [tenant-model.md](./tenant-model.md) for `TenantScopeService` patterns.
+
+---
+
 ## Sign-off
 
 | Role | Name | Date | Signature |

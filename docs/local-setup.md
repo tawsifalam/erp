@@ -91,6 +91,10 @@ pnpm test                    # Unit tests only (fast)
 pnpm test:e2e:install        # Once: Playwright browser
 pnpm db:reset && pnpm test:e2e   # Mocked API browser tests (web only)
 
+# API integration (real PostgreSQL, two orgs) — optional
+docker compose up -d postgres redis
+RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration
+
 # Real stack smoke (PropelAuth token + Postgres) — see docs/smoke-local.md
 pnpm smoke:local:setup   # after db:reset or when switching orgs
 pnpm smoke:local

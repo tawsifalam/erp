@@ -309,8 +309,12 @@ export class PmsController {
     @Query("excludeReservationId") excludeReservationId: string | undefined,
     @Tenant() t: TenantContext,
   ) {
+    const resolvedBranchId = (await this.resolveBranch(t, branchId))!;
+    if (roomTypeId) {
+      await this.tenantScope.assertRoomTypeInOrganization(t.organizationId, roomTypeId);
+    }
     return this.availability.findAvailableRooms({
-      branchId: (await this.resolveBranch(t, branchId))!,
+      branchId: resolvedBranchId,
       checkIn: new Date(checkIn),
       checkOut: new Date(checkOut),
       roomTypeId,
@@ -435,13 +439,15 @@ export class PmsController {
 
   @Get("pricing/quote")
   @RequirePermission(Permission.PMS_READ)
-  quote(
+  async quote(
+    @Tenant() t: TenantContext,
     @Query("roomId") roomId: string,
     @Query("checkIn") checkIn: string,
     @Query("checkOut") checkOut: string,
     @Query("adultCount") adultCount?: string,
     @Query("childCount") childCount?: string,
   ) {
+    await this.tenantScope.assertRoomInOrganization(t.organizationId, roomId);
     const adults = adultCount != null ? Number(adultCount) : 1;
     const children = childCount != null ? Number(childCount) : 0;
     return this.pricing.quoteStay(

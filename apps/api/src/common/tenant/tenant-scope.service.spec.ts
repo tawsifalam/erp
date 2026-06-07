@@ -10,6 +10,7 @@ const mockPrisma = {
   guest: { findFirst: jest.fn() },
   roomType: { findFirst: jest.fn() },
   room: { findFirst: jest.fn() },
+  account: { findFirst: jest.fn(), count: jest.fn() },
   menuItem: { findUnique: jest.fn() },
   employee: { findFirst: jest.fn() },
   reservation: { findFirst: jest.fn() },
@@ -185,6 +186,44 @@ describe("TenantScopeService", () => {
       await expect(service.assertOrderInBranch("br_a1", "ord-b")).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it("assertRoomInOrganization rejects room from another org", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue(null);
+      await expect(service.assertRoomInOrganization("org_a", "room-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertRoomInOrganization passes for room in org", async () => {
+      mockPrisma.room.findFirst.mockResolvedValue({ id: "room-a" });
+      await expect(
+        service.assertRoomInOrganization("org_a", "room-a"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("assertAccountInOrganization rejects account from another org", async () => {
+      mockPrisma.account.findFirst.mockResolvedValue(null);
+      await expect(service.assertAccountInOrganization("org_a", "acc-b")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("assertAccountsInOrganization rejects when any account is foreign", async () => {
+      mockPrisma.account.count.mockResolvedValue(1);
+      await expect(
+        service.assertAccountsInOrganization("org_a", ["acc-1", "acc-2"]),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("assertAccountsInOrganization passes when all accounts belong to org", async () => {
+      mockPrisma.account.count.mockResolvedValue(2);
+      await expect(
+        service.assertAccountsInOrganization("org_a", ["acc-1", "acc-2", "acc-1"]),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.account.count).toHaveBeenCalledWith({
+        where: { organizationId: "org_a", id: { in: ["acc-1", "acc-2"] } },
+      });
     });
   });
 });

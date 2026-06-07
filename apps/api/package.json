@@ -12,6 +12,7 @@
     "pretest": "pnpm exec prisma generate",
     "test": "jest --passWithNoTests",
     "test:unit": "jest",
+    "test:integration": "jest -c jest.integration.config.js",
     "db:generate": "pnpm exec prisma generate",
     "db:migrate": "pnpm exec prisma migrate dev",
     "db:reset": "pnpm exec prisma migrate reset --force",

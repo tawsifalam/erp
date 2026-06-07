@@ -86,6 +86,41 @@ export class TenantScopeService {
     if (!room) throw new NotFoundException("Room not found");
   }
 
+  async assertRoomInOrganization(
+    organizationId: string,
+    roomId: string,
+  ): Promise<void> {
+    const room = await this.prisma.room.findFirst({
+      where: { id: roomId, branch: { organizationId } },
+    });
+    if (!room) throw new NotFoundException("Room not found");
+  }
+
+  async assertAccountInOrganization(
+    organizationId: string,
+    accountId: string,
+  ): Promise<void> {
+    const account = await this.prisma.account.findFirst({
+      where: { id: accountId, organizationId },
+    });
+    if (!account) throw new NotFoundException("Account not found");
+  }
+
+  async assertAccountsInOrganization(
+    organizationId: string,
+    accountIds: string[],
+  ): Promise<void> {
+    const uniqueIds = [...new Set(accountIds)];
+    if (uniqueIds.length === 0) return;
+
+    const count = await this.prisma.account.count({
+      where: { organizationId, id: { in: uniqueIds } },
+    });
+    if (count !== uniqueIds.length) {
+      throw new NotFoundException("Account not found");
+    }
+  }
+
   async assertMenuItemInBranch(
     organizationId: string,
     branchId: string,

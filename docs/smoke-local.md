@@ -7,7 +7,7 @@ Step-by-step coverage of [production-smoke-runbook.md](./production-smoke-runboo
 - Real PropelAuth access token ([testing your backend](https://docs.propelauth.com/recipes/testing-your-backend))
 - **No** mocked `:3001` API routes (unlike `pnpm test:e2e`)
 
-Specs run in order (`smoke-local-00` … `07`) with a **headed** browser by default. Element assertions use a **5 second** timeout (`playwright.config.ts` → `smoke-local` project).
+Specs run in order (`smoke-local-00` … `08`) with a **headed** browser by default. Element assertions use a **5 second** timeout (`playwright.config.ts` → `smoke-local` project).
 
 ---
 
@@ -154,6 +154,7 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 | §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
 | Prereq P7 + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
+| Tenant isolation | `smoke-local-08-tenant-isolation` | Foreign `branchId` → 403; foreign `roomId` on pricing quote → 404; foreign `accountId` on journal → 404 |
 
 ### Manual only (second user / email / production infra)
 

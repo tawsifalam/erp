@@ -3,6 +3,7 @@ import { AccountType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditAction, AuditEntityType } from "../audit/audit.constants";
 import { AuditService } from "../audit/audit.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { roundMoney, generatePrefixedId, toNumber } from "@erp/utils";
 import { FiscalPeriodStatus } from "./fiscal-period.constants";
 import { JOURNAL_REVERSAL_REF_TYPE } from "./journal.constants";
@@ -13,6 +14,7 @@ export class AccountingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   listAccounts(organizationId: string) {
@@ -280,6 +282,11 @@ export class AccountingService {
     if (params.lines.length < 2) {
       throw new BadRequestException("At least two journal lines required");
     }
+
+    await this.tenantScope.assertAccountsInOrganization(
+      params.organizationId,
+      params.lines.map((l) => l.accountId),
+    );
 
     const entryDate =
       params.entryDate instanceof Date

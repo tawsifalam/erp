@@ -601,6 +601,74 @@ describe("TenantsService", () => {
     expect(mockPrisma.userBranch.findUnique).not.toHaveBeenCalled();
   });
 
+  it("userHasBranchAccess returns false when grant row is missing", async () => {
+    mockPrisma.userBranch.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.userHasBranchAccess("usr_front", "org_1", "FRONT_DESK", "br_1"),
+    ).resolves.toBe(false);
+  });
+
+  it("userHasBranchAccess returns false when grant is inactive", async () => {
+    mockPrisma.userBranch.findUnique.mockResolvedValue({
+      userId: "usr_front",
+      branchId: "br_1",
+      organizationId: "org_1",
+      status: "REVOKED",
+    });
+
+    await expect(
+      service.userHasBranchAccess("usr_front", "org_1", "FRONT_DESK", "br_1"),
+    ).resolves.toBe(false);
+  });
+
+  it("revokeBranchAccess deletes grant for non-admin member", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue({
+      userId: "usr_front",
+      organizationId: "org_1",
+      role: "FRONT_DESK",
+    });
+    mockPrisma.userBranch.findUnique.mockResolvedValue({
+      id: "ubr_1",
+      userId: "usr_front",
+      branchId: "br_1",
+    });
+
+    await service.revokeBranchAccess("org_1", "br_1", "usr_front", "usr_admin");
+
+    expect(mockPrisma.userBranch.delete).toHaveBeenCalledWith({ where: { id: "ubr_1" } });
+  });
+
+  it("revokeBranchAccess throws when grant not found", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue({
+      userId: "usr_front",
+      organizationId: "org_1",
+      role: "FRONT_DESK",
+    });
+    mockPrisma.userBranch.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.revokeBranchAccess("org_1", "br_1", "usr_front", "usr_admin"),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it("revokeBranchAccess rejects implicit admin access", async () => {
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.userOrganization.findUnique.mockResolvedValue({
+      userId: "usr_admin",
+      organizationId: "org_1",
+      role: "ADMIN",
+    });
+
+    await expect(
+      service.revokeBranchAccess("org_1", "br_1", "usr_admin", "usr_owner"),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(mockPrisma.userBranch.delete).not.toHaveBeenCalled();
+  });
+
   it("syncUserPropelAuthOrgMemberships creates membership for linked PropelAuth org", async () => {
     mockPrisma.organization.findUnique.mockResolvedValue({
       id: "org_1",

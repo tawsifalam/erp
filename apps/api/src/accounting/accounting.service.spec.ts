@@ -1,8 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { AccountingService } from "./accounting.service";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 jest.mock("@erp/utils", () => ({
   roundMoney: (v: number) => Math.round(v * 100) / 100,
@@ -11,6 +12,10 @@ jest.mock("@erp/utils", () => ({
 }));
 
 const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
+
+const mockTenantScope = {
+  assertAccountsInOrganization: jest.fn().mockResolvedValue(undefined),
+};
 
 const openPeriod = {
   id: "fp-1",
@@ -52,6 +57,7 @@ describe("AccountingService", () => {
         AccountingService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AuditService, useValue: mockAudit },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
 
@@ -122,6 +128,24 @@ describe("AccountingService", () => {
       ).rejects.toThrow(/is closed/i);
     });
 
+    it("throws when accountId belongs to another organization", async () => {
+      mockTenantScope.assertAccountsInOrganization.mockRejectedValueOnce(
+        new NotFoundException("Account not found"),
+      );
+
+      await expect(
+        service.createJournalEntry({
+          organizationId: "org-1",
+          lines: [
+            { accountId: "acc-foreign", debit: 100, credit: 0 },
+            { accountId: "acc-2", debit: 0, credit: 100 },
+          ],
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockPrisma.journalEntry.create).not.toHaveBeenCalled();
+    });
+
     it("succeeds with balanced lines", async () => {
       const created = { id: "je-1", lines: [] };
       mockPrisma.journalEntry.create.mockResolvedValue(created);
@@ -136,6 +160,10 @@ describe("AccountingService", () => {
       });
 
       expect(result).toEqual(created);
+      expect(mockTenantScope.assertAccountsInOrganization).toHaveBeenCalledWith("org-1", [
+        "acc-1",
+        "acc-2",
+      ]);
       expect(mockPrisma.journalEntry.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           organizationId: "org-1",

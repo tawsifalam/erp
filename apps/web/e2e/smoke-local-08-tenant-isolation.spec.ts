@@ -63,4 +63,72 @@ test.describe("Smoke — tenant isolation", () => {
 
     expect(res.status).toBe(403);
   });
+
+  test("PMS pricing quote rejects foreign roomId", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignRoomId = "00000000-0000-0000-0000-000000000088";
+
+    const res = await fetch(
+      `${apiBase}/api/pms/pricing/quote?roomId=${foreignRoomId}&checkIn=2026-06-01T14:00:00Z&checkOut=2026-06-03T11:00:00Z`,
+      {
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          "X-Organization-Id": auth.organizationId,
+          "X-Branch-Id": auth.branchId,
+        },
+      },
+    );
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/Room not found/);
+  });
+
+  test("journal create rejects foreign accountId", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignAccountId = "00000000-0000-0000-0000-000000000077";
+
+    const roomsRes = await fetch(`${apiBase}/api/pms/rooms?branchId=${auth.branchId}`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "X-Organization-Id": auth.organizationId,
+        "X-Branch-Id": auth.branchId,
+      },
+    });
+    expect(roomsRes.status).toBe(200);
+
+    const accountsRes = await fetch(`${apiBase}/api/accounting/accounts`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "X-Organization-Id": auth.organizationId,
+        "X-Branch-Id": auth.branchId,
+      },
+    });
+    expect(accountsRes.status).toBe(200);
+    const accounts = (await accountsRes.json()) as { id: string; code: string }[];
+    const localAccount = accounts.find((a) => a.code === "1000");
+    expect(localAccount).toBeTruthy();
+
+    const res = await fetch(`${apiBase}/api/accounting/journals`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "Content-Type": "application/json",
+        "X-Organization-Id": auth.organizationId,
+        "X-Branch-Id": auth.branchId,
+      },
+      body: JSON.stringify({
+        lines: [
+          { accountId: foreignAccountId, debit: 10, credit: 0 },
+          { accountId: localAccount!.id, debit: 0, credit: 10 },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/Account not found/);
+  });
 });

@@ -457,14 +457,35 @@ export function handlePmsReservationMutation(
   return res;
 }
 
+function scopedRoomOrError(
+  id: string,
+  organizationId?: string,
+  branchId?: string,
+): MockRoom | { status: number; message: string } {
+  const room = rooms.find((r) => r.id === id);
+  if (!room) return { status: 404, message: "Room not found" };
+  if (organizationId && room.organizationId !== organizationId) {
+    return { status: 404, message: "Room not found" };
+  }
+  if (branchId && room.branchId !== branchId) {
+    return { status: 404, message: "Room not found" };
+  }
+  return room;
+}
+
 export function handlePmsRoomMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  organizationId?: string,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/rooms\/([^/?]+)/);
   const id = idMatch?.[1];
   if (!id) return {};
+
+  const scoped = scopedRoomOrError(id, organizationId, branchId);
+  if ("status" in scoped) return scoped;
 
   if (method === "DELETE") {
     const idx = rooms.findIndex((r) => r.id === id);
@@ -472,8 +493,7 @@ export function handlePmsRoomMutation(
     return { id };
   }
 
-  const room = rooms.find((r) => r.id === id);
-  if (!room) return {};
+  const room = scoped;
 
   if (url.includes("/status") && body?.status) {
     room.status = String(body.status);

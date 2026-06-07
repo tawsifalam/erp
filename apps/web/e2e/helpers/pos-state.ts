@@ -236,23 +236,32 @@ export function handlePosCategoryMutation(
   return cat;
 }
 
+function categoryInBranch(categoryId: string, branchId?: string) {
+  const cat = categories.find((c) => c.id === categoryId);
+  if (!cat) return null;
+  if (branchId && cat.branchId !== branchId) return null;
+  return cat;
+}
+
 export function handlePosMenuItemMutation(
   method: string,
   url: string,
   body: Record<string, unknown> | null,
+  branchId?: string,
 ): unknown {
   const idMatch = url.match(/\/items\/([^/?]+)/);
   const id = idMatch?.[1];
 
   if (method === "POST") {
     const categoryId = String(body?.categoryId ?? "");
-    const cat = categories.find((c) => c.id === categoryId);
+    const cat = categoryInBranch(categoryId, branchId);
+    if (!cat) return { status: 404, message: "Category not found" };
     const item: MockMenuItem = {
       id: "mi_new",
       name: String(body?.name ?? "New Item"),
       price: String(body?.price ?? "0"),
     };
-    if (cat) cat.items.push(item);
+    cat.items.push(item);
     return { ...item, categoryId };
   }
 
@@ -260,16 +269,18 @@ export function handlePosMenuItemMutation(
 
   if (method === "DELETE") {
     for (const cat of categories) {
+      if (branchId && cat.branchId !== branchId) continue;
       const idx = cat.items.findIndex((i) => i.id === id);
       if (idx >= 0) {
         cat.items.splice(idx, 1);
         return { id };
       }
     }
-    return { id };
+    return { status: 404, message: "Menu item not found" };
   }
 
   for (const cat of categories) {
+    if (branchId && cat.branchId !== branchId) continue;
     const item = cat.items.find((i) => i.id === id);
     if (item && method === "PATCH" && body) {
       if (body.name) item.name = String(body.name);
@@ -279,7 +290,7 @@ export function handlePosMenuItemMutation(
     }
   }
 
-  return {};
+  return { status: 404, message: "Menu item not found" };
 }
 
 export function handlePosOrderMutation(

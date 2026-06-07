@@ -305,6 +305,41 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(a1Ids).not.toContain("ord_a2_001");
   });
 
+  test("lists different HR attendance per branch in same organization", async ({ page }) => {
+    const branchA1 = await apiStatus(
+      page,
+      `/api/hr/attendance?branchId=${FAKE_BRANCH_ID}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    const branchA2 = await apiStatus(
+      page,
+      `/api/hr/attendance?branchId=${FAKE_BRANCH_ID_2}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(branchA1.status).toBe(200);
+    expect(branchA2.status).toBe(200);
+    const a1Ids = (branchA1.body as { id: string }[]).map((a) => a.id);
+    const a2Ids = (branchA2.body as { id: string }[]).map((a) => a.id);
+    expect(a1Ids).toContain("att_001");
+    expect(a2Ids).toContain("att_a2_001");
+    expect(a2Ids).not.toContain("att_001");
+  });
+
+  test("lists inclusion packages with organization scope only", async ({ page }) => {
+    const { status, body } = await apiStatus(page, "/api/inclusions/packages", {
+      "X-Organization-Id": FAKE_ORG_ID,
+    });
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    expect((body as { id: string }[]).some((p) => p.id === "ipkg-full")).toBe(true);
+  });
+
   test("lists different inclusion recipes per branch in same organization", async ({
     page,
   }) => {
@@ -331,6 +366,48 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(a1Ids).toContain("ir-breakfast");
     expect(a2Ids).toContain("ir-cafe-pastry");
     expect(a2Ids).not.toContain("ir-breakfast");
+  });
+
+  test("rejects PMS room PATCH for room in another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/pms/rooms/rm_a2_201",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "PATCH", body: { roomNumber: "201X" } },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Room not found/);
+  });
+
+  test("rejects PMS room DELETE for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/pms/rooms/rm_b_101",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "DELETE" },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Room not found/);
+  });
+
+  test("rejects POS menu item PATCH for item in another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/pos/menu/items/mi_a2_001",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "PATCH", body: { name: "Stolen Croissant" } },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Menu item not found/);
   });
 
   test("rejects guest mutation for foreign organization", async ({ page }) => {

@@ -116,6 +116,20 @@ export function assertMockRoomInOrg(
   return null;
 }
 
+export function assertMockRoomInBranch(
+  organizationId: string,
+  branchId: string,
+  roomId: string,
+): MockScopeError | null {
+  const orgError = assertMockRoomInOrg(organizationId, roomId);
+  if (orgError) return orgError;
+  const room = getPmsRooms().find((r) => r.id === roomId);
+  if (!room || room.branchId !== branchId) {
+    return { status: 404, message: "Room not found" };
+  }
+  return null;
+}
+
 export function assertMockAccountsInOrg(
   organizationId: string,
   accountIds: string[],

@@ -875,8 +875,25 @@ export async function mockApiRoutes(page: Page) {
       if (await fulfillBranchScopeError(route, scope)) return;
       return fulfillJson(route, getPmsRooms(scope.branchId));
     }
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handlePmsRoomMutation(method, url, body);
+    const result = handlePmsRoomMutation(
+      method,
+      url,
+      body,
+      orgScope.organizationId,
+      scope.branchId,
+    );
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 
@@ -935,7 +952,14 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handlePosMenuItemMutation(method, url, body);
+    const result = handlePosMenuItemMutation(method, url, body, scope.branchId);
+    if (isMockApiError(result)) {
+      return route.fulfill({
+        status: result.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: result.message }),
+      });
+    }
     return fulfillJson(route, result);
   });
 

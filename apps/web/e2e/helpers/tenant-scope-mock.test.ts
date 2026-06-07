@@ -9,6 +9,7 @@ import {
   assertMockBranchGrant,
   assertMockBranchInOrg,
   assertMockOrganizationAccess,
+  assertMockRoomInBranch,
   assertMockRoomInOrg,
   resolveMockBranchId,
 } from "./tenant-scope-mock";
@@ -135,6 +136,15 @@ describe("tenant-scope-mock", () => {
 
   it("allows room in same organization", () => {
     expect(assertMockRoomInOrg(MOCK_ORG_A, "rm_101")).toBeNull();
+  });
+
+  it("rejects room from another branch in same organization", () => {
+    const err = assertMockRoomInBranch(MOCK_ORG_A, MOCK_BRANCH_A1, "rm_a2_201");
+    expect(err?.status).toBe(404);
+  });
+
+  it("allows room in requested branch", () => {
+    expect(assertMockRoomInBranch(MOCK_ORG_A, MOCK_BRANCH_A2, "rm_a2_201")).toBeNull();
   });
 
   it("rejects foreign account on journal lines", () => {

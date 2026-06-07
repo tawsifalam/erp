@@ -31,6 +31,8 @@ Specs run in order (`smoke-local-00` … `08`) with a **headed** browser by defa
    PROPELAUTH_API_KEY=...
    SMOKE_PROPELAUTH_USER_ID=<paste-user-id>
    SMOKE_PROPELAUTH_USER_EMAIL=you@example.com   # optional, for session mocks
+   # Optional — second PropelAuth user for branch-grant denial in smoke-local-08:
+   SMOKE_PROPELAUTH_FRONT_DESK_USER_ID=<second-user-id>
    ```
 
 ---
@@ -154,7 +156,7 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 | §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
 | Prereq P7 + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
-| Tenant isolation | `smoke-local-08-tenant-isolation` | Foreign `branchId` → 403; foreign `roomId` on pricing quote → 404; foreign `accountId` on journal → 404 |
+| Tenant isolation | `smoke-local-08-tenant-isolation` | Foreign `branchId` → 403; foreign `roomId` on pricing quote → 404; foreign `accountId` on journal → 404; **FRONT_DESK branch-grant denial** (optional second PropelAuth user) |
 
 ### Manual only (second user / email / production infra)
 

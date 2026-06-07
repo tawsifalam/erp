@@ -6,11 +6,22 @@ import {
   SMOKE_TIMEOUT,
 } from "./smoke-constants";
 
+export type SmokeFrontDeskAuth = {
+  accessToken: string;
+  propelAuthUserId: string;
+  /** Branch with an active UserBranch grant for this user. */
+  grantedBranchId: string;
+  /** Same-org branch without a grant — requests should return 403. */
+  deniedBranchId: string;
+};
+
 export type SmokeAuth = {
   accessToken: string;
   organizationId: string;
   branchId: string;
   propelAuthUserId: string;
+  /** Present when SMOKE_PROPELAUTH_FRONT_DESK_USER_ID is set during setup. */
+  frontDeskAuth?: SmokeFrontDeskAuth;
 };
 
 export function smokeAuthPath() {

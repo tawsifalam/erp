@@ -194,6 +194,7 @@ Automated locally: `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec
 | T3 | `GET /api/reporting/dashboard?branchId=<foreign-branch-uuid>` → **403** | ☐ | |
 | T4 | `GET /api/pms/pricing/quote?roomId=<unknown-room-uuid>&checkIn=...&checkOut=...` → **404** | ☐ | |
 | T5 | `POST /api/accounting/journals` with a foreign `accountId` in lines → **404** | ☐ | |
+| T6 | `FRONT_DESK` user **without** grant on branch B: `GET /api/inventory/items?branchId=<branch-b>` → **403** | ☐ | Optional locally: set `SMOKE_PROPELAUTH_FRONT_DESK_USER_ID` and run `smoke-local-08` |
 
 Manual curl (replace `$TOKEN`, `$ORG`, `$BRANCH`):
 

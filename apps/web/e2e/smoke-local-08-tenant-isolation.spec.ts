@@ -1,8 +1,10 @@
 /**
- * Real-stack checks that branch overrides cannot cross organization boundaries.
+ * Real-stack checks that branch overrides cannot cross organization boundaries
+ * and that branch grants restrict non-admin roles.
  */
 import { test } from "@playwright/test";
 import { loadSmokeAuth } from "./helpers/smoke-setup";
+import { SMOKE_SEED_BRANCH_ID_2 } from "./helpers/smoke-constants";
 import { useSmokeHarness } from "./helpers/smoke-local.harness";
 
 const { expect } = useSmokeHarness();
@@ -130,5 +132,32 @@ test.describe("Smoke — tenant isolation", () => {
     expect(res.status).toBe(404);
     const body = (await res.json()) as { message?: string };
     expect(body.message).toMatch(/Account not found/);
+  });
+
+  test("FRONT_DESK without branch grant cannot access another branch in same org", async () => {
+    const auth = await loadSmokeAuth();
+    test.skip(
+      !auth.frontDeskAuth,
+      "Set SMOKE_PROPELAUTH_FRONT_DESK_USER_ID and re-run pnpm smoke:local:setup",
+    );
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const fd = auth.frontDeskAuth!;
+    const deniedBranchId = fd.deniedBranchId ?? SMOKE_SEED_BRANCH_ID_2;
+
+    const res = await fetch(
+      `${apiBase}/api/inventory/items?branchId=${deniedBranchId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${fd.accessToken}`,
+          "X-Organization-Id": auth.organizationId,
+          "X-Branch-Id": fd.grantedBranchId,
+        },
+      },
+    );
+
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/do not have access/);
   });
 });

@@ -198,6 +198,7 @@ Automated locally: `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec
 | T7 | `GET /api/pos/orders`, `/api/hr/attendance`, `/api/inclusions/recipes` with foreign `branchId` → **403** | ☐ | Automated in `smoke-local-08` |
 | T8 | Tenant route without `X-Organization-Id` → **400** | ☐ | Automated in `smoke-local-08` |
 | T9 | `GET /api/tenants/branches/<foreign-branch>/members` → **404**; PMS availability with foreign `excludeReservationId` → **404** | ☐ | Automated in `smoke-local-08` |
+| T10 | `GET /api/payroll/runs/<unknown-id>/payslip` → **404** | ☐ | Automated in `smoke-local-08` |
 
 Manual curl (replace `$TOKEN`, `$ORG`, `$BRANCH`):
 

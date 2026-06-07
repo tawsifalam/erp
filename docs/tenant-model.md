@@ -106,8 +106,8 @@ Pre-membership onboarding (applicant join-code flow) intentionally calls JWT-onl
 |-------|---------|----------|
 | Unit | `pnpm --filter @erp/api test:unit` | `TenantScopeService`, guards, controller FK rejection |
 | Mock helper vitest | `cd apps/web && pnpm exec vitest run e2e/helpers/tenant-scope-mock.test.ts e2e/helpers/join-request-state.test.ts` | Mock scope helpers + join-request validation |
-| Mock API E2E | `pnpm test:e2e -- e2e/tenant-isolation.spec.ts` | 42 cases — org/branch guards, mutations, admin settings |
+| Mock API E2E | `pnpm test:e2e -- e2e/tenant-isolation.spec.ts` | 44 cases — org/branch guards, mutations, admin settings |
 | Real-stack smoke | `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` | Live API + PropelAuth; optional FRONT_DESK branch-grant denial |
-| API integration | `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` | 26 cases — two-org PostgreSQL harness |
+| API integration | `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` | 30 cases — two-org PostgreSQL harness |
 
 See [test-coverage-gaps.md](./test-coverage-gaps.md) for the living checklist.

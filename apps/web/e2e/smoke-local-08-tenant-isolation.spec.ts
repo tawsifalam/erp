@@ -243,6 +243,27 @@ test.describe("Smoke — tenant isolation", () => {
     expect(body.message).toMatch(/Reservation not found/);
   });
 
+  test("payroll payslip rejects unknown run id", async () => {
+    const auth = await loadSmokeAuth();
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+    const foreignRunId = "00000000-0000-0000-0000-000000000055";
+
+    const res = await fetch(
+      `${apiBase}/api/payroll/runs/${foreignRunId}/payslip`,
+      {
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          "X-Organization-Id": auth.organizationId,
+          "X-Branch-Id": auth.branchId,
+        },
+      },
+    );
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toMatch(/Payslip not available/);
+  });
+
   test("FRONT_DESK without branch grant cannot access another branch in same org", async () => {
     const auth = await loadSmokeAuth();
     test.skip(

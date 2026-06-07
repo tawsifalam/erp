@@ -353,6 +353,53 @@ const runIntegration =
     expect(res.body.message).toMatch(/Pending join request not found/);
   });
 
+  it("does not return payroll run from another organization by id", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/payroll/runs/${fixture.payrollRunBId}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Payroll run not found/);
+  });
+
+  it("rejects payslip download for payroll run outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/payroll/runs/${fixture.payrollRunBId}/payslip`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Payslip not available/);
+  });
+
+  it("rejects fiscal period reopen outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerB, {
+      method: "patch",
+      path: `/api/accounting/fiscal-periods/${INTEGRATION_PREFIX}-fp-a/reopen`,
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Fiscal period not found/);
+  });
+
+  it("rejects foreign reservation on inclusions reconcile", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "post",
+      path: `/api/inclusions/reservations/${fixture.reservationBId}/reconcile?branchId=${fixture.branchA1Id}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: {},
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Reservation not found/);
+  });
+
   it("rejects join request approve outside active organization", async () => {
     const res = await integrationRequest(app, fixture.tokens.ownerB, {
       method: "post",

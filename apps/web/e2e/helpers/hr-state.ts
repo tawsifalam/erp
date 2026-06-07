@@ -183,6 +183,13 @@ export function getPayrollRuns(organizationId?: string) {
   return rows.filter((r) => r.organizationId === organizationId);
 }
 
+export function findPayrollRunInOrg(runId: string, organizationId?: string) {
+  const run = payrollRuns.find((r) => r.id === runId);
+  if (!run) return null;
+  if (organizationId && run.organizationId !== organizationId) return null;
+  return run;
+}
+
 function findEmployee(id: string) {
   return employees.find((e) => e.id === id);
 }
@@ -341,7 +348,25 @@ export function handleHrMutation(
     return run;
   }
 
-  if (url.includes("/payroll/runs") && method === "GET") {
+  const payrollById = url.match(/\/payroll\/runs\/([^/?]+)(?:\/(payslip))?\/?$/);
+  if (method === "GET" && payrollById) {
+    const runId = payrollById[1]!;
+    const isPayslip = payrollById[2] === "payslip";
+    const run = findPayrollRunInOrg(runId, organizationId);
+    if (!run) {
+      return {
+        status: 404,
+        message: isPayslip ? "Payslip not available" : "Payroll run not found",
+      };
+    }
+    if (isPayslip) {
+      if (!run.payslipKey) return { status: 404, message: "Payslip not available" };
+      return { payslipPdf: true };
+    }
+    return { ...run };
+  }
+
+  if (url.match(/\/payroll\/runs\/?(?:\?|$)/) && method === "GET") {
     return getPayrollRuns(organizationId);
   }
 

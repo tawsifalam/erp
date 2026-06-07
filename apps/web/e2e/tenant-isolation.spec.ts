@@ -690,4 +690,22 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(status).toBe(404);
     expect(body?.message).toMatch(/Branch not found/);
   });
+
+  test("rejects payroll run lookup for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(page, "/api/payroll/runs/pr_001", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Payroll run not found/);
+  });
+
+  test("rejects payslip download for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(page, "/api/payroll/runs/pr_001/payslip", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Payslip not available/);
+  });
 });

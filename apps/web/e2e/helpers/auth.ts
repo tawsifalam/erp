@@ -1250,15 +1250,27 @@ export async function mockApiRoutes(page: Page) {
     if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const url = route.request().url();
-    if (method === "GET" && url.includes("/payslip")) {
+    const body = route.request().postDataJSON() as Record<string, unknown> | null;
+    const result = handleHrMutation(method, url, body, orgScope.organizationId);
+    if (isMockApiError(result)) {
+      const err = result;
+      return route.fulfill({
+        status: err.status,
+        contentType: "application/json",
+        body: JSON.stringify({ message: err.message }),
+      });
+    }
+    if (
+      result &&
+      typeof result === "object" &&
+      "payslipPdf" in (result as Record<string, unknown>)
+    ) {
       return route.fulfill({
         status: 200,
         contentType: "application/pdf",
         body: Buffer.from("%PDF-1.4\n% Mock payslip"),
       });
     }
-    const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleHrMutation(method, url, body, orgScope.organizationId);
     return fulfillJson(route, result);
   });
 

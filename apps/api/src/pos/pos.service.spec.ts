@@ -299,10 +299,25 @@ describe("PosService", () => {
 
   describe("deleteMenuItem", () => {
     it("throws when item on orders", async () => {
-      mockPrisma.menuItem.findUnique.mockResolvedValue({ id: "mi-1" });
+      mockPrisma.menuItem.findUnique.mockResolvedValue({
+        id: "mi-1",
+        category: { organizationId: "org-1", branchId: "branch-1" },
+      });
       mockPrisma.orderLine.count.mockResolvedValue(1);
 
-      await expect(service.deleteMenuItem("mi-1")).rejects.toThrow(ConflictException);
+      await expect(service.deleteMenuItem("org-1", "branch-1", "mi-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("rejects menu item from another organization", async () => {
+      mockPrisma.menuItem.findUnique.mockResolvedValue({
+        id: "mi-other",
+        category: { organizationId: "org-other", branchId: "branch-other" },
+      });
+      await expect(service.deleteMenuItem("org-1", "branch-1", "mi-other")).rejects.toThrow(
+        /does not belong/,
+      );
     });
   });
 

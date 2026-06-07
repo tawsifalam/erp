@@ -67,6 +67,22 @@ describe("TenantGuard", () => {
     );
   });
 
+  it("rejects non-admin without branch grant", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: "usr_1",
+      memberships: [{ organizationId: "org_1", role: "CASHIER" }],
+    });
+    mockPrisma.branch.findFirst.mockResolvedValue({ id: "br_1", organizationId: "org_1" });
+    mockPrisma.userBranch.findUnique.mockResolvedValue(null);
+    const ctx = mockContext({
+      "x-organization-id": "org_1",
+      "x-branch-id": "br_1",
+    });
+    await expect(guard.canActivate(ctx as never)).rejects.toThrow(
+      /You do not have access to this branch/,
+    );
+  });
+
   it("attaches tenant context with role for valid org and branch", async () => {
     const ctx = mockContext({
       "x-organization-id": "org_1",

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -87,27 +88,51 @@ export class PosService {
     return this.prisma.menuCategory.delete({ where: { id: categoryId } });
   }
 
-  async getMenuItem(categoryId: string, itemId: string) {
-    const item = await this.prisma.menuItem.findFirst({
-      where: { id: itemId, categoryId },
+  async getMenuItemForBranch(
+    organizationId: string,
+    branchId: string,
+    itemId: string,
+  ) {
+    const item = await this.prisma.menuItem.findUnique({
+      where: { id: itemId },
+      include: { category: true },
     });
     if (!item) throw new NotFoundException("Menu item not found");
+    if (
+      item.category.organizationId !== organizationId ||
+      item.category.branchId !== branchId
+    ) {
+      throw new ForbiddenException("Menu item does not belong to this organization");
+    }
     return item;
   }
 
-  async createMenuItem(data: {
-    categoryId: string;
-    name: string;
-    price: number;
-    isActive?: boolean;
-    isGuestInclusionMeal?: boolean;
-  }) {
-    if (!data.name?.trim()) throw new BadRequestException("Item name is required");
-    if (data.price < 0) throw new BadRequestException("Price cannot be negative");
-    const category = await this.prisma.menuCategory.findUnique({
-      where: { id: data.categoryId },
+  private async getCategoryForOrg(
+    organizationId: string,
+    branchId: string,
+    categoryId: string,
+  ) {
+    const category = await this.prisma.menuCategory.findFirst({
+      where: { id: categoryId, organizationId, branchId },
     });
     if (!category) throw new NotFoundException("Menu category not found");
+    return category;
+  }
+
+  async createMenuItem(
+    organizationId: string,
+    branchId: string,
+    data: {
+      categoryId: string;
+      name: string;
+      price: number;
+      isActive?: boolean;
+      isGuestInclusionMeal?: boolean;
+    },
+  ) {
+    if (!data.name?.trim()) throw new BadRequestException("Item name is required");
+    if (data.price < 0) throw new BadRequestException("Price cannot be negative");
+    await this.getCategoryForOrg(organizationId, branchId, data.categoryId);
     return this.prisma.menuItem.create({
       data: {
         categoryId: data.categoryId,
@@ -120,6 +145,8 @@ export class PosService {
   }
 
   async updateMenuItem(
+    organizationId: string,
+    branchId: string,
     itemId: string,
     data: {
       name?: string;
@@ -129,14 +156,12 @@ export class PosService {
       isGuestInclusionMeal?: boolean;
     },
   ) {
-    const item = await this.prisma.menuItem.findUnique({ where: { id: itemId } });
-    if (!item) throw new NotFoundException("Menu item not found");
+    await this.getMenuItemForBranch(organizationId, branchId, itemId);
     if (data.price !== undefined && data.price < 0) {
       throw new BadRequestException("Price cannot be negative");
     }
     if (data.categoryId) {
-      const cat = await this.prisma.menuCategory.findUnique({ where: { id: data.categoryId } });
-      if (!cat) throw new NotFoundException("Menu category not found");
+      await this.getCategoryForOrg(organizationId, branchId, data.categoryId);
     }
     return this.prisma.menuItem.update({
       where: { id: itemId },
@@ -152,9 +177,8 @@ export class PosService {
     });
   }
 
-  async deleteMenuItem(itemId: string) {
-    const item = await this.prisma.menuItem.findUnique({ where: { id: itemId } });
-    if (!item) throw new NotFoundException("Menu item not found");
+  async deleteMenuItem(organizationId: string, branchId: string, itemId: string) {
+    await this.getMenuItemForBranch(organizationId, branchId, itemId);
     const lineCount = await this.prisma.orderLine.count({ where: { menuItemId: itemId } });
     if (lineCount > 0) {
       throw new ConflictException("Menu item appears on orders and cannot be deleted");

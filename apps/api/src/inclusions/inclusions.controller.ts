@@ -16,15 +16,19 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { InclusionType, Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { InclusionsService } from "./inclusions.service";
 
 @Controller("inclusions")
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class InclusionsController {
-  constructor(private readonly inclusions: InclusionsService) {}
+  constructor(
+    private readonly inclusions: InclusionsService,
+    private readonly tenantScope: TenantScopeService,
+  ) {}
 
-  private branchId(t: TenantContext, query?: string) {
-    return query || t.branchId!;
+  private resolveBranch(t: TenantContext, override?: string) {
+    return this.tenantScope.resolveBranchId(t, override);
   }
 
   @Get("packages")
@@ -80,13 +84,13 @@ export class InclusionsController {
 
   @Get("recipes")
   @RequirePermission(Permission.PMS_READ)
-  listRecipes(@Tenant() t: TenantContext, @Query("branchId") branchId: string) {
-    return this.inclusions.listRecipes(this.branchId(t, branchId));
+  async listRecipes(@Tenant() t: TenantContext, @Query("branchId") branchId: string) {
+    return this.inclusions.listRecipes((await this.resolveBranch(t, branchId))!);
   }
 
   @Post("recipes")
   @RequirePermission(Permission.PMS_WRITE)
-  createRecipe(
+  async createRecipe(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -96,12 +100,13 @@ export class InclusionsController {
       lines: { inventoryItemId: string; quantity: number }[];
     },
   ) {
-    return this.inclusions.upsertRecipe(body.branchId || t.branchId!, body);
+    const resolved = await this.resolveBranch(t, body.branchId);
+    return this.inclusions.upsertRecipe(resolved!, body);
   }
 
   @Put("recipes/:id")
   @RequirePermission(Permission.PMS_WRITE)
-  updateRecipe(
+  async updateRecipe(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Body()
@@ -112,22 +117,23 @@ export class InclusionsController {
       lines: { inventoryItemId: string; quantity: number }[];
     },
   ) {
-    return this.inclusions.upsertRecipe(body.branchId || t.branchId!, { ...body, id });
+    const resolved = await this.resolveBranch(t, body.branchId);
+    return this.inclusions.upsertRecipe(resolved!, { ...body, id });
   }
 
   @Get("reservations/:id/allowances")
   @RequirePermission(Permission.PMS_READ)
-  listAllowances(
+  async listAllowances(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
   ) {
-    return this.inclusions.listAllowances(this.branchId(t, branchId), id);
+    return this.inclusions.listAllowances((await this.resolveBranch(t, branchId))!, id);
   }
 
   @Post("reservations/:id/consume")
   @RequirePermission(Permission.PMS_WRITE)
-  consume(
+  async consume(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
@@ -138,16 +144,16 @@ export class InclusionsController {
       quantity: number;
     },
   ) {
-    return this.inclusions.consumeManual(this.branchId(t, branchId), id, body);
+    return this.inclusions.consumeManual((await this.resolveBranch(t, branchId))!, id, body);
   }
 
   @Post("reservations/:id/reconcile")
   @RequirePermission(Permission.PMS_WRITE)
-  reconcile(
+  async reconcile(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
   ) {
-    return this.inclusions.reconcileAllowances(this.branchId(t, branchId), id);
+    return this.inclusions.reconcileAllowances((await this.resolveBranch(t, branchId))!, id);
   }
 }

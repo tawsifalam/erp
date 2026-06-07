@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { AttendanceType, EmployeeStatus, MovementType } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PrismaService } from "../prisma/prisma.service";
@@ -21,6 +22,7 @@ export class HrService {
     private readonly inventory: InventoryService,
     private readonly events: EventEmitter2,
     private readonly audit: AuditService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   listEmployees(organizationId: string) {
@@ -63,6 +65,10 @@ export class HrService {
       throw new BadRequestException("Designation is required");
     }
     if (data.salary < 0) throw new BadRequestException("Salary cannot be negative");
+
+    if (data.branchId) {
+      await this.tenantScope.assertBranchInOrganization(organizationId, data.branchId);
+    }
 
     const employee = await this.prisma.employee.create({
       data: {
@@ -110,6 +116,10 @@ export class HrService {
     }
     if (data.salary !== undefined && data.salary < 0) {
       throw new BadRequestException("Salary cannot be negative");
+    }
+
+    if (data.branchId) {
+      await this.tenantScope.assertBranchInOrganization(organizationId, data.branchId);
     }
 
     const updateData: {

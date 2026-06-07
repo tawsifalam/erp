@@ -20,6 +20,7 @@ import { IntegrationsModule } from "./integrations/integrations.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { StorageModule } from "./storage/storage.module";
 import { EventsModule } from "./common/events/events.module";
+import { TenantScopeModule } from "./common/tenant/tenant-scope.module";
 import { InclusionsModule } from "./inclusions/inclusions.module";
 import { ProcurementModule } from "./procurement/procurement.module";
 import { AuditModule } from "./audit/audit.module";
@@ -44,6 +45,7 @@ import { HealthController } from "./health.controller";
       { name: "pdf" },
     ),
     PrismaModule,
+    TenantScopeModule,
     AuditModule,
     StorageModule,
     AuthModule,

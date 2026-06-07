@@ -7,6 +7,7 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { ReportingService } from "./reporting.service";
 import { InjectQueue } from "@nestjs/bullmq";
 import { Queue } from "bullmq";
@@ -16,13 +17,15 @@ import { Queue } from "bullmq";
 export class ReportingController {
   constructor(
     private readonly reporting: ReportingService,
+    private readonly tenantScope: TenantScopeService,
     @InjectQueue("reports") private readonly reportsQueue: Queue,
   ) {}
 
   @Get("dashboard")
   @RequirePermission(Permission.REPORTS_READ)
-  dashboard(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
-    return this.reporting.dashboard(t.organizationId, branchId || t.branchId!);
+  async dashboard(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    const resolved = await this.tenantScope.resolveBranchId(t, branchId);
+    return this.reporting.dashboard(t.organizationId, resolved!);
   }
 
   @Get("types")
@@ -46,7 +49,9 @@ export class ReportingController {
       format?: "csv" | "pdf";
     },
   ) {
-    const branchId = body.branchId || t.branchId;
+    const branchId = await this.tenantScope.resolveBranchId(t, body.branchId, {
+      required: false,
+    });
     const job = await this.reporting.requestExport(
       t.organizationId,
       body.type,

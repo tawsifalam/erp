@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { MovementType } from "@erp/types";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "./inventory.service";
@@ -13,15 +13,11 @@ export class InventoryRecipesService {
   ) {}
 
   async upsertRecipe(
+    organizationId: string,
     menuItemId: string,
     lines: { inventoryItemId: string; quantity: number }[],
   ) {
-    const menuItem = await this.prisma.menuItem.findUnique({
-      where: { id: menuItemId },
-      include: { category: true },
-    });
-    if (!menuItem) throw new BadRequestException("Menu item not found");
-
+    const menuItem = await this.getMenuItemForOrg(organizationId, menuItemId);
     const branchId = menuItem.category.branchId;
     const validLines = lines.filter((l) => l.inventoryItemId && l.quantity > 0);
     for (const line of validLines) {
@@ -58,7 +54,8 @@ export class InventoryRecipesService {
     });
   }
 
-  getRecipe(menuItemId: string) {
+  async getRecipe(organizationId: string, menuItemId: string) {
+    await this.getMenuItemForOrg(organizationId, menuItemId);
     return this.prisma.recipe.findUnique({
       where: { menuItemId },
       include: {
@@ -69,6 +66,18 @@ export class InventoryRecipesService {
         },
       },
     });
+  }
+
+  private async getMenuItemForOrg(organizationId: string, menuItemId: string) {
+    const menuItem = await this.prisma.menuItem.findUnique({
+      where: { id: menuItemId },
+      include: { category: true },
+    });
+    if (!menuItem) throw new NotFoundException("Menu item not found");
+    if (menuItem.category.organizationId !== organizationId) {
+      throw new ForbiddenException("Menu item does not belong to this organization");
+    }
+    return menuItem;
   }
 
   /** Deduct inventory for completed order; returns estimated COGS */

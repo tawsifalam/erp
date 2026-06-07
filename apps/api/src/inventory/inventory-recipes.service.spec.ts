@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { ForbiddenException } from "@nestjs/common";
 import { MovementType } from "@erp/types";
 import { InventoryRecipesService } from "./inventory-recipes.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -38,11 +39,11 @@ describe("InventoryRecipesService", () => {
   it("upsertRecipe replaces lines", async () => {
     mockPrisma.menuItem.findUnique.mockResolvedValue({
       id: "mi-1",
-      category: { branchId: "br-1" },
+      category: { branchId: "br-1", organizationId: "org-1" },
     });
     mockPrisma.recipe.upsert.mockResolvedValue({ menuItemId: "mi-1", lines: [] });
 
-    await service.upsertRecipe("mi-1", [
+    await service.upsertRecipe("org-1", "mi-1", [
       { inventoryItemId: "inv-1", quantity: 0.5 },
     ]);
 
@@ -52,6 +53,14 @@ describe("InventoryRecipesService", () => {
         where: { menuItemId: "mi-1" },
       }),
     );
+  });
+
+  it("rejects recipe for menu item in another organization", async () => {
+    mockPrisma.menuItem.findUnique.mockResolvedValue({
+      id: "mi-other",
+      category: { branchId: "br-2", organizationId: "org-other" },
+    });
+    await expect(service.getRecipe("org-1", "mi-other")).rejects.toThrow(ForbiddenException);
   });
 
   it("deductForOrder creates SALE movements and returns cogs estimate", async () => {

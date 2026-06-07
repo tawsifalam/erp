@@ -7,12 +7,16 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { HrService } from "./hr.service";
 
 @Controller("hr")
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
 export class HrController {
-  constructor(private readonly hr: HrService) {}
+  constructor(
+    private readonly hr: HrService,
+    private readonly tenantScope: TenantScopeService,
+  ) {}
 
   @Get("employees")
   @RequirePermission(Permission.HR_READ)
@@ -48,8 +52,8 @@ export class HrController {
 
   @Get("attendance")
   @RequirePermission(Permission.HR_READ)
-  attendance(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
-    return this.hr.listAttendance(branchId || t.branchId!);
+  async attendance(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    return this.hr.listAttendance((await this.tenantScope.resolveBranchId(t, branchId))!);
   }
 
   @Post("attendance/clock")
@@ -58,23 +62,19 @@ export class HrController {
     @Tenant() t: TenantContext,
     @Body() body: { employeeId: string; type: AttendanceType },
   ) {
-    return this.hr.clockAttendance(
-      t.organizationId,
-      body.employeeId,
-      t.branchId!,
-      body.type,
-    );
+    const branchId = (await this.tenantScope.resolveBranchId(t))!;
+    return this.hr.clockAttendance(t.organizationId, body.employeeId, branchId, body.type);
   }
 
   @Get("staff-meal-recipes")
   @RequirePermission(Permission.HR_READ)
-  staffMealRecipes(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
-    return this.hr.listStaffMealRecipes(branchId || t.branchId!);
+  async staffMealRecipes(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    return this.hr.listStaffMealRecipes((await this.tenantScope.resolveBranchId(t, branchId))!);
   }
 
   @Post("staff-meal-recipes")
   @RequirePermission(Permission.HR_WRITE)
-  createStaffMealRecipe(
+  async createStaffMealRecipe(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -82,12 +82,13 @@ export class HrController {
       lines: { inventoryItemId: string; quantity: number }[];
     },
   ) {
-    return this.hr.upsertStaffMealRecipe(t.branchId!, body);
+    const branchId = (await this.tenantScope.resolveBranchId(t))!;
+    return this.hr.upsertStaffMealRecipe(branchId, body);
   }
 
   @Put("staff-meal-recipes/:id")
   @RequirePermission(Permission.HR_WRITE)
-  updateStaffMealRecipe(
+  async updateStaffMealRecipe(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Body()
@@ -96,18 +97,19 @@ export class HrController {
       lines: { inventoryItemId: string; quantity: number }[];
     },
   ) {
-    return this.hr.upsertStaffMealRecipe(t.branchId!, { id, ...body });
+    const branchId = (await this.tenantScope.resolveBranchId(t))!;
+    return this.hr.upsertStaffMealRecipe(branchId, { id, ...body });
   }
 
   @Get("staff-meals")
   @RequirePermission(Permission.HR_READ)
-  staffMeals(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
-    return this.hr.listStaffMeals(branchId || t.branchId!);
+  async staffMeals(@Tenant() t: TenantContext, @Query("branchId") branchId?: string) {
+    return this.hr.listStaffMeals((await this.tenantScope.resolveBranchId(t, branchId))!);
   }
 
   @Post("staff-meals")
   @RequirePermission(Permission.HR_WRITE)
-  staffMeal(
+  async staffMeal(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -117,10 +119,11 @@ export class HrController {
       deductFromPayroll?: boolean;
     },
   ) {
+    const branchId = (await this.tenantScope.resolveBranchId(t))!;
     return this.hr.recordStaffMeal({
       organizationId: t.organizationId,
       ...body,
-      branchId: t.branchId!,
+      branchId,
     });
   }
 

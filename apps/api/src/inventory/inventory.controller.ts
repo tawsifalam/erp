@@ -17,6 +17,7 @@ import { RequirePermission } from "../common/decorators/require-permission.decor
 import { Tenant } from "../common/decorators/tenant.decorator";
 import { Permission } from "@erp/types";
 import type { TenantContext } from "@erp/types";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 import { InventoryService } from "./inventory.service";
 import { InventoryRecipesService } from "./inventory-recipes.service";
 import { InventoryPoolsService } from "./inventory-pools.service";
@@ -28,6 +29,7 @@ export class InventoryController {
     private readonly inventory: InventoryService,
     private readonly recipes: InventoryRecipesService,
     private readonly inventoryPools: InventoryPoolsService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
   @Get("pools")
@@ -57,13 +59,14 @@ export class InventoryController {
 
   @Get("items")
   @RequirePermission(Permission.INVENTORY_READ)
-  items(
+  async items(
     @Tenant() t: TenantContext,
     @Query("branchId") branchId?: string,
     @Query("poolId") poolId?: string,
     @Query("pool") pool?: string,
   ) {
-    return this.inventory.listItemsWithStock(branchId || t.branchId!, {
+    const resolved = await this.tenantScope.resolveBranchId(t, branchId);
+    return this.inventory.listItemsWithStock(resolved!, {
       poolId,
       poolCode: pool,
     });
@@ -71,7 +74,7 @@ export class InventoryController {
 
   @Post("items")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  createItem(
+  async createItem(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -83,12 +86,13 @@ export class InventoryController {
       lowStockThreshold?: number;
     },
   ) {
-    return this.inventory.createItem(body.branchId || t.branchId!, body, t.userId);
+    const resolved = await this.tenantScope.resolveBranchId(t, body.branchId);
+    return this.inventory.createItem(resolved!, body, t.userId);
   }
 
   @Patch("items/:id")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  updateItem(
+  async updateItem(
     @Param("id") id: string,
     @Tenant() t: TenantContext,
     @Query("branchId") branchId: string | undefined,
@@ -100,32 +104,35 @@ export class InventoryController {
       poolId?: string;
     },
   ) {
-    return this.inventory.updateItem(branchId || t.branchId!, id, body);
+    const resolved = await this.tenantScope.resolveBranchId(t, branchId);
+    return this.inventory.updateItem(resolved!, id, body);
   }
 
   @Delete("items/:id")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  deleteItem(
+  async deleteItem(
     @Param("id") id: string,
     @Tenant() t: TenantContext,
     @Query("branchId") branchId: string | undefined,
   ) {
-    return this.inventory.deleteItem(branchId || t.branchId!, id, t.userId);
+    const resolved = await this.tenantScope.resolveBranchId(t, branchId);
+    return this.inventory.deleteItem(resolved!, id, t.userId);
   }
 
   @Get("items/:id/stock")
   @RequirePermission(Permission.INVENTORY_READ)
-  stock(
+  async stock(
     @Param("id") id: string,
     @Tenant() t: TenantContext,
     @Query("branchId") branchId?: string,
   ) {
-    return this.inventory.getCurrentStock(id, branchId || t.branchId!);
+    const resolved = await this.tenantScope.resolveBranchId(t, branchId);
+    return this.inventory.getCurrentStock(id, resolved!);
   }
 
   @Post("movements")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  movement(
+  async movement(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -140,32 +147,37 @@ export class InventoryController {
       notes?: string;
     },
   ) {
+    const resolved = await this.tenantScope.resolveBranchId(t, body.branchId);
     return this.inventory.createMovement({
       ...body,
-      branchId: body.branchId || t.branchId!,
+      branchId: resolved!,
       userId: t.userId,
     });
   }
 
   @Get("items/:id/movements")
   @RequirePermission(Permission.INVENTORY_READ)
-  movements(
+  async movements(
     @Param("id") id: string,
     @Tenant() t: TenantContext,
     @Query("branchId") branchId?: string,
   ) {
-    return this.inventory.listMovements(id, branchId || t.branchId!);
+    const resolved = await this.tenantScope.resolveBranchId(t, branchId);
+    return this.inventory.listMovements(id, resolved!);
   }
 
   @Post("recipes")
   @RequirePermission(Permission.INVENTORY_WRITE)
-  recipe(@Body() body: { menuItemId: string; lines: { inventoryItemId: string; quantity: number }[] }) {
-    return this.recipes.upsertRecipe(body.menuItemId, body.lines);
+  async recipe(
+    @Tenant() t: TenantContext,
+    @Body() body: { menuItemId: string; lines: { inventoryItemId: string; quantity: number }[] },
+  ) {
+    return this.recipes.upsertRecipe(t.organizationId, body.menuItemId, body.lines);
   }
 
   @Get("recipes/:menuItemId")
   @RequirePermission(Permission.INVENTORY_READ)
-  getRecipe(@Param("menuItemId") menuItemId: string) {
-    return this.recipes.getRecipe(menuItemId);
+  async getRecipe(@Tenant() t: TenantContext, @Param("menuItemId") menuItemId: string) {
+    return this.recipes.getRecipe(t.organizationId, menuItemId);
   }
 }

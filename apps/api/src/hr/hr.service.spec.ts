@@ -1,11 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { EmployeeStatus, MovementType } from "@erp/types";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { HrService } from "./hr.service";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 jest.mock("@erp/utils", () => ({
   toNumber: (v: unknown) => Number(v),
@@ -27,6 +28,11 @@ const mockInventory = {
 
 const mockEvents = {
   emit: jest.fn(),
+};
+
+const mockTenantScope = {
+  assertBranchInOrganization: jest.fn().mockResolvedValue(undefined),
+  resolveBranchId: jest.fn(),
 };
 
 const sampleRecipe = {
@@ -66,10 +72,28 @@ describe("HrService", () => {
         { provide: InventoryService, useValue: mockInventory },
         { provide: EventEmitter2, useValue: mockEvents },
         { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        { provide: TenantScopeService, useValue: mockTenantScope },
       ],
     }).compile();
 
     service = module.get<HrService>(HrService);
+  });
+
+  describe("createEmployee", () => {
+    it("validates branchId belongs to organization", async () => {
+      mockTenantScope.assertBranchInOrganization.mockRejectedValue(
+        new ForbiddenException("Branch does not belong to this organization"),
+      );
+      await expect(
+        service.createEmployee("org-1", {
+          name: "Test",
+          designation: "Role",
+          salary: 1000,
+          branchId: "br-other",
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.employee.create).not.toHaveBeenCalled();
+    });
   });
 
   describe("recordStaffMeal", () => {

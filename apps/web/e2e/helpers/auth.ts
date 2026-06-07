@@ -89,6 +89,7 @@ import {
   lookupOrgByJoinCode,
   resetJoinRequestState,
 } from "./join-request-state";
+import { branchIdFromRequestUrl, resolveMockBranchId } from "./tenant-scope-mock";
 
 /** Nest API on port 3001 (localhost or 127.0.0.1). */
 export function isBackendApiUrl(url: string): boolean {
@@ -380,6 +381,30 @@ export async function mockApiRoutes(page: Page) {
     (result as { status: number }).status >= 400 &&
     typeof (result as { message?: unknown }).message === "string";
 
+  const resolveBranchFromRoute = (
+    route: import("@playwright/test").Route,
+    required = true,
+  ) => {
+    const req = route.request();
+    const orgId = req.headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const headerBranch = req.headers()["x-branch-id"];
+    const queryBranch = branchIdFromRequestUrl(req.url());
+    return resolveMockBranchId(orgId, headerBranch, queryBranch, { required });
+  };
+
+  const fulfillBranchScopeError = async (
+    route: import("@playwright/test").Route,
+    scope: ReturnType<typeof resolveMockBranchId>,
+  ) => {
+    if (!scope.error) return false;
+    await route.fulfill({
+      status: scope.error.status,
+      contentType: "application/json",
+      body: JSON.stringify({ message: scope.error.message }),
+    });
+    return true;
+  };
+
   const fulfillTenantMutation = (route: import("@playwright/test").Route, result: unknown) => {
     if (result && typeof result === "object" && "status" in result) {
       const err = result as { status: number; message: string };
@@ -639,10 +664,12 @@ export async function mockApiRoutes(page: Page) {
     return fulfillJson(route, {});
   });
 
-  await page.route(backendApiRoute("reporting/dashboard"), (route) => {
+  await page.route(backendApiRoute("reporting/dashboard"), async (route) => {
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const orgId = route.request().headers()["x-organization-id"];
-    const branchId = route.request().headers()["x-branch-id"];
-    const key = `${orgId ?? FAKE_ORG_ID}:${branchId ?? FAKE_BRANCH_ID}`;
+    const branchId = scope.branchId ?? FAKE_BRANCH_ID;
+    const key = `${orgId ?? FAKE_ORG_ID}:${branchId}`;
     const body =
       MOCK_DASHBOARD_BY_TENANT[key] ?? MOCK_DASHBOARD_BY_TENANT[`${FAKE_ORG_ID}:${FAKE_BRANCH_ID}`];
     return route.fulfill({
@@ -744,6 +771,8 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && !url.match(/\/rooms\/[^/?]+$/)) {
+      const scope = resolveBranchFromRoute(route);
+      if (await fulfillBranchScopeError(route, scope)) return;
       return fulfillJson(route, getPmsRooms());
     }
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
@@ -798,6 +827,8 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("inventory/items"), async (route) => {
+    const scope = resolveBranchFromRoute(route);
+    if (await fulfillBranchScopeError(route, scope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;

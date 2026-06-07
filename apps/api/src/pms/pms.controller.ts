@@ -21,6 +21,7 @@ import { PmsService } from "./pms.service";
 import { AvailabilityService } from "./availability.service";
 import { RatePlansService } from "./rate-plans.service";
 import { RatePricingService } from "./rate-pricing.service";
+import { TenantScopeService } from "../common/tenant/tenant-scope.service";
 
 @Controller("pms")
 @UseGuards(JwtAuthGuard, TenantGuard, PermissionGuard)
@@ -30,10 +31,11 @@ export class PmsController {
     private readonly availability: AvailabilityService,
     private readonly ratePlans: RatePlansService,
     private readonly pricing: RatePricingService,
+    private readonly tenantScope: TenantScopeService,
   ) {}
 
-  private branchId(t: TenantContext, query?: string) {
-    return query || t.branchId!;
+  private resolveBranch(t: TenantContext, override?: string) {
+    return this.tenantScope.resolveBranchId(t, override);
   }
 
   @Get("branches")
@@ -84,23 +86,23 @@ export class PmsController {
 
   @Get("rooms")
   @RequirePermission(Permission.PMS_READ)
-  rooms(@Tenant() t: TenantContext, @Query("branchId") branchId: string) {
-    return this.pms.listRooms(this.branchId(t, branchId));
+  async rooms(@Tenant() t: TenantContext, @Query("branchId") branchId: string) {
+    return this.pms.listRooms((await this.resolveBranch(t, branchId))!);
   }
 
   @Get("rooms/:id")
   @RequirePermission(Permission.PMS_READ)
-  getRoom(
+  async getRoom(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
   ) {
-    return this.pms.getRoom(this.branchId(t, branchId), id);
+    return this.pms.getRoom((await this.resolveBranch(t, branchId))!, id);
   }
 
   @Post("rooms")
   @RequirePermission(Permission.PMS_WRITE)
-  createRoom(
+  async createRoom(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -110,12 +112,13 @@ export class PmsController {
       basePrice: number;
     },
   ) {
-    return this.pms.createRoom(body.branchId || t.branchId!, body);
+    const resolved = await this.resolveBranch(t, body.branchId);
+    return this.pms.createRoom(resolved!, body);
   }
 
   @Patch("rooms/:id")
   @RequirePermission(Permission.PMS_WRITE)
-  updateRoom(
+  async updateRoom(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
@@ -126,28 +129,28 @@ export class PmsController {
       basePrice?: number;
     },
   ) {
-    return this.pms.updateRoom(this.branchId(t, branchId), id, body);
+    return this.pms.updateRoom((await this.resolveBranch(t, branchId))!, id, body);
   }
 
   @Patch("rooms/:id/status")
   @RequirePermission(Permission.PMS_WRITE)
-  updateRoomStatus(
+  async updateRoomStatus(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Body() body: { status: RoomStatus },
   ) {
-    return this.pms.updateRoomStatus(this.branchId(t, branchId), id, body.status);
+    return this.pms.updateRoomStatus((await this.resolveBranch(t, branchId))!, id, body.status);
   }
 
   @Delete("rooms/:id")
   @RequirePermission(Permission.PMS_WRITE)
-  deleteRoom(
+  async deleteRoom(
     @Tenant() t: TenantContext,
     @Param("id") id: string,
     @Query("branchId") branchId: string,
   ) {
-    return this.pms.deleteRoom(this.branchId(t, branchId), id);
+    return this.pms.deleteRoom((await this.resolveBranch(t, branchId))!, id);
   }
 
   @Get("guests")
@@ -189,23 +192,23 @@ export class PmsController {
 
   @Get("reservations")
   @RequirePermission(Permission.PMS_READ)
-  reservations(@Query("branchId") branchId: string, @Tenant() t: TenantContext) {
-    return this.pms.listReservations(this.branchId(t, branchId));
+  async reservations(@Query("branchId") branchId: string, @Tenant() t: TenantContext) {
+    return this.pms.listReservations((await this.resolveBranch(t, branchId))!);
   }
 
   @Get("reservations/:id")
   @RequirePermission(Permission.PMS_READ)
-  getReservation(
+  async getReservation(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.getReservation(this.branchId(t, branchId), id);
+    return this.pms.getReservation((await this.resolveBranch(t, branchId))!, id);
   }
 
   @Post("reservations")
   @RequirePermission(Permission.PMS_WRITE)
-  createReservation(
+  async createReservation(
     @Tenant() t: TenantContext,
     @Body()
     body: {
@@ -223,8 +226,9 @@ export class PmsController {
       mealsPerGuestPerNightOverride?: number;
     },
   ) {
+    const resolved = await this.resolveBranch(t, body.branchId);
     return this.pms.createReservation(
-      body.branchId || t.branchId!,
+      resolved!,
       {
         guestId: body.guestId,
         roomId: body.roomId,
@@ -244,7 +248,7 @@ export class PmsController {
 
   @Patch("reservations/:id")
   @RequirePermission(Permission.PMS_WRITE)
-  updateReservation(
+  async updateReservation(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
@@ -263,7 +267,7 @@ export class PmsController {
     },
   ) {
     return this.pms.updateReservation(
-      this.branchId(t, branchId),
+      (await this.resolveBranch(t, branchId))!,
       id,
       {
         ...body,
@@ -276,28 +280,28 @@ export class PmsController {
 
   @Patch("reservations/:id/confirm")
   @RequirePermission(Permission.PMS_WRITE)
-  confirmReservation(
+  async confirmReservation(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.confirmReservation(this.branchId(t, branchId), id, t.userId);
+    return this.pms.confirmReservation((await this.resolveBranch(t, branchId))!, id, t.userId);
   }
 
   @Patch("reservations/:id/payment")
   @RequirePermission(Permission.PMS_WRITE)
-  recordPayment(
+  async recordPayment(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
     @Body() body: { paidAmount: number },
   ) {
-    return this.pms.recordPayment(this.branchId(t, branchId), id, body.paidAmount);
+    return this.pms.recordPayment((await this.resolveBranch(t, branchId))!, id, body.paidAmount);
   }
 
   @Get("availability")
   @RequirePermission(Permission.PMS_READ)
-  getAvailability(
+  async getAvailability(
     @Query("branchId") branchId: string,
     @Query("checkIn") checkIn: string,
     @Query("checkOut") checkOut: string,
@@ -306,7 +310,7 @@ export class PmsController {
     @Tenant() t: TenantContext,
   ) {
     return this.availability.findAvailableRooms({
-      branchId: this.branchId(t, branchId),
+      branchId: (await this.resolveBranch(t, branchId))!,
       checkIn: new Date(checkIn),
       checkOut: new Date(checkOut),
       roomTypeId,
@@ -316,42 +320,42 @@ export class PmsController {
 
   @Patch("reservations/:id/check-in")
   @RequirePermission(Permission.PMS_WRITE)
-  checkIn(
+  async checkIn(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.checkIn(id, this.branchId(t, branchId), t.userId);
+    return this.pms.checkIn(id, (await this.resolveBranch(t, branchId))!, t.userId);
   }
 
   @Patch("reservations/:id/check-out")
   @RequirePermission(Permission.PMS_WRITE)
-  checkOut(
+  async checkOut(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.checkOut(id, this.branchId(t, branchId), t.userId);
+    return this.pms.checkOut(id, (await this.resolveBranch(t, branchId))!, t.userId);
   }
 
   @Patch("reservations/:id/cancel")
   @RequirePermission(Permission.PMS_WRITE)
-  cancel(
+  async cancel(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.cancelReservation(id, this.branchId(t, branchId), t.userId);
+    return this.pms.cancelReservation(id, (await this.resolveBranch(t, branchId))!, t.userId);
   }
 
   @Delete("reservations/:id")
   @RequirePermission(Permission.PMS_WRITE)
-  deleteReservation(
+  async deleteReservation(
     @Param("id") id: string,
     @Query("branchId") branchId: string,
     @Tenant() t: TenantContext,
   ) {
-    return this.pms.deleteReservation(this.branchId(t, branchId), id, t.userId);
+    return this.pms.deleteReservation((await this.resolveBranch(t, branchId))!, id, t.userId);
   }
 
   @Get("rate-plans")

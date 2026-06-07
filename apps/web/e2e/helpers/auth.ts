@@ -20,6 +20,7 @@ import {
   resetProcurementState,
 } from "./procurement-state";
 import {
+  findMenuItemBranch,
   getPosCategories,
   getPosOrders,
   handlePosCategoryMutation,
@@ -1117,14 +1118,25 @@ export async function mockApiRoutes(page: Page) {
     const url = route.request().url();
     const idMatch = url.match(/\/recipes\/([^/?]+)/);
     if (method === "GET" && idMatch) {
-      const stored = mockRecipes[idMatch[1]];
+      const menuItemId = idMatch[1];
+      const itemBranch = findMenuItemBranch(menuItemId);
+      if (!itemBranch || (scope.branchId && itemBranch !== scope.branchId)) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Menu item not found" }),
+        });
+      }
+      const stored = mockRecipes[menuItemId];
       if (!stored) return fulfillJson(route, null);
       return fulfillJson(route, {
         menuItemId: stored.menuItemId,
         lines: stored.lines.map((l) => ({
           ...l,
           quantity: String(l.quantity),
-          inventoryItem: getInventoryItems().find((i) => i.id === l.inventoryItemId),
+          inventoryItem: getInventoryItems(scope.branchId).find(
+            (i) => i.id === l.inventoryItemId,
+          ),
         })),
       });
     }
@@ -1133,6 +1145,14 @@ export async function mockApiRoutes(page: Page) {
         menuItemId: string;
         lines: { inventoryItemId: string; quantity: number }[];
       };
+      const itemBranch = findMenuItemBranch(body.menuItemId);
+      if (!itemBranch || (scope.branchId && itemBranch !== scope.branchId)) {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Menu item not found" }),
+        });
+      }
       mockRecipes[body.menuItemId] = body;
       return fulfillJson(route, body);
     }

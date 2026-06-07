@@ -182,8 +182,8 @@ const runIntegration =
       branchId: fixture.branchA1Id,
     });
 
-    expect(res.status).toBe(200);
-    expect(res.body).not.toHaveProperty("id", fixture.payrollRunBId);
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Payroll run not found/);
   });
 
   it("lists guests only for the active organization", async () => {
@@ -205,5 +205,72 @@ const runIntegration =
     expect(aIds).toContain(fixture.guestAId);
     expect(bIds).toContain(fixture.guestBId);
     expect(aIds).not.toContain(fixture.guestBId);
+  });
+
+  it("rejects foreign reservation on inclusions allowances", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/inclusions/reservations/${fixture.reservationBId}/allowances?branchId=${fixture.branchA1Id}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Reservation not found/);
+  });
+
+  it("rejects foreign integration connection webhook events", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/integrations/connections/${fixture.connectionBId}/webhook-events`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Integration connection not found/);
+  });
+
+  it("rejects journal reverse for entry outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerB, {
+      method: "post",
+      path: `/api/accounting/journals/${fixture.journalAId}/reverse`,
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+      body: {},
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Journal entry not found/);
+  });
+
+  it("rejects purchase order from another branch in same organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/procurement/purchase-orders/${fixture.purchaseOrderA2Id}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Purchase order not found/);
+  });
+
+  it("lists vendors only for the active organization", async () => {
+    const orgA = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: "/api/procurement/vendors",
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+    const orgB = await integrationRequest(app, fixture.tokens.ownerB, {
+      path: "/api/procurement/vendors",
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+    });
+
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const aIds = (orgA.body as { id: string }[]).map((v) => v.id);
+    const bIds = (orgB.body as { id: string }[]).map((v) => v.id);
+    expect(aIds).toContain(`${INTEGRATION_PREFIX}-ven-a`);
+    expect(bIds).toContain(fixture.vendorBId);
+    expect(aIds).not.toContain(fixture.vendorBId);
   });
 });

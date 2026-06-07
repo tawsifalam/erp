@@ -50,6 +50,13 @@ export type IntegrationFixture = {
   employeeAId: string;
   employeeBId: string;
   payrollRunBId: string;
+  reservationAId: string;
+  reservationBId: string;
+  connectionAId: string;
+  connectionBId: string;
+  journalAId: string;
+  purchaseOrderA2Id: string;
+  vendorBId: string;
   tokens: {
     ownerA: string;
     frontDeskA: string;
@@ -511,6 +518,163 @@ export async function seedIntegrationFixture(
     },
   });
 
+  const reservationA = await prisma.reservation.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-res-a` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-res-a`,
+      branchId: branchA1Id,
+      guestId: guestA.id,
+      roomId: roomA.id,
+      checkIn: new Date("2026-08-01T14:00:00Z"),
+      checkOut: new Date("2026-08-03T11:00:00Z"),
+      status: "CONFIRMED",
+      totalAmount: 200,
+      paidAmount: 0,
+    },
+    update: {
+      branchId: branchA1Id,
+      guestId: guestA.id,
+      roomId: roomA.id,
+      checkIn: new Date("2026-08-01T14:00:00Z"),
+      checkOut: new Date("2026-08-03T11:00:00Z"),
+      status: "CONFIRMED",
+      totalAmount: 200,
+      paidAmount: 0,
+    },
+  });
+  const reservationB = await prisma.reservation.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-res-b` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-res-b`,
+      branchId: branchB1Id,
+      guestId: guestB.id,
+      roomId: roomB.id,
+      checkIn: new Date("2026-08-01T14:00:00Z"),
+      checkOut: new Date("2026-08-03T11:00:00Z"),
+      status: "CONFIRMED",
+      totalAmount: 240,
+      paidAmount: 0,
+    },
+    update: {
+      branchId: branchB1Id,
+      guestId: guestB.id,
+      roomId: roomB.id,
+      checkIn: new Date("2026-08-01T14:00:00Z"),
+      checkOut: new Date("2026-08-03T11:00:00Z"),
+      status: "CONFIRMED",
+      totalAmount: 240,
+      paidAmount: 0,
+    },
+  });
+
+  const connectionA = await prisma.integrationConnection.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-conn-a` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-conn-a`,
+      organizationId: orgAId,
+      branchId: branchA1Id,
+      adapterKey: "generic_webhook",
+      name: "Integration Webhook A",
+      webhookSecret: `${INTEGRATION_PREFIX}-secret-a`,
+    },
+    update: {
+      organizationId: orgAId,
+      branchId: branchA1Id,
+      adapterKey: "generic_webhook",
+      name: "Integration Webhook A",
+      webhookSecret: `${INTEGRATION_PREFIX}-secret-a`,
+    },
+  });
+  const connectionB = await prisma.integrationConnection.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-conn-b` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-conn-b`,
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      adapterKey: "generic_webhook",
+      name: "Integration Webhook B",
+      webhookSecret: `${INTEGRATION_PREFIX}-secret-b`,
+    },
+    update: {
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      adapterKey: "generic_webhook",
+      name: "Integration Webhook B",
+      webhookSecret: `${INTEGRATION_PREFIX}-secret-b`,
+    },
+  });
+
+  const vendorA = await prisma.vendor.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-ven-a` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-ven-a`,
+      organizationId: orgAId,
+      name: "Integration Vendor A",
+    },
+    update: { organizationId: orgAId, name: "Integration Vendor A" },
+  });
+  const vendorB = await prisma.vendor.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-ven-b` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-ven-b`,
+      organizationId: orgBId,
+      name: "Integration Vendor B",
+    },
+    update: { organizationId: orgBId, name: "Integration Vendor B" },
+  });
+
+  const purchaseOrderA2 = await prisma.purchaseOrder.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-po-a2` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-po-a2`,
+      organizationId: orgAId,
+      branchId: branchA2Id,
+      vendorId: vendorA.id,
+      status: "DRAFT",
+      lines: {
+        create: [
+          {
+            inventoryItemId: itemA2.id,
+            quantity: 5,
+            unitPrice: 10,
+          },
+        ],
+      },
+    },
+    update: {
+      organizationId: orgAId,
+      branchId: branchA2Id,
+      vendorId: vendorA.id,
+      status: "DRAFT",
+    },
+  });
+
+  const journalAId = `${INTEGRATION_PREFIX}-je-a`;
+  const existingJournal = await prisma.journalEntry.findUnique({
+    where: { id: journalAId },
+  });
+  if (!existingJournal) {
+    await prisma.journalEntry.create({
+      data: {
+        id: journalAId,
+        organizationId: orgAId,
+        fiscalPeriodId: `${INTEGRATION_PREFIX}-fp-a`,
+        description: "Integration journal A",
+        entryDate: new Date("2026-06-01T12:00:00Z"),
+        lines: {
+          create: [
+            { accountId: accountA.id, debit: 10, credit: 0 },
+            {
+              accountId: `${INTEGRATION_PREFIX}-acc-a-rev`,
+              debit: 0,
+              credit: 10,
+            },
+          ],
+        },
+      },
+    });
+  }
+
   return {
     orgAId,
     orgBId,
@@ -533,6 +697,13 @@ export async function seedIntegrationFixture(
     employeeAId: employeeA.id,
     employeeBId: employeeB.id,
     payrollRunBId: payrollRunB.id,
+    reservationAId: reservationA.id,
+    reservationBId: reservationB.id,
+    connectionAId: connectionA.id,
+    connectionBId: connectionB.id,
+    journalAId,
+    purchaseOrderA2Id: purchaseOrderA2.id,
+    vendorBId: vendorB.id,
     tokens: {
       ownerA: "Bearer int-owner-a",
       frontDeskA: "Bearer int-front-desk",
@@ -612,7 +783,26 @@ export async function cleanupIntegrationFixture(prisma: PrismaClient): Promise<v
 
     if (branchIds.length > 0) {
       await prisma.reportJob.deleteMany({ where: { branchId: { in: branchIds } } });
-      // Drop branches first so reservations/rooms cascade before org removal.
+
+      const purchaseOrders = await prisma.purchaseOrder.findMany({
+        where: { branchId: { in: branchIds } },
+        select: { id: true },
+      });
+      const purchaseOrderIds = purchaseOrders.map((po) => po.id);
+      if (purchaseOrderIds.length > 0) {
+        await prisma.goodsReceipt.deleteMany({
+          where: { purchaseOrderId: { in: purchaseOrderIds } },
+        });
+        await prisma.vendorPayment.deleteMany({
+          where: { purchaseOrderId: { in: purchaseOrderIds } },
+        });
+        await prisma.purchaseOrderLine.deleteMany({
+          where: { purchaseOrderId: { in: purchaseOrderIds } },
+        });
+        await prisma.purchaseOrder.deleteMany({ where: { id: { in: purchaseOrderIds } } });
+      }
+
+      // Drop branches so reservations/rooms/inventory cascade before org removal.
       await prisma.branch.deleteMany({ where: { id: { in: branchIds } } });
     }
 

@@ -37,11 +37,13 @@ export class PayrollController {
 
   @Get("runs/:id")
   @RequirePermission(Permission.HR_READ)
-  run(@Tenant() t: TenantContext, @Param("id") id: string) {
-    return this.prisma.payrollRun.findFirst({
+  async run(@Tenant() t: TenantContext, @Param("id") id: string) {
+    const row = await this.prisma.payrollRun.findFirst({
       where: { id, organizationId: t.organizationId },
       include: { lines: { include: { employee: true } } },
     });
+    if (!row) throw new NotFoundException("Payroll run not found");
+    return row;
   }
 
   @Get("runs/:id/payslip")

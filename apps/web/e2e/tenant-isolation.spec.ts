@@ -510,6 +510,19 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(body?.message).toMatch(/Menu item not found/);
   });
 
+  test("rejects inventory recipe GET for menu item in another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/inventory/recipes/mi_a2_001",
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Menu item not found/);
+  });
+
   test("rejects tenant routes without organization header", async ({ page }) => {
     const { status, body } = await apiStatus(
       page,

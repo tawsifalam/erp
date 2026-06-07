@@ -184,6 +184,15 @@ export function resetPosState() {
   orders = clone(INITIAL_ORDERS);
 }
 
+export function findMenuItemBranch(menuItemId: string): string | undefined {
+  for (const cat of categories) {
+    if (cat.items.some((item) => item.id === menuItemId)) {
+      return cat.branchId;
+    }
+  }
+  return undefined;
+}
+
 export function getPosCategories(branchId?: string) {
   const rows = categories.map((c) => ({ ...c, items: c.items.map((i) => ({ ...i })) }));
   if (!branchId) return rows;

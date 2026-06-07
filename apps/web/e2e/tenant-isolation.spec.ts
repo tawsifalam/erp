@@ -647,4 +647,47 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(status).toBe(404);
     expect(body?.message).toMatch(/Pending join request not found/);
   });
+
+  test("rejects join request reject for foreign organization", async ({ page }) => {
+    resetJoinRequestState();
+    seedPendingJoinRequest({ id: "ojr_reject_cross" });
+    const { status, body } = await apiStatus(
+      page,
+      "/api/tenants/join-requests/ojr_reject_cross/reject",
+      {
+        "X-Organization-Id": FAKE_ORG_ID_2,
+        "X-Branch-Id": FAKE_BRANCH_ID_2B,
+      },
+      { method: "POST", body: {} },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Pending join request not found/);
+  });
+
+  test("rejects branch members list for branch outside active organization", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      `/api/tenants/branches/${FAKE_BRANCH_ID_2B}/members`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Branch not found/);
+  });
+
+  test("rejects branch PATCH for branch outside active organization", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      `/api/tenants/branches/${FAKE_BRANCH_ID_2B}`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+      { method: "PATCH", body: { name: "Stolen Harbor Branch" } },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Branch not found/);
+  });
 });

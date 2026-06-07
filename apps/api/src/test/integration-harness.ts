@@ -60,6 +60,7 @@ export type IntegrationFixture = {
   notificationBId: string;
   reportJobBId: string;
   fiscalPeriodBId: string;
+  joinRequestAId: string;
   tokens: {
     ownerA: string;
     frontDeskA: string;
@@ -194,6 +195,18 @@ export async function seedIntegrationFixture(
     update: {
       email: `${INTEGRATION_PREFIX}-owner-b@test.local`,
       propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-owner-b"],
+    },
+  });
+  const applicant = await prisma.user.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-usr-applicant` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-usr-applicant`,
+      email: `${INTEGRATION_PREFIX}-applicant@test.local`,
+      propelAuthUserId: `${INTEGRATION_PREFIX}-pa-applicant`,
+    },
+    update: {
+      email: `${INTEGRATION_PREFIX}-applicant@test.local`,
+      propelAuthUserId: `${INTEGRATION_PREFIX}-pa-applicant`,
     },
   });
 
@@ -672,6 +685,27 @@ export async function seedIntegrationFixture(
     },
   });
 
+  const joinRequestAId = `${INTEGRATION_PREFIX}-ojr-a`;
+  await prisma.organizationJoinRequest.upsert({
+    where: { id: joinRequestAId },
+    create: {
+      id: joinRequestAId,
+      organizationId: orgAId,
+      userId: applicant.id,
+      status: "PENDING",
+      message: "Integration applicant join request",
+    },
+    update: {
+      organizationId: orgAId,
+      userId: applicant.id,
+      status: "PENDING",
+      message: "Integration applicant join request",
+      reviewedByUserId: null,
+      reviewedAt: null,
+      assignedRole: null,
+    },
+  });
+
   const notificationBId = `${INTEGRATION_PREFIX}-ntf-b`;
   await prisma.notification.upsert({
     where: { id: notificationBId },
@@ -775,6 +809,7 @@ export async function seedIntegrationFixture(
     notificationBId,
     reportJobBId,
     fiscalPeriodBId,
+    joinRequestAId,
     tokens: {
       ownerA: "Bearer int-owner-a",
       frontDeskA: "Bearer int-front-desk",
@@ -836,6 +871,9 @@ export async function cleanupIntegrationFixture(prisma: PrismaClient): Promise<v
         where: { organizationId: { in: orgIds } },
       });
       await prisma.journalEntry.deleteMany({ where: { organizationId: { in: orgIds } } });
+      await prisma.organizationJoinRequest.deleteMany({
+        where: { organizationId: { in: orgIds } },
+      });
       await prisma.userBranch.deleteMany({ where: { organizationId: { in: orgIds } } });
       await prisma.userOrganization.deleteMany({ where: { organizationId: { in: orgIds } } });
 

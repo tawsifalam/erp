@@ -696,27 +696,50 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("tenants/organizations/current"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const orgId = route.request().headers()["x-organization-id"];
-    const result = handleTenantMutation(method, route.request().url(), body, orgId);
+    const result = handleTenantMutation(
+      method,
+      route.request().url(),
+      body,
+      orgScope.organizationId,
+    );
     return fulfillTenantMutation(route, result);
   });
 
   await page.route(backendApiRoute("tenants/branches/"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const orgId = route.request().headers()["x-organization-id"];
-    const result = handleTenantMutation(method, route.request().url(), body, orgId);
+    const result = handleTenantMutation(
+      method,
+      route.request().url(),
+      body,
+      orgScope.organizationId,
+    );
     return fulfillTenantMutation(route, result);
   });
 
   await page.route(backendApiListRoute("tenants/branches"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const orgId = route.request().headers()["x-organization-id"];
-    const result = handleTenantMutation(method, url, body, orgId);
+    const result = handleTenantMutation(method, url, body, orgScope.organizationId);
+    if (result && typeof result === "object" && "status" in result) {
+      const err = result as { status: number; message: string };
+      if (err.status >= 400) {
+        return route.fulfill({
+          status: err.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: err.message }),
+        });
+      }
+    }
     return fulfillJson(route, result);
   });
 

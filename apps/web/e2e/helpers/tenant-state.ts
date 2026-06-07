@@ -18,10 +18,21 @@ type MockOrgCurrent = {
   branches: MockBranch[];
 };
 
+const MOCK_ORG_B_ID = "org-test-002";
+const MOCK_BRANCH_B1_ID = "branch-test-003";
+
 const INITIAL_BRANCHES: MockBranch[] = [
   { id: "branch-test-001", name: "Main Branch", timezone: "Asia/Dhaka" },
   { id: "branch-test-002", name: "Annex Branch", timezone: "Asia/Dhaka" },
 ];
+
+const ORG_B: MockOrgCurrent = {
+  id: MOCK_ORG_B_ID,
+  name: "Harbor Hotel Group",
+  propelAuthOrgId: "pa-org-b-propelauth",
+  joinCode: "ov_harbor",
+  branches: [{ id: MOCK_BRANCH_B1_ID, name: "Harbor Downtown", timezone: "Asia/Dhaka" }],
+};
 
 let orgName = "Boulevard Café";
 let branches = structuredClone(INITIAL_BRANCHES) as MockBranch[];
@@ -54,7 +65,23 @@ export function getCurrentOrganization(): MockOrgCurrent {
 
 export function getOrganizationById(orgId: string): MockOrgCurrent | null {
   if (orgId === "org-test-001") return getCurrentOrganization();
+  if (orgId === MOCK_ORG_B_ID) return ORG_B;
   return createdOrganizations.find((org) => org.id === orgId) ?? null;
+}
+
+function branchBelongsToOrg(branchId: string, orgId?: string): boolean {
+  if (!orgId) return branches.some((b) => b.id === branchId);
+  const org = getOrganizationById(orgId);
+  if (!org) return false;
+  return org.branches.some((b) => b.id === branchId);
+}
+
+function findMutableBranch(branchId: string, orgId?: string): MockBranch | undefined {
+  if (!orgId || orgId === "org-test-001") {
+    return branches.find((b) => b.id === branchId);
+  }
+  const org = getOrganizationById(orgId);
+  return org?.branches.find((b) => b.id === branchId);
 }
 
 export function getCreatedOrganizationMemberships() {
@@ -134,8 +161,13 @@ export function handleTenantMutation(
   if (url.match(/\/tenants\/branches\/[^/?]+/) && method === "PATCH") {
     const idMatch = url.match(/\/branches\/([^/?]+)/);
     const id = idMatch?.[1];
-    const branch = branches.find((b) => b.id === id);
-    if (!branch) return { status: 404, message: "Branch not found" };
+    if (activeOrgId && !getOrganizationById(activeOrgId)) {
+      return { status: 403, message: "Not a member of this organization" };
+    }
+    const branch = findMutableBranch(id!, activeOrgId);
+    if (!branch || !branchBelongsToOrg(id!, activeOrgId)) {
+      return { status: 404, message: "Branch not found" };
+    }
     if (body?.name) branch.name = String(body.name);
     if (body?.timezone) branch.timezone = String(body.timezone);
     recordAudit({
@@ -150,12 +182,26 @@ export function handleTenantMutation(
   if (url.match(/\/tenants\/branches\/[^/?]+/) && method === "DELETE") {
     const idMatch = url.match(/\/branches\/([^/?]+)/);
     const id = idMatch?.[1];
-    const branch = branches.find((b) => b.id === id);
-    if (!branch) return { status: 404, message: "Branch not found" };
-    if (branches.length <= 1) {
+    if (activeOrgId && !getOrganizationById(activeOrgId)) {
+      return { status: 403, message: "Not a member of this organization" };
+    }
+    const branch = findMutableBranch(id!, activeOrgId);
+    if (!branch || !branchBelongsToOrg(id!, activeOrgId)) {
+      return { status: 404, message: "Branch not found" };
+    }
+    const orgBranches =
+      !activeOrgId || activeOrgId === "org-test-001"
+        ? branches
+        : (getOrganizationById(activeOrgId)?.branches ?? []);
+    if (orgBranches.length <= 1) {
       return { status: 400, message: "Cannot delete the last branch in the organization" };
     }
-    branches = branches.filter((b) => b.id !== id);
+    if (!activeOrgId || activeOrgId === "org-test-001") {
+      branches = branches.filter((b) => b.id !== id);
+    } else {
+      const org = getOrganizationById(activeOrgId);
+      if (org) org.branches = org.branches.filter((b) => b.id !== id);
+    }
     recordAudit({
       action: "DELETE",
       entityType: "branch",

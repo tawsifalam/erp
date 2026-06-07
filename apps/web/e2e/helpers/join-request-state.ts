@@ -1,5 +1,5 @@
 import { E2E_ORG_ID } from "./audit-state";
-import { getCurrentOrganization, getOrgName } from "./tenant-state";
+import { getCurrentOrganization, getOrganizationById, getOrgName } from "./tenant-state";
 
 export const E2E_JOIN_CODE = "ov_testcode";
 export const APPLICANT_USER_ID = "user-applicant-001";
@@ -157,28 +157,42 @@ export function handleJoinRequestMutation(
     (url.endsWith("/join-requests") || url.match(/\/join-requests\?/)) &&
     method === "POST"
   ) {
-    const orgId = String(body?.organizationId ?? E2E_ORG_ID);
-      const existing = joinRequests.find(
-        (r) => r.userId === actingUserId && r.status === "PENDING",
-      );
-      if (existing) {
-        return { status: 409, message: "You already have a pending join request" };
+    let orgId = body?.organizationId ? String(body.organizationId) : undefined;
+    if (!orgId && body?.joinCode) {
+      const resolved = lookupOrgByJoinCode(String(body.joinCode));
+      if (!resolved) {
+        return { status: 404, message: "Organization not found for join code" };
       }
-      const req: MockJoinRequest = {
-        id: `ojr_${joinRequests.length + 1}`,
-        organizationId: orgId,
-        userId: actingUserId,
-        message: body?.message ? String(body.message) : null,
-        status: "PENDING",
-        user: {
-          id: actingUserId,
-          email: actingUserId === APPLICANT_USER_ID ? APPLICANT_EMAIL : "admin@boulevard.cafe",
-          name: actingUserId === APPLICANT_USER_ID ? "New Applicant" : "Admin User",
-        },
-        organization: { id: orgId, name: getOrgName() },
-      };
-      joinRequests.push(req);
-      return req;
+      orgId = resolved.id;
+    }
+    if (!orgId) {
+      return { status: 400, message: "organizationId or joinCode is required" };
+    }
+    const org = getOrganizationById(orgId);
+    if (!org) {
+      return { status: 404, message: "Organization not found" };
+    }
+    const existing = joinRequests.find(
+      (r) => r.userId === actingUserId && r.status === "PENDING",
+    );
+    if (existing) {
+      return { status: 409, message: "You already have a pending join request" };
+    }
+    const req: MockJoinRequest = {
+      id: `ojr_${joinRequests.length + 1}`,
+      organizationId: orgId,
+      userId: actingUserId,
+      message: body?.message ? String(body.message) : null,
+      status: "PENDING",
+      user: {
+        id: actingUserId,
+        email: actingUserId === APPLICANT_USER_ID ? APPLICANT_EMAIL : "admin@boulevard.cafe",
+        name: actingUserId === APPLICANT_USER_ID ? "New Applicant" : "Admin User",
+      },
+      organization: { id: orgId, name: org.name },
+    };
+    joinRequests.push(req);
+    return req;
   }
 
   if (url.includes("/join-requests") && method === "GET" && !url.includes("/mine")) {

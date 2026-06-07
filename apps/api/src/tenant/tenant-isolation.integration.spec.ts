@@ -316,6 +316,43 @@ const runIntegration =
     expect(res.body.message).toMatch(/Reservation not found/);
   });
 
+  it("rejects branch members list for branch outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/tenants/branches/${fixture.branchB1Id}/members`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Branch not found/);
+  });
+
+  it("rejects branch PATCH for branch outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "patch",
+      path: `/api/tenants/branches/${fixture.branchB1Id}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: { name: "Stolen Branch" },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Branch not found/);
+  });
+
+  it("rejects join request reject outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerB, {
+      method: "post",
+      path: `/api/tenants/join-requests/${fixture.joinRequestAId}/reject`,
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+      body: {},
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Pending join request not found/);
+  });
+
   it("lists vendors only for the active organization", async () => {
     const orgA = await integrationRequest(app, fixture.tokens.ownerA, {
       path: "/api/procurement/vendors",

@@ -117,7 +117,12 @@ export function handleJoinRequestMutation(
 
   if (url.match(/\/join-requests\/[^/]+\/approve/) && method === "POST") {
     const id = url.match(/\/join-requests\/([^/]+)\/approve/)?.[1];
-    const req = joinRequests.find((r) => r.id === id && r.status === "PENDING");
+    const req = joinRequests.find(
+      (r) =>
+        r.id === id &&
+        r.status === "PENDING" &&
+        r.organizationId === organizationId,
+    );
     if (!req) return { status: 404, message: "Pending join request not found" };
     req.status = "APPROVED";
     req.assignedRole = String(body?.role ?? "FRONT_DESK");
@@ -129,7 +134,12 @@ export function handleJoinRequestMutation(
 
   if (url.match(/\/join-requests\/[^/]+\/reject/) && method === "POST") {
     const id = url.match(/\/join-requests\/([^/]+)\/reject/)?.[1];
-    const req = joinRequests.find((r) => r.id === id && r.status === "PENDING");
+    const req = joinRequests.find(
+      (r) =>
+        r.id === id &&
+        r.status === "PENDING" &&
+        r.organizationId === organizationId,
+    );
     if (!req) return { status: 404, message: "Pending join request not found" };
     req.status = "REJECTED";
     return { ...req };

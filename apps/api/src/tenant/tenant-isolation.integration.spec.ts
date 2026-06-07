@@ -7,6 +7,7 @@ import {
   getHarnessPrisma,
   INTEGRATION_PREFIX,
   integrationRequest,
+  integrationRequestWithoutOrg,
   seedIntegrationFixture,
   type IntegrationFixture,
 } from "../test/integration-harness";
@@ -126,5 +127,83 @@ const runIntegration =
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/branchId is required/);
+  });
+
+  it("rejects tenant routes without X-Organization-Id header", async () => {
+    const res = await integrationRequestWithoutOrg(app, fixture.tokens.ownerA, {
+      path: `/api/inventory/items?branchId=${fixture.branchA1Id}`,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/X-Organization-Id header is required/);
+  });
+
+  it("rejects foreign guestId on reservation create", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "post",
+      path: "/api/pms/reservations",
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: {
+        branchId: fixture.branchA1Id,
+        guestId: fixture.guestBId,
+        roomId: fixture.roomAId,
+        checkIn: "2026-07-01T14:00:00.000Z",
+        checkOut: "2026-07-03T11:00:00.000Z",
+        totalAmount: 200,
+      },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Guest not found/);
+  });
+
+  it("rejects foreign employeeId on HR attendance clock", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "post",
+      path: "/api/hr/attendance/clock",
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: {
+        employeeId: fixture.employeeBId,
+        type: "CLOCK_IN",
+      },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Employee not found/);
+  });
+
+  it("does not return payroll run from another organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/payroll/runs/${fixture.payrollRunBId}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).not.toHaveProperty("id", fixture.payrollRunBId);
+  });
+
+  it("lists guests only for the active organization", async () => {
+    const orgA = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: "/api/pms/guests",
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+    const orgB = await integrationRequest(app, fixture.tokens.ownerB, {
+      path: "/api/pms/guests",
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+    });
+
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const aIds = (orgA.body as { id: string }[]).map((g) => g.id);
+    const bIds = (orgB.body as { id: string }[]).map((g) => g.id);
+    expect(aIds).toContain(fixture.guestAId);
+    expect(bIds).toContain(fixture.guestBId);
+    expect(aIds).not.toContain(fixture.guestBId);
   });
 });

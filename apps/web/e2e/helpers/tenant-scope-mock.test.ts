@@ -26,6 +26,8 @@ import { getPosOrders, resetPosState } from "./pos-state";
 import { getInclusionPackages, getInclusionRecipes, resetInclusionsState } from "./inclusions-state";
 import { getHrAttendance, resetHrState } from "./hr-state";
 import { getProcurementVendors, resetProcurementState } from "./procurement-state";
+import { listPendingInvites, resetInviteState } from "./invite-state";
+import { listOrgMembers } from "./tenant-state";
 
 describe("tenant-scope-mock", () => {
   beforeEach(() => {
@@ -38,6 +40,7 @@ describe("tenant-scope-mock", () => {
     resetInclusionsState();
     resetHrState();
     resetProcurementState();
+    resetInviteState();
   });
 
   it("rejects unknown organization", () => {
@@ -100,6 +103,12 @@ describe("tenant-scope-mock", () => {
 
     expect(getAccountingJournals(MOCK_ORG_A).some((j) => j.id === "je_001")).toBe(true);
     expect(getAccountingJournals(MOCK_ORG_B)).toHaveLength(0);
+
+    expect(listPendingInvites(MOCK_ORG_A).some((i) => i.id === "inv_a_001")).toBe(true);
+    expect(listPendingInvites(MOCK_ORG_B).some((i) => i.id === "inv_b_001")).toBe(true);
+
+    expect(listOrgMembers(MOCK_ORG_A).some((m) => m.userId === "usr-e2e-admin")).toBe(true);
+    expect(listOrgMembers(MOCK_ORG_B).some((m) => m.userId === "usr-org-b-owner")).toBe(true);
   });
 
   it("rejects branch from another organization", () => {

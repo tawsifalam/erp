@@ -45,6 +45,11 @@ export type IntegrationFixture = {
   itemA2Id: string;
   menuItemA1Id: string;
   menuItemB1Id: string;
+  guestAId: string;
+  guestBId: string;
+  employeeAId: string;
+  employeeBId: string;
+  payrollRunBId: string;
   tokens: {
     ownerA: string;
     frontDeskA: string;
@@ -433,6 +438,79 @@ export async function seedIntegrationFixture(
     update: { name: "Pasta" },
   });
 
+  const guestA = await prisma.guest.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-guest-a` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-guest-a`,
+      organizationId: orgAId,
+      fullName: "Integration Guest A",
+    },
+    update: { organizationId: orgAId, fullName: "Integration Guest A" },
+  });
+  const guestB = await prisma.guest.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-guest-b` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-guest-b`,
+      organizationId: orgBId,
+      fullName: "Integration Guest B",
+    },
+    update: { organizationId: orgBId, fullName: "Integration Guest B" },
+  });
+
+  const employeeA = await prisma.employee.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-emp-a` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-emp-a`,
+      organizationId: orgAId,
+      branchId: branchA1Id,
+      name: "Integration Employee A",
+      salary: 1000,
+      designation: "Staff",
+    },
+    update: {
+      organizationId: orgAId,
+      branchId: branchA1Id,
+      name: "Integration Employee A",
+      salary: 1000,
+      designation: "Staff",
+    },
+  });
+  const employeeB = await prisma.employee.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-emp-b` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-emp-b`,
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      name: "Integration Employee B",
+      salary: 1000,
+      designation: "Staff",
+    },
+    update: {
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      name: "Integration Employee B",
+      salary: 1000,
+      designation: "Staff",
+    },
+  });
+
+  const payrollRunB = await prisma.payrollRun.upsert({
+    where: { id: `${INTEGRATION_PREFIX}-pr-b` },
+    create: {
+      id: `${INTEGRATION_PREFIX}-pr-b`,
+      organizationId: orgBId,
+      periodStart: new Date("2026-01-01"),
+      periodEnd: new Date("2026-01-31"),
+      status: "COMPLETED",
+    },
+    update: {
+      organizationId: orgBId,
+      periodStart: new Date("2026-01-01"),
+      periodEnd: new Date("2026-01-31"),
+      status: "COMPLETED",
+    },
+  });
+
   return {
     orgAId,
     orgBId,
@@ -450,6 +528,11 @@ export async function seedIntegrationFixture(
     itemA2Id: itemA2.id,
     menuItemA1Id: menuItemA1.id,
     menuItemB1Id: menuItemB1.id,
+    guestAId: guestA.id,
+    guestBId: guestB.id,
+    employeeAId: employeeA.id,
+    employeeBId: employeeB.id,
+    payrollRunBId: payrollRunB.id,
     tokens: {
       ownerA: "Bearer int-owner-a",
       frontDeskA: "Bearer int-front-desk",
@@ -561,6 +644,45 @@ export async function integrationRequest(
   const headers: Record<string, string> = {
     Authorization: token,
     "X-Organization-Id": opts.orgId,
+  };
+  if (opts.branchId) headers["X-Branch-Id"] = opts.branchId;
+
+  const method = (opts.method ?? "get").toUpperCase();
+  if (opts.body) headers["Content-Type"] = "application/json";
+
+  const res = await fetch(`${integrationBaseUrl}${opts.path}`, {
+    method,
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+
+  const text = await res.text();
+  let body: { message?: string } = {};
+  try {
+    body = text ? (JSON.parse(text) as { message?: string }) : {};
+  } catch {
+    body = {};
+  }
+
+  return { status: res.status, body };
+}
+
+export async function integrationRequestWithoutOrg(
+  _app: INestApplication,
+  token: string,
+  opts: {
+    method?: "get" | "post" | "patch" | "delete";
+    path: string;
+    branchId?: string;
+    body?: Record<string, unknown>;
+  },
+) {
+  if (!integrationBaseUrl) {
+    throw new Error("Integration app not initialized");
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: token,
   };
   if (opts.branchId) headers["X-Branch-Id"] = opts.branchId;
 

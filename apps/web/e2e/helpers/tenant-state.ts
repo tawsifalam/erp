@@ -69,6 +69,36 @@ export function getCreatedOrganizationMemberships() {
   }));
 }
 
+export function listOrgMembers(organizationId: string) {
+  if (organizationId === "org-test-001") {
+    return [
+      {
+        userId: "usr-e2e-admin",
+        role: "ADMIN",
+        isFounder: true,
+        user: { id: "usr-e2e-admin", email: "admin@test.com", name: "Admin User" },
+      },
+      {
+        userId: "usr-front-desk",
+        role: "FRONT_DESK",
+        isFounder: false,
+        user: { id: "usr-front-desk", email: "desk@test.com", name: "Front Desk" },
+      },
+    ];
+  }
+  if (organizationId === "org-test-002") {
+    return [
+      {
+        userId: "usr-org-b-owner",
+        role: "OWNER",
+        isFounder: true,
+        user: { id: "usr-org-b-owner", email: "owner@harbor.example", name: "Harbor Owner" },
+      },
+    ];
+  }
+  return [];
+}
+
 export function handleTenantMutation(
   method: string,
   url: string,

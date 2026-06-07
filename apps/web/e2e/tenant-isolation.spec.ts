@@ -510,6 +510,50 @@ test.describe("Tenant isolation (mock API)", () => {
     expect(body?.message).toMatch(/Menu item not found/);
   });
 
+  test("rejects tenant routes without organization header", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      `/api/inventory/items?branchId=${FAKE_BRANCH_ID}`,
+      { "X-Branch-Id": FAKE_BRANCH_ID },
+    );
+    expect(status).toBe(400);
+    expect(body?.message).toMatch(/X-Organization-Id header is required/);
+  });
+
+  test("lists invites only for the selected organization", async ({ page }) => {
+    const orgA = await apiStatus(page, "/api/tenants/invites", {
+      "X-Organization-Id": FAKE_ORG_ID,
+    });
+    const orgB = await apiStatus(page, "/api/tenants/invites", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const aEmails = (orgA.body as { email: string }[]).map((i) => i.email);
+    const bEmails = (orgB.body as { email: string }[]).map((i) => i.email);
+    expect(aEmails).toContain("desk@boulevard.example");
+    expect(bEmails).toContain("harbor@example.com");
+    expect(bEmails).not.toContain("desk@boulevard.example");
+  });
+
+  test("lists members only for the selected organization", async ({ page }) => {
+    const orgA = await apiStatus(page, "/api/tenants/members", {
+      "X-Organization-Id": FAKE_ORG_ID,
+    });
+    const orgB = await apiStatus(page, "/api/tenants/members", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(orgA.status).toBe(200);
+    expect(orgB.status).toBe(200);
+    const aIds = (orgA.body as { userId: string }[]).map((m) => m.userId);
+    const bIds = (orgB.body as { userId: string }[]).map((m) => m.userId);
+    expect(aIds).toContain("usr-e2e-admin");
+    expect(bIds).toContain("usr-org-b-owner");
+    expect(bIds).not.toContain("usr-e2e-admin");
+  });
+
   test("rejects guest mutation for foreign organization", async ({ page }) => {
     const { status, body } = await apiStatus(
       page,

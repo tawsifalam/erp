@@ -63,6 +63,7 @@ import {
   getOrgName,
   getTenantBranches,
   handleTenantMutation,
+  listOrgMembers,
   resetTenantState,
 } from "./tenant-state";
 import { listAuditLogs, resetAuditState } from "./audit-state";
@@ -388,7 +389,10 @@ export async function mockApiRoutes(page: Page) {
     typeof (result as { message?: unknown }).message === "string";
 
   const resolveOrgFromRoute = (route: import("@playwright/test").Route) => {
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = route.request().headers()["x-organization-id"];
+    if (!orgId) {
+      return { error: { status: 400, message: "X-Organization-Id header is required" } };
+    }
     const error = assertMockOrganizationAccess(String(orgId));
     if (error) return { error };
     return { organizationId: String(orgId) };
@@ -413,7 +417,10 @@ export async function mockApiRoutes(page: Page) {
   ) => {
     const req = route.request();
     const headers = req.headers();
-    const orgId = headers["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgId = headers["x-organization-id"];
+    if (!orgId) {
+      return { error: { status: 400, message: "X-Organization-Id header is required" } };
+    }
     const headerBranch = headers["x-branch-id"];
     const queryBranch = branchIdFromRequestUrl(req.url());
     const actor = actorFromRequestHeaders(headers);
@@ -630,11 +637,13 @@ export async function mockApiRoutes(page: Page) {
   );
 
   await page.route(backendApiRoute("tenants/join-requests"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
-    const result = handleJoinRequestMutation(method, url, body, "test-user-id", String(orgId));
+    const orgId = orgScope.organizationId!;
+    const result = handleJoinRequestMutation(method, url, body, "test-user-id", orgId);
     if (result === null) return fulfillJson(route, {});
     if (isMockApiError(result)) {
       return route.fulfill({
@@ -647,17 +656,31 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("tenants/invites"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
     const method = route.request().method();
     const url = route.request().url();
     const body = route.request().postDataJSON() as Record<string, unknown> | null;
-    const result = handleInviteMutation(method, url, body);
-    if (result !== null) return fulfillJson(route, result);
+    const result = handleInviteMutation(method, url, body, orgScope.organizationId);
+    if (result !== null) {
+      if (isMockApiError(result)) {
+        return route.fulfill({
+          status: result.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: result.message }),
+        });
+      }
+      return fulfillJson(route, result);
+    }
     return fulfillJson(route, {});
   });
 
-  await page.route(backendApiRoute("tenants/members"), (route) =>
-    fulfillJson(route, []),
-  );
+  await page.route(backendApiRoute("tenants/members"), async (route) => {
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
+    if (route.request().method() !== "GET") return fulfillJson(route, {});
+    return fulfillJson(route, listOrgMembers(orgScope.organizationId!));
+  });
 
   await page.route(backendApiRoute("tenants/organizations/search"), (route) =>
     fulfillJson(route, []),
@@ -851,7 +874,9 @@ export async function mockApiRoutes(page: Page) {
   });
 
   await page.route(backendApiRoute("pms/pricing/quote"), async (route) => {
-    const orgId = route.request().headers()["x-organization-id"] ?? FAKE_ORG_ID;
+    const orgScope = resolveOrgFromRoute(route);
+    if (await fulfillOrgScopeError(route, orgScope)) return;
+    const orgId = orgScope.organizationId!;
     const url = new URL(route.request().url());
     const roomId = url.searchParams.get("roomId");
     const checkIn = url.searchParams.get("checkIn");

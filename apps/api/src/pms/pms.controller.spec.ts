@@ -24,6 +24,7 @@ describe("PmsController", () => {
     resolveBranchId: jest.fn().mockResolvedValue("br_a1"),
     assertRoomInOrganization: jest.fn().mockResolvedValue(undefined),
     assertRoomTypeInOrganization: jest.fn().mockResolvedValue(undefined),
+    assertReservationInBranch: jest.fn().mockResolvedValue(undefined),
   } as unknown as TenantScopeService;
 
   let controller: PmsController;
@@ -33,6 +34,7 @@ describe("PmsController", () => {
     (mockTenantScope.resolveBranchId as jest.Mock).mockResolvedValue("br_a1");
     (mockTenantScope.assertRoomInOrganization as jest.Mock).mockResolvedValue(undefined);
     (mockTenantScope.assertRoomTypeInOrganization as jest.Mock).mockResolvedValue(undefined);
+    (mockTenantScope.assertReservationInBranch as jest.Mock).mockResolvedValue(undefined);
     (mockPricing.quoteStay as jest.Mock).mockResolvedValue({ totalAmount: 100 });
     (mockAvailability.findAvailableRooms as jest.Mock).mockResolvedValue([]);
 
@@ -126,6 +128,29 @@ describe("PmsController", () => {
         roomTypeId: "rt_001",
         excludeReservationId: undefined,
       });
+    });
+
+    it("rejects excludeReservationId from another branch", async () => {
+      (mockTenantScope.assertReservationInBranch as jest.Mock).mockRejectedValue(
+        new NotFoundException("Reservation not found"),
+      );
+
+      await expect(
+        controller.getAvailability(
+          "br_a1",
+          "2026-06-01T14:00:00Z",
+          "2026-06-03T11:00:00Z",
+          undefined,
+          "rsv_foreign",
+          tenant,
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockTenantScope.assertReservationInBranch).toHaveBeenCalledWith(
+        "br_a1",
+        "rsv_foreign",
+      );
+      expect(mockAvailability.findAvailableRooms).not.toHaveBeenCalled();
     });
   });
 });

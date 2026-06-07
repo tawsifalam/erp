@@ -57,6 +57,9 @@ export type IntegrationFixture = {
   journalAId: string;
   purchaseOrderA2Id: string;
   vendorBId: string;
+  notificationBId: string;
+  reportJobBId: string;
+  fiscalPeriodBId: string;
   tokens: {
     ownerA: string;
     frontDeskA: string;
@@ -342,10 +345,12 @@ export async function seedIntegrationFixture(
     update: { name: "Revenue B", type: "REVENUE" },
   });
 
+  const fiscalPeriodAId = `${INTEGRATION_PREFIX}-fp-a`;
+  const fiscalPeriodBId = `${INTEGRATION_PREFIX}-fp-b`;
   await prisma.fiscalPeriod.upsert({
-    where: { id: `${INTEGRATION_PREFIX}-fp-a` },
+    where: { id: fiscalPeriodAId },
     create: {
-      id: `${INTEGRATION_PREFIX}-fp-a`,
+      id: fiscalPeriodAId,
       organizationId: orgAId,
       name: "FY Integration A",
       startDate: new Date("2020-01-01"),
@@ -355,6 +360,24 @@ export async function seedIntegrationFixture(
     update: {
       organizationId: orgAId,
       name: "FY Integration A",
+      startDate: new Date("2020-01-01"),
+      endDate: new Date("2030-12-31"),
+      status: "OPEN",
+    },
+  });
+  await prisma.fiscalPeriod.upsert({
+    where: { id: fiscalPeriodBId },
+    create: {
+      id: fiscalPeriodBId,
+      organizationId: orgBId,
+      name: "FY Integration B",
+      startDate: new Date("2020-01-01"),
+      endDate: new Date("2030-12-31"),
+      status: "OPEN",
+    },
+    update: {
+      organizationId: orgBId,
+      name: "FY Integration B",
       startDate: new Date("2020-01-01"),
       endDate: new Date("2030-12-31"),
       status: "OPEN",
@@ -649,6 +672,51 @@ export async function seedIntegrationFixture(
     },
   });
 
+  const notificationBId = `${INTEGRATION_PREFIX}-ntf-b`;
+  await prisma.notification.upsert({
+    where: { id: notificationBId },
+    create: {
+      id: notificationBId,
+      organizationId: orgBId,
+      userId: ownerB.id,
+      type: "LOW_STOCK",
+      title: "Integration notification B",
+      body: "Org B only",
+    },
+    update: {
+      organizationId: orgBId,
+      userId: ownerB.id,
+      type: "LOW_STOCK",
+      title: "Integration notification B",
+      body: "Org B only",
+      readAt: null,
+    },
+  });
+
+  const reportJobBId = `${INTEGRATION_PREFIX}-rpt-b`;
+  await prisma.reportJob.upsert({
+    where: { id: reportJobBId },
+    create: {
+      id: reportJobBId,
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      requestedByUserId: ownerB.id,
+      type: "branch_summary",
+      status: "COMPLETED",
+      fileUrl: `erp-files/${reportJobBId}.csv`,
+      completedAt: new Date("2026-06-01T12:00:00Z"),
+    },
+    update: {
+      organizationId: orgBId,
+      branchId: branchB1Id,
+      requestedByUserId: ownerB.id,
+      type: "branch_summary",
+      status: "COMPLETED",
+      fileUrl: `erp-files/${reportJobBId}.csv`,
+      completedAt: new Date("2026-06-01T12:00:00Z"),
+    },
+  });
+
   const journalAId = `${INTEGRATION_PREFIX}-je-a`;
   const existingJournal = await prisma.journalEntry.findUnique({
     where: { id: journalAId },
@@ -658,7 +726,7 @@ export async function seedIntegrationFixture(
       data: {
         id: journalAId,
         organizationId: orgAId,
-        fiscalPeriodId: `${INTEGRATION_PREFIX}-fp-a`,
+        fiscalPeriodId: fiscalPeriodAId,
         description: "Integration journal A",
         entryDate: new Date("2026-06-01T12:00:00Z"),
         lines: {
@@ -704,6 +772,9 @@ export async function seedIntegrationFixture(
     journalAId,
     purchaseOrderA2Id: purchaseOrderA2.id,
     vendorBId: vendorB.id,
+    notificationBId,
+    reportJobBId,
+    fiscalPeriodBId,
     tokens: {
       ownerA: "Bearer int-owner-a",
       frontDeskA: "Bearer int-front-desk",

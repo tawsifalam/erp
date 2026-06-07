@@ -313,6 +313,12 @@ export class PmsController {
     if (roomTypeId) {
       await this.tenantScope.assertRoomTypeInOrganization(t.organizationId, roomTypeId);
     }
+    if (excludeReservationId) {
+      await this.tenantScope.assertReservationInBranch(
+        resolvedBranchId,
+        excludeReservationId,
+      );
+    }
     return this.availability.findAvailableRooms({
       branchId: resolvedBranchId,
       checkIn: new Date(checkIn),

@@ -94,6 +94,7 @@ import {
 import {
   actorFromRequestHeaders,
   assertMockOrganizationAccess,
+  assertMockReservationInBranch,
   assertMockRoomInOrg,
   branchIdFromRequestUrl,
   resolveMockBranchId,
@@ -818,6 +819,19 @@ export async function mockApiRoutes(page: Page) {
   await page.route(backendApiRoute("pms/availability"), async (route) => {
     const scope = resolveBranchFromRoute(route);
     if (await fulfillBranchScopeError(route, scope)) return;
+    const excludeReservationId = new URL(route.request().url()).searchParams.get(
+      "excludeReservationId",
+    );
+    if (excludeReservationId) {
+      const resError = assertMockReservationInBranch(scope.branchId!, excludeReservationId);
+      if (resError) {
+        return route.fulfill({
+          status: resError.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: resError.message }),
+        });
+      }
+    }
     return fulfillJson(
       route,
       getPmsRooms(scope.branchId).filter((r) => r.status === "VACANT"),
@@ -1238,11 +1252,18 @@ export async function mockApiRoutes(page: Page) {
     const method = route.request().method();
     const url = route.request().url();
     if (method === "GET" && url.includes("/download")) {
-      const isPdf =
-        url.includes("rpt_") &&
-        getReportJobs(orgScope.organizationId).some(
-          (j) => url.includes(j.id) && j.fileUrl?.endsWith(".pdf"),
-        );
+      const jobId = url.match(/\/reporting\/jobs\/([^/]+)\/download/)?.[1];
+      const job = jobId
+        ? getReportJobs(orgScope.organizationId).find((j) => j.id === jobId)
+        : undefined;
+      if (!job?.fileUrl || job.status !== "COMPLETED") {
+        return route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Report file not available" }),
+        });
+      }
+      const isPdf = job.fileUrl.endsWith(".pdf");
       return route.fulfill({
         status: 200,
         contentType: isPdf ? "application/pdf" : "text/csv",

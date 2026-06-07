@@ -9,6 +9,7 @@ import {
   assertMockBranchGrant,
   assertMockBranchInOrg,
   assertMockOrganizationAccess,
+  assertMockReservationInBranch,
   assertMockRoomInBranch,
   assertMockRoomInOrg,
   resolveMockBranchId,
@@ -179,5 +180,14 @@ describe("tenant-scope-mock", () => {
 
   it("allows accounts in organization", () => {
     expect(assertMockAccountsInOrg(MOCK_ORG_A, ["acc_1000", "acc_4000"])).toBeNull();
+  });
+
+  it("rejects reservation from another branch", () => {
+    const err = assertMockReservationInBranch(MOCK_BRANCH_A1, "res-a2-001");
+    expect(err?.status).toBe(404);
+  });
+
+  it("allows reservation in requested branch", () => {
+    expect(assertMockReservationInBranch(MOCK_BRANCH_A2, "res-a2-001")).toBeNull();
   });
 });

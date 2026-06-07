@@ -253,6 +253,69 @@ const runIntegration =
     expect(res.body.message).toMatch(/Purchase order not found/);
   });
 
+  it("rejects foreign excludeReservationId on PMS availability", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/pms/availability?branchId=${fixture.branchA1Id}&checkIn=2026-09-01T14:00:00Z&checkOut=2026-09-03T11:00:00Z&excludeReservationId=${fixture.reservationBId}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Reservation not found/);
+  });
+
+  it("rejects mark-read for notification outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "patch",
+      path: `/api/notifications/${fixture.notificationBId}/read`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Notification not found/);
+  });
+
+  it("rejects fiscal period close outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerB, {
+      method: "patch",
+      path: `/api/accounting/fiscal-periods/${INTEGRATION_PREFIX}-fp-a/close`,
+      orgId: fixture.orgBId,
+      branchId: fixture.branchB1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Fiscal period not found/);
+  });
+
+  it("rejects report job download outside active organization", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      path: `/api/reporting/jobs/${fixture.reportJobBId}/download`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Report file not available/);
+  });
+
+  it("rejects foreign reservation on inclusions consume", async () => {
+    const res = await integrationRequest(app, fixture.tokens.ownerA, {
+      method: "post",
+      path: `/api/inclusions/reservations/${fixture.reservationBId}/consume?branchId=${fixture.branchA1Id}`,
+      orgId: fixture.orgAId,
+      branchId: fixture.branchA1Id,
+      body: {
+        inclusionType: "MEAL",
+        inclusionRecipeId: `${INTEGRATION_PREFIX}-recipe-dummy`,
+        quantity: 1,
+      },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toMatch(/Reservation not found/);
+  });
+
   it("lists vendors only for the active organization", async () => {
     const orgA = await integrationRequest(app, fixture.tokens.ownerA, {
       path: "/api/procurement/vendors",

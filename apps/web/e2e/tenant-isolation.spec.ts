@@ -7,6 +7,7 @@ import {
   FAKE_ORG_ID,
   FAKE_ORG_ID_2,
 } from "./helpers/auth";
+import { resetJoinRequestState, seedPendingJoinRequest } from "./helpers/join-request-state";
 
 const API_BASE = "http://localhost:3001";
 
@@ -579,5 +580,71 @@ test.describe("Tenant isolation (mock API)", () => {
     );
     expect(status).toBe(404);
     expect(body?.message).toMatch(/Guest not found/);
+  });
+
+  test("rejects PMS availability excludeReservationId from another branch", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      `/api/pms/availability?branchId=${FAKE_BRANCH_ID}&checkIn=2026-06-01T14:00:00Z&checkOut=2026-06-03T11:00:00Z&excludeReservationId=res-a2-001`,
+      {
+        "X-Organization-Id": FAKE_ORG_ID,
+        "X-Branch-Id": FAKE_BRANCH_ID,
+      },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Reservation not found/);
+  });
+
+  test("rejects notification mark-read for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/notifications/ntf_seed_1/read",
+      {
+        "X-Organization-Id": FAKE_ORG_ID_2,
+        "X-Branch-Id": FAKE_BRANCH_ID_2B,
+      },
+      { method: "PATCH" },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Notification not found/);
+  });
+
+  test("rejects report job download for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(page, "/api/reporting/jobs/rpt_001/download", {
+      "X-Organization-Id": FAKE_ORG_ID_2,
+      "X-Branch-Id": FAKE_BRANCH_ID_2B,
+    });
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Report file not available/);
+  });
+
+  test("rejects fiscal period close for foreign organization", async ({ page }) => {
+    const { status, body } = await apiStatus(
+      page,
+      "/api/accounting/fiscal-periods/fp_demo/close",
+      {
+        "X-Organization-Id": FAKE_ORG_ID_2,
+        "X-Branch-Id": FAKE_BRANCH_ID_2B,
+      },
+      { method: "PATCH" },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Fiscal period not found/);
+  });
+
+  test("rejects join request approve for foreign organization", async ({ page }) => {
+    resetJoinRequestState();
+    seedPendingJoinRequest({ id: "ojr_cross_org" });
+    const { status, body } = await apiStatus(
+      page,
+      "/api/tenants/join-requests/ojr_cross_org/approve",
+      {
+        "X-Organization-Id": FAKE_ORG_ID_2,
+        "X-Branch-Id": FAKE_BRANCH_ID_2B,
+      },
+      { method: "POST", body: { role: "FRONT_DESK" } },
+    );
+    expect(status).toBe(404);
+    expect(body?.message).toMatch(/Pending join request not found/);
   });
 });

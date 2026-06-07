@@ -1,6 +1,6 @@
 import { getAccessibleBranchesForUser } from "./branch-access-state";
 import { getAccountingAccounts } from "./accounting-state";
-import { getPmsRooms } from "./pms-state";
+import { getPmsReservations, getPmsRooms } from "./pms-state";
 
 /** E2E org/branch ids — keep in sync with auth.ts FAKE_* constants. */
 export const MOCK_ORG_A = "org-test-001";
@@ -126,6 +126,17 @@ export function assertMockRoomInBranch(
   const room = getPmsRooms().find((r) => r.id === roomId);
   if (!room || room.branchId !== branchId) {
     return { status: 404, message: "Room not found" };
+  }
+  return null;
+}
+
+export function assertMockReservationInBranch(
+  branchId: string,
+  reservationId: string,
+): MockScopeError | null {
+  const inBranch = getPmsReservations(undefined, branchId).some((r) => r.id === reservationId);
+  if (!inBranch) {
+    return { status: 404, message: "Reservation not found" };
   }
   return null;
 }

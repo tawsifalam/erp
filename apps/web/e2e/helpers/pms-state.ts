@@ -73,6 +73,18 @@ const INITIAL_RESERVATIONS: MockReservation[] = [
     guest: { fullName: "Rahim Ahmed", id: "gst_001" },
     room: { roomNumber: "102", id: "rm_102", roomType: { name: "Standard Double" } },
   },
+  {
+    id: "res-a2-001",
+    status: "CONFIRMED",
+    checkIn: "2026-06-15T14:00:00Z",
+    checkOut: "2026-06-17T11:00:00Z",
+    totalAmount: "7600",
+    paidAmount: "0",
+    guestId: "gst_002",
+    roomId: "rm_a2_201",
+    guest: { fullName: "Fatima Khan", id: "gst_002" },
+    room: { roomNumber: "201", id: "rm_a2_201", roomType: { name: "Standard Double" } },
+  },
 ];
 
 const INITIAL_ROOMS: MockRoom[] = [

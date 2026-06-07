@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { getQueueToken } from "@nestjs/bullmq";
 import { NotificationsService } from "./notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -115,6 +115,43 @@ describe("NotificationsService", () => {
       const lowStock = prefs.find((p) => p.type === NotificationType.LOW_STOCK);
       expect(lowStock?.email).toBe(true);
       expect(lowStock?.isDefault).toBe(true);
+    });
+  });
+
+  describe("markRead", () => {
+    it("rejects notification outside active organization", async () => {
+      mockPrisma.notification.findFirst.mockResolvedValue(null);
+
+      await expect(service.markRead("org-a", "user-a", "ntf-foreign")).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(mockPrisma.notification.findFirst).toHaveBeenCalledWith({
+        where: { id: "ntf-foreign", organizationId: "org-a", userId: "user-a" },
+      });
+      expect(mockPrisma.notification.update).not.toHaveBeenCalled();
+    });
+
+    it("marks unread notification as read", async () => {
+      const existing = {
+        id: "ntf-1",
+        organizationId: "org-a",
+        userId: "user-a",
+        readAt: null,
+      };
+      mockPrisma.notification.findFirst.mockResolvedValue(existing);
+      mockPrisma.notification.update.mockResolvedValue({
+        ...existing,
+        readAt: new Date("2026-06-01T12:00:00Z"),
+      });
+
+      const result = await service.markRead("org-a", "user-a", "ntf-1");
+
+      expect(mockPrisma.notification.update).toHaveBeenCalledWith({
+        where: { id: "ntf-1" },
+        data: { readAt: expect.any(Date) },
+      });
+      expect(result.readAt).toBeTruthy();
     });
   });
 

@@ -1,8 +1,9 @@
 import { INestApplication } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
 import {
   cleanupIntegrationFixture,
   createIntegrationApp,
+  disconnectHarnessPrisma,
+  getHarnessPrisma,
   INTEGRATION_PREFIX,
   integrationRequest,
   seedIntegrationFixture,
@@ -14,18 +15,18 @@ const runIntegration =
 
 (runIntegration ? describe : describe.skip)("Tenant isolation (integration)", () => {
   let app: INestApplication;
-  let prisma: PrismaService;
   let fixture: IntegrationFixture;
 
   beforeAll(async () => {
+    const prisma = getHarnessPrisma();
     app = await createIntegrationApp();
-    prisma = app.get(PrismaService);
     fixture = await seedIntegrationFixture(prisma);
   });
 
   afterAll(async () => {
-    if (prisma) await cleanupIntegrationFixture(prisma);
+    await cleanupIntegrationFixture(getHarnessPrisma());
     if (app) await app.close();
+    await disconnectHarnessPrisma();
   });
 
   it("rejects foreign branchId on inventory list", async () => {
@@ -74,7 +75,7 @@ const runIntegration =
 
   it("rejects FRONT_DESK without branch grant on another branch in same org", async () => {
     const res = await integrationRequest(app, fixture.tokens.frontDeskA, {
-      path: `/api/inventory/items?branchId=${fixture.branchA2Id}`,
+      path: `/api/pms/rooms?branchId=${fixture.branchA2Id}`,
       orgId: fixture.orgAId,
       branchId: fixture.branchA1Id,
     });

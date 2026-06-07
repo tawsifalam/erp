@@ -45,6 +45,11 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm exec prisma migrate deploy
+        working-directory: apps/api
+      - run: RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration
+        env:
+          RUN_INTEGRATION: "1"
 
   e2e:
     runs-on: ubuntu-latest

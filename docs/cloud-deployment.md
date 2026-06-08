@@ -112,7 +112,7 @@ Skip `postgres`, `redis`, `minio` in `docker compose up`. Set connection strings
 ## Prerequisites
 
 - [ ] Domain (e.g. `app.yourdomain.com`)
-- [ ] [PropelAuth](https://www.propelauth.com) project
+- [ ] JWT secrets (`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` — min 16 chars; generate with `openssl rand -base64 32`)
 - [ ] VPS with Docker 24+ and Compose v2
 - [ ] **nginx** and **certbot** on the host (`apt install nginx certbot python3-certbot-nginx`)
 - [ ] Git clone at `/opt/erp`
@@ -383,7 +383,7 @@ Expected containers (project `erp`): **postgres, redis, minio, api, web** — fi
 ./scripts/deploy-prod.sh reset --seed   # staging: includes demo seed
 ```
 
-PropelAuth is unchanged; users must create or join an organization after reset.
+After reset, users sign in at `/auth/login` (or register) and complete onboarding to create or join an organization.
 
 ---
 
@@ -430,7 +430,7 @@ Browser: `https://app.yourdomain.com`
 
 | # | Test | Pass |
 |---|------|------|
-| 1 | Auth | PropelAuth login → `/dashboard` |
+| 1 | Auth | Email login at `/auth/login` → `/dashboard` |
 | 2 | Sync | First visit creates user/org (or onboarding join) |
 | 3 | Settings | Org rename, add/edit branch, guest/staff pools, team join code, notification prefs, integrations + channel export |
 | 4 | PMS | Guest, room, reservation, check-in/out, rates quote |
@@ -482,7 +482,9 @@ cd /opt/erp
 | `NEXT_PUBLIC_API_URL` | `https://app.yourdomain.com` |
 | `NEXT_PUBLIC_APP_URL` | `https://app.yourdomain.com` |
 | `CORS_ORIGIN` | Same as app URL |
-| `PROPELAUTH_*` | From dashboard |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | Strong random strings (min 16 chars) |
+| `APP_URL` | `https://app.yourdomain.com` (invite + reset links) |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Optional; required for invites and password reset email |
 | In-container DB (Path A) | Set by compose `api.environment`, not `.env` |
 | `MINIO_*` (Path A) | Compose sets `MINIO_ENDPOINT=minio`; rotate keys — see [Object storage (MinIO)](#object-storage-minio) |
 | `MINIO_*` (Path B) | Your S3-compatible endpoint, bucket, and keys on `api` only |
@@ -493,7 +495,7 @@ Validated in `packages/config/src/env.ts`.
 
 ## Staging
 
-Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db:seed` on staging only.
+Duplicate with `staging.yourdomain.com`, separate DB and JWT secrets. `db:seed` on staging only.
 
 ---
 
@@ -505,7 +507,8 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 | `Bind for :::6379` / `5432` | Host services conflict | Use `docker-compose.prod.yml`; `ss -tlnp` |
 | `Bind for 0.0.0.0:80 failed` | Starting compose **nginx** (removed from default) | Use host nginx only; do not add `docker-compose.nginx.yml` on VPS |
 | 502 from public URL | Host nginx up, api/web down | `curl 127.0.0.1:3001/api/health`; `docker compose "${COMPOSE[@]}" ps` |
-| Login loop | `PROPELAUTH_REDIRECT_URI` mismatch | Match dashboard exactly |
+| Login loop / stuck loading | Nginx routing `/api/auth/*` to web instead of API | All `/api/` → api (port 3001); see [auth.md](./auth.md) |
+| Auth API 404 on login | Same nginx misroute | Re-run `nginx-install`; remove legacy `location /api/auth/` → web |
 | CORS errors | `CORS_ORIGIN` ≠ app URL | Align with `NEXT_PUBLIC_APP_URL` |
 | Kitchen not updating | WebSocket blocked | Check `/socket.io/` in host nginx config |
 | `cp: cannot create ... /etc/nginx/sites-available/erp` | Host nginx not installed | `sudo apt install -y nginx certbot python3-certbot-nginx`; then `nginx-install` |
@@ -525,7 +528,7 @@ Duplicate with `staging.yourdomain.com`, separate DB and PropelAuth project. `db
 ```
 [ ] DNS → VPS
 [ ] apt install nginx certbot python3-certbot-nginx (Step 2)
-[ ] /opt/erp/.env (PropelAuth, NEXT_PUBLIC_*, CORS; optional Resend — see Email section)
+[ ] /opt/erp/.env (JWT_*, APP_URL, NEXT_PUBLIC_*, CORS; optional Resend — see Email section)
 [ ] ./scripts/deploy-prod.sh initial → curl http://127.0.0.1:3001/api/health
 [ ] ./scripts/deploy-prod.sh nginx-install --domain <domain>  (HTTP bootstrap)
 [ ] sudo certbot --nginx -d <domain>

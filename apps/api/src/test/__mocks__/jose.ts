@@ -1,8 +1,11 @@
-export class SignJWT {
-  private payload: Record<string, unknown> = {};
+type JwtPayload = Record<string, unknown>;
 
-  constructor(_payload: Record<string, unknown>) {
-    this.payload = { ..._payload };
+export class SignJWT {
+  private payload: JwtPayload = {};
+  private sub?: string;
+
+  constructor(payload: JwtPayload) {
+    this.payload = { ...payload };
   }
 
   setProtectedHeader(_header: Record<string, unknown>) {
@@ -17,19 +20,28 @@ export class SignJWT {
     return this;
   }
 
+  setSubject(sub: string) {
+    this.sub = sub;
+    return this;
+  }
+
   async sign(_secret: Uint8Array) {
-    const sub = this.payload.sub ?? "mock-user";
-    return `mock.jwt.${sub}`;
+    const sub = this.sub ?? (this.payload.userId as string) ?? "mock-user";
+    const encoded = Buffer.from(JSON.stringify({ ...this.payload, sub })).toString("base64url");
+    return `mock.jwt.${sub}.${encoded}`;
   }
 }
 
 export async function jwtVerify(token: string, _secret: Uint8Array) {
   const parts = token.split(".");
   const sub = parts[2] ?? "mock-user";
-  return {
-    payload: {
-      sub,
-      email: `${sub}@test.local`,
-    },
-  };
+  let payload: JwtPayload = { sub, email: `${sub}@test.local` };
+  if (parts[3]) {
+    try {
+      payload = { ...payload, ...JSON.parse(Buffer.from(parts[3], "base64url").toString()) };
+    } catch {
+      // keep default payload
+    }
+  }
+  return { payload };
 }

@@ -65,10 +65,15 @@ export default function OnboardingPendingPage() {
   }, [accessToken]);
 
   useEffect(() => {
-    if (authLoading || !accessToken || initialLoadDone.current) return;
+    if (authLoading) return;
+    if (!accessToken) {
+      router.replace("/auth/login?return_to=/onboarding/pending");
+      return;
+    }
+    if (initialLoadDone.current) return;
     initialLoadDone.current = true;
     loadStatus({ allowWhileLoading: true }).catch(() => setLoading(false));
-  }, [authLoading, accessToken, loadStatus]);
+  }, [authLoading, accessToken, loadStatus, router]);
 
   useEffect(() => {
     if (!accessToken || loading) return;

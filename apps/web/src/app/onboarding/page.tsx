@@ -89,9 +89,13 @@ export default function OnboardingPage() {
   }, [accessToken]);
 
   useEffect(() => {
-    if (authLoading || !accessToken) return;
+    if (authLoading) return;
+    if (!accessToken) {
+      router.replace("/auth/login?return_to=/onboarding");
+      return;
+    }
     void checkStatus();
-  }, [authLoading, accessToken, checkStatus]);
+  }, [authLoading, accessToken, checkStatus, router]);
 
   const searchOrgs = async () => {
     try {

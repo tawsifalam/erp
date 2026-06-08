@@ -147,6 +147,7 @@ export class AuthService {
       where: { id: claims.userId },
       data: { passwordHash, emailVerifiedAt: new Date() },
     });
+    await this.sessions.revokeAllForUser(claims.userId);
     return { ok: true };
   }
 

@@ -74,6 +74,24 @@ export class SessionService {
     await this.revokeRefreshToken(oldToken);
     await this.storeRefreshToken(newToken, userId, meta);
   }
+
+  async revokeAllForUser(userId: string): Promise<void> {
+    let cursor = "0";
+    do {
+      const [next, keys] = await this.redis.scan(cursor, "MATCH", "auth:refresh:*", "COUNT", 100);
+      cursor = next;
+      for (const key of keys) {
+        const raw = await this.redis.get(key);
+        if (!raw) continue;
+        try {
+          const data = JSON.parse(raw) as { userId?: string };
+          if (data.userId === userId) await this.redis.del(key);
+        } catch {
+          // ignore malformed session payload
+        }
+      }
+    } while (cursor !== "0");
+  }
 }
 
 function parseDurationSeconds(raw: string, fallback: number): number {

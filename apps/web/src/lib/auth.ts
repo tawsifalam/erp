@@ -3,8 +3,46 @@
 import {
   clearCachedAccessToken,
   getCachedAccessToken,
+  setCachedAccessToken,
 } from "./auth-token-store";
+import { refreshApi } from "./auth-api";
 import { getApiBaseUrl } from "./api-base-url";
+
+const SESSION_COOKIE = "erp_session";
+
+function setBrowserSessionFlag(active: boolean) {
+  if (typeof document === "undefined") return;
+  if (active) {
+    document.cookie = `${SESSION_COOKIE}=1; path=/; SameSite=Lax`;
+  } else {
+    document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0`;
+  }
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+/** Refresh access token from httpOnly cookie; updates in-memory cache for apiFetch. */
+export async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const data = await refreshApi();
+      if (data.accessToken) {
+        setCachedAccessToken(data.accessToken);
+        setBrowserSessionFlag(true);
+        return data.accessToken;
+      }
+      setCachedAccessToken(null);
+      setBrowserSessionFlag(false);
+      return null;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
 
 /** Redirect to login page. */
 export function signIn() {

@@ -16,7 +16,6 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  refreshSessions AuthRefreshSession[]
   memberships UserOrganization[]
   joinRequests OrganizationJoinRequest[] @relation("JoinRequestUser")
   reviewedJoinRequests OrganizationJoinRequest[] @relation("JoinRequestReviewer")
@@ -28,21 +27,6 @@ model User {
   branchAccesses UserBranch[] @relation("UserBranchMember")
   grantedBranchAccesses UserBranch[] @relation("UserBranchGranter")
   reportJobs    ReportJob[] @relation("ReportJobRequester")
-}
-
-model AuthRefreshSession {
-  id        String   @id @default(uuid())
-  userId    String
-  tokenHash String   @unique
-  expiresAt DateTime
-  userAgent String?
-  ip        String?
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
 }
 
 model Organization {

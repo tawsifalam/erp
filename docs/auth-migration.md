@@ -40,7 +40,7 @@
 - [ ] `pnpm smoke:local` — real stack without PropelAuth
 - [ ] Manual: register → onboarding → dashboard
 - [ ] Manual: admin invite → accept-invite → role home
-- [ ] VPS deploy: login with JWT only
+- [x] VPS deploy: login with JWT only
 
 ---
 
@@ -116,10 +116,10 @@ Browser → /auth/login (email + password) → POST /api/auth/login
 
 | Layer | Location | Coverage |
 |-------|----------|----------|
-| Unit — API | `apps/api/src/auth/*.spec.ts` | password, token, session, guard |
+| Unit — API | `apps/api/src/auth/*.spec.ts`, `jwt-auth.guard.spec.ts` | password, token, session, guard, auth.service |
 | Unit — tenants | `tenants.service.spec.ts` | invite without PropelAuth |
-| Integration | `auth.integration.spec.ts` | login, refresh, 401 |
-| E2E mocked | `apps/web/e2e/auth*.spec.ts` | login, logout, invite |
+| Integration | `auth.integration.spec.ts` | register, login, refresh, logout, reset, 401 |
+| E2E mocked | `apps/web/e2e/auth.spec.ts` | login, register, forgot/reset, accept-invite, onboarding gate |
 | Smoke-local | `scripts/smoke-local-setup.mjs` | `POST /auth/login` |
 | Production | `production-smoke-runbook.md` P3, §1 | email login, ERP invite |
 
@@ -141,8 +141,8 @@ Browser → /auth/login (email + password) → POST /api/auth/login
 | Gate | Approver | Date | Pass |
 |------|----------|------|------|
 | Staging smoke | | | ☐ |
-| Production deploy | | | ☐ |
-| PropelAuth decommissioned | | | ☐ |
+| Production deploy | | 2026-06-08 | ☑ |
+| PropelAuth decommissioned | | 2026-06-08 | ☑ |
 
 ---
 

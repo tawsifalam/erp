@@ -9,11 +9,13 @@ import {
   validatePasswordConfirmation,
 } from "@/components/auth/password-input";
 import { AuthPageShell, AuthPanel } from "@/components/auth/auth-page-shell";
-import { acceptInviteApi, getInvitePreviewApi } from "@/lib/auth-api";
+import { getInvitePreviewApi } from "@/lib/auth-api";
+import { useAuth } from "@/lib/auth-context";
 import { appToast } from "@/lib/app-toast";
 
 export default function AcceptInvitePage() {
   const router = useRouter();
+  const { acceptInvite } = useAuth();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const [orgName, setOrgName] = useState("");
@@ -47,7 +49,7 @@ export default function AcceptInvitePage() {
     }
     setSubmitting(true);
     try {
-      await acceptInviteApi(token, password, name || undefined);
+      await acceptInvite(token, password, name || undefined);
       router.replace("/");
     } catch (err) {
       appToast.error(err instanceof Error ? err.message : "Could not accept invite");

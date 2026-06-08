@@ -10,7 +10,7 @@ One Venue ERP uses **first-party JWT authentication** — no external auth SaaS.
 | **Web** (`apps/web/src/lib/auth-context.tsx`) | `AuthProvider`, login forms, access token cache for `apiFetch` |
 | **Middleware** (`apps/web/src/middleware.ts`) | Redirects unauthenticated users when `erp_refresh` cookie is missing |
 | **Redis** | Refresh session storage + rotation |
-| **PostgreSQL** | `User.passwordHash`, `AuthRefreshSession` |
+| **PostgreSQL** | `User.passwordHash` |
 
 ### Token flow
 

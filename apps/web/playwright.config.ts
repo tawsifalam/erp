@@ -80,12 +80,17 @@ export default defineConfig({
       },
     },
   ],
-  // E2E mocks API on :3001 — only Next.js is required (local and CI).
+  // E2E mocks API in the browser — only Next.js is required (local and CI).
   webServer: {
     command: "pnpm --filter @erp/web dev",
     cwd: "../../",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      PLAYWRIGHT: "1",
+      NEXT_PUBLIC_API_URL: "http://localhost:3000",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    },
   },
 });

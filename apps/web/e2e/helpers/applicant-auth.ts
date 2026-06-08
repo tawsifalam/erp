@@ -96,6 +96,10 @@ export async function mockApplicantApiRoutes(page: Page) {
       return fulfillJson(route, lookupOrgByJoinCode(code));
     }
 
-    return fulfillJson(route, {});
+    if (url.includes("/api/auth/")) {
+      return route.fallback();
+    }
+
+    return route.fallback();
   });
 }

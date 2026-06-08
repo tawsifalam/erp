@@ -119,7 +119,7 @@ Browser → /auth/login (email + password) → POST /api/auth/login
 | Unit — API | `apps/api/src/auth/*.spec.ts`, `jwt-auth.guard.spec.ts` | password, token, session, guard, auth.service |
 | Unit — tenants | `tenants.service.spec.ts` | invite without PropelAuth |
 | Integration | `auth.integration.spec.ts` | register, login, refresh, logout, reset, 401 |
-| E2E mocked | `apps/web/e2e/auth.spec.ts` | login, register, forgot/reset, accept-invite, onboarding gate |
+| E2E mocked | `apps/web/e2e/auth.spec.ts` | login, register, forgot/reset, accept-invite, logout, onboarding gate |
 | Smoke-local | `scripts/smoke-local-setup.mjs` | `POST /auth/login` |
 | Production | `production-smoke-runbook.md` P3, §1 | email login, ERP invite |
 

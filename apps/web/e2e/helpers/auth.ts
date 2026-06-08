@@ -100,9 +100,16 @@ import {
   resolveMockBranchId,
 } from "./tenant-scope-mock";
 
-/** Nest API on port 3001 (localhost or 127.0.0.1). */
+/** Browser API calls (same-origin :3000 or direct :3001). */
 export function isBackendApiUrl(url: string): boolean {
-  return /https?:\/\/(localhost|127\.0\.0\.1):3001\/api\//.test(url);
+  try {
+    const { pathname, hostname, port } = new URL(url);
+    if (!pathname.startsWith("/api/")) return false;
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") return false;
+    return port === "3000" || port === "3001" || port === "";
+  } catch {
+    return /\/api\//.test(url);
+  }
 }
 
 export function backendApiRoute(pathContains: string) {

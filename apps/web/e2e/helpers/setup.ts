@@ -1,10 +1,12 @@
 import type { Page } from "@playwright/test";
 import { FAKE_BRANCH_ID, FAKE_ORG_ID, mockApiRoutes, mockAuth } from "./auth";
+import { installDefaultApiStubs } from "./default-api-stubs";
 
 const E2E_ACCESS_TOKEN = "mock-access-token";
 
 /** Auth + API mocks + default tenant (call before page.goto). */
 export async function setupE2ePage(page: Page) {
+  await installDefaultApiStubs(page);
   await page.context().addInitScript((token) => {
     window.__ERP_E2E_ACCESS_TOKEN__ = token;
   }, E2E_ACCESS_TOKEN);

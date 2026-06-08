@@ -26,7 +26,7 @@ export class TenantGuard implements CanActivate {
     }
 
     const dbUser = await this.prisma.user.findUnique({
-      where: { propelAuthUserId: user.userId },
+      where: { id: user.userId },
       include: {
         memberships: { where: { organizationId: orgHeader } },
       },

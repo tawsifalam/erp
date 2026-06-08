@@ -6,7 +6,7 @@ Multi-tenant hospitality ERP/PMS: PMS, POS, inventory ledger, accounting, HR/pay
 
 - **Web:** Next.js + Chakra UI
 - **API:** NestJS + Prisma + PostgreSQL
-- **Auth:** PropelAuth
+- **Auth:** First-party JWT + Redis refresh sessions
 - **Cache/Queue:** Redis + BullMQ
 - **Realtime:** Socket.IO
 
@@ -14,7 +14,7 @@ Multi-tenant hospitality ERP/PMS: PMS, POS, inventory ledger, accounting, HR/pay
 
 ```bash
 cp .env.example .env
-# Configure PropelAuth credentials in .env (see docs/propelauth.md)
+# Set JWT secrets in .env (see docs/auth.md)
 pnpm install
 ```
 
@@ -23,7 +23,7 @@ pnpm install
 Your `.env` file must be at the **repo root** (`erp/.env`). Compose reads it only when the project directory is the repo root.
 
 ```bash
-cp .env.example .env   # if needed — set PropelAuth keys
+cp .env.example .env   # if needed — set JWT secrets
 docker compose up -d postgres redis minio
 docker compose build
 docker compose up -d api web
@@ -140,19 +140,19 @@ The seed creates a realistic working dataset:
 pnpm test              # Unit tests (API Jest + web Vitest + utils Vitest)
 pnpm test:e2e:install  # One-time: download Playwright Chromium
 pnpm test:e2e          # E2E (Playwright; mocked API routes + seed data)
-pnpm smoke:local       # Real-stack smoke (PropelAuth + DB; see docs/smoke-local.md)
+pnpm smoke:local       # Real-stack smoke (JWT login + DB; see docs/smoke-local.md)
 ```
 
 Coverage checklist and remaining gaps: [test-coverage-gaps.md](docs/test-coverage-gaps.md).
 
 E2E expects Postgres/Redis running and seed data (`pnpm db:reset`). Playwright starts `pnpm dev` from the repo root unless `CI` is set.
 
-Local smoke (`pnpm smoke:local`) also needs Docker infra, a PropelAuth test user, and `SMOKE_PROPELAUTH_USER_ID` in `.env` — see [smoke-local.md](docs/smoke-local.md).
+Local smoke (`pnpm smoke:local`) also needs Docker infra and `SMOKE_USER_EMAIL` / `SMOKE_USER_PASSWORD` in `.env` — see [smoke-local.md](docs/smoke-local.md).
 
 ## Documentation
 
 - [Local Setup](docs/local-setup.md) — full environment configuration
-- [PropelAuth](docs/propelauth.md) — authentication integration
+- [Authentication](docs/auth.md) — JWT login, sessions, invites
 - [App Workflow Guide](docs/app-workflow-guide.md) — how each module works with curl examples ([PMS](docs/app-workflow-guide.md#2-property-management-system-pms), [procurement](docs/app-workflow-guide.md#11-procurement), [integrations](docs/app-workflow-guide.md#13-integrations-channel-manager))
 - [PMS Module](docs/pms-module.md) — property management (rooms, reservations, housekeeping)
 - [POS Module](docs/pos-module.md) — point of sale (menu, orders, kitchen, payments)

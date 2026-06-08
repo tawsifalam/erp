@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Box } from "@chakra-ui/react";
 import { LoadingState } from "@erp/ui";
-import { useUser } from "@propelauth/nextjs/client";
+import { useUser } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";
 

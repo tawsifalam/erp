@@ -1,15 +1,15 @@
 import { Global, Module } from "@nestjs/common";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { PropelAuthService } from "./propelauth.service";
-import { PropelAuthGuard } from "../common/guards/propelauth.guard";
+import { AuthCoreModule } from "./auth-core.module";
+import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { TenantsModule } from "../tenants/tenants.module";
 
 @Global()
 @Module({
-  imports: [TenantsModule],
+  imports: [AuthCoreModule, TenantsModule],
   controllers: [AuthController],
-  providers: [PropelAuthService, PropelAuthGuard, AuthService],
-  exports: [PropelAuthService, PropelAuthGuard, AuthService],
+  providers: [AuthService, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard, AuthCoreModule],
 })
 export class AuthModule {}

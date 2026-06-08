@@ -1,8 +1,6 @@
 "use client";
 
 import { Box, Heading, Stack, Text } from "@chakra-ui/react";
-import { AuthLoginCard } from "./auth-login-card";
-
 const FEATURES = [
   {
     title: "Front office & PMS",
@@ -52,9 +50,6 @@ export function AuthMarketingPanel() {
         ))}
       </Stack>
 
-      <Box display={{ base: "block", lg: "none" }} mt={2}>
-        <AuthLoginCard />
-      </Box>
     </>
   );
 }

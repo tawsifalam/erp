@@ -26,8 +26,8 @@ const mockPrisma = {
 describe("TenantsController", () => {
   let controller: TenantsController;
 
-  const claims = { userId: "pa_user_1", email: "owner@example.com" };
-  const erpUser = { id: "usr_1", propelAuthUserId: "pa_user_1", email: "owner@example.com" };
+  const claims = { userId: "usr_1", email: "owner@example.com" };
+  const erpUser = { id: "usr_1", email: "owner@example.com" };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -87,7 +87,6 @@ describe("TenantsController", () => {
       mockTenants.countMemberships.mockResolvedValue(0);
       mockTenants.createOrganization.mockResolvedValue({
         organization: { id: "org_new", branches: [{ id: "br_1" }] },
-        propelAuthSynced: true,
       });
 
       const result = await controller.createOrganization(claims, {
@@ -119,7 +118,6 @@ describe("TenantsController", () => {
       mockPrisma.userOrganization.findFirst.mockResolvedValue({ role: Role.ADMIN });
       mockTenants.createOrganization.mockResolvedValue({
         organization: { id: "org_2" },
-        propelAuthSynced: true,
       });
 
       await controller.createOrganization(claims, {

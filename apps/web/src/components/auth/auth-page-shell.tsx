@@ -66,7 +66,7 @@ export function AuthPanel({
       justify="center"
       px={{ base: 4, md: 8 }}
       py={{ base: 8, lg: 12 }}
-      display={{ base: "none", lg: "flex" }}
+      display="flex"
     >
       {children}
     </Flex>

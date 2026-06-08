@@ -77,7 +77,6 @@ services:
       args:
         SOURCE_REV: ${SOURCE_REV:-unknown}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
     env_file:
       - path: ../../.env

@@ -1,6 +1,6 @@
 # Production deployment
 
-For a **full step-by-step cloud deployment plan** (DNS, Docker, PropelAuth, TLS, migrations, Phase 1 smoke tests), see **[cloud-deployment.md](./cloud-deployment.md)**.
+For a **full step-by-step cloud deployment plan** (DNS, Docker, JWT auth, TLS, migrations, Phase 1 smoke tests), see **[cloud-deployment.md](./cloud-deployment.md)**.
 
 For **VPS day-two ops** (inspect running containers, stop the stack completely, fix `compose down` / wrong project), see **[vps-docker-operations.md](./vps-docker-operations.md)**.
 
@@ -28,13 +28,13 @@ See [cloud-deployment.md](./cloud-deployment.md). Local dev: `docker compose up`
 Dockerfiles: [infra/docker/Dockerfile.api](../infra/docker/Dockerfile.api), [infra/docker/Dockerfile.web](../infra/docker/Dockerfile.web).
 
 - **API:** builds workspace deps via `pnpm --filter @erp/api... build`; runner keeps the pnpm `node_modules` layout so externalized Nest/Prisma deps resolve.
-- **Web:** Next.js `standalone` output; `NEXT_PUBLIC_*` must be passed as **build args** (see compose `web.build.args`). PropelAuth server env (`PROPELAUTH_*`) is runtime-only on web.
+- **Web:** Next.js `standalone` output; `NEXT_PUBLIC_*` must be passed as **build args** (see compose `web.build.args`). JWT secrets are API-only runtime env.
 
 For a single-domain deploy behind nginx, rebuild web with `NEXT_PUBLIC_API_URL=https://your-domain.com` (same origin as the app).
 
 ## Environment
 
-Set production values for all variables in `.env.example`. Update PropelAuth redirect URI to `https://your-domain.com/api/auth/callback`.
+Set production values for all variables in `.env.example`, including `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `APP_URL`.
 
 Use a **single public domain** for web + API paths when possible (`NEXT_PUBLIC_API_URL=https://your-domain.com`). See [cloud-deployment.md § Step 5](./cloud-deployment.md#step-5--production-environment-variables).
 

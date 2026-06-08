@@ -1,26 +1,26 @@
 # Organization onboarding
 
-Mandatory organization onboarding after PropelAuth login. Users must **create an organization** or **request to join** one before accessing ERP modules. Join requests require OWNER/ADMIN approval with an assigned **org role**.
+Mandatory organization onboarding after login. Users must **create an organization** or **request to join** one before accessing ERP modules. Join requests require OWNER/ADMIN approval with an assigned **org role**.
 
-Related: [PropelAuth](propelauth.md), [Tenant model](tenant-model.md), [Settings — Team & access](settings-module.md).
+Related: [Authentication](auth.md), [Tenant model](tenant-model.md), [Settings — Team & access](settings-module.md).
 
 ## Overview
 
 | Layer | Responsibility |
 |-------|----------------|
-| **PropelAuth** | Login, JWT, session |
+| **Auth (API)** | Login, JWT, refresh sessions |
 | **ERP PostgreSQL** | Organizations, branches, `UserOrganization.role`, join requests |
 | **Web gate** | Blocks `(erp)` routes until active membership |
 | **API guards** | `TenantGuard` + `@RequirePermission()` on module routes |
 | **UI RBAC** | Sidebar and route guards filter by role permissions |
 
-PropelAuth org IDs are **not** the source of tenant membership. ERP onboarding is authoritative.
+ERP organizations and roles are authoritative — no external org mirror.
 
 ## User journeys
 
 ### Create organization
 
-1. User signs in via PropelAuth.
+1. User signs in at `/auth/login`.
 2. `POST /api/auth/sync` upserts the ERP user only (no auto org).
 3. User lands on `/onboarding` → **Create organization** (name, timezone).
 4. `POST /api/tenants/organizations` creates org, `joinCode`, Main Branch, inventory pools, and `UserOrganization` with role `OWNER`.
@@ -29,9 +29,9 @@ PropelAuth org IDs are **not** the source of tenant membership. ERP onboarding i
 ### Invite by email (admin)
 
 1. OWNER/ADMIN opens **Settings → Team & access** → **Invite by email** (email + ERP role).
-2. API calls PropelAuth `inviteUserToOrg` and stores a pending `OrganizationInvite`.
-3. Recipient completes PropelAuth signup from the email link.
-4. On `POST /auth/sync`, pending invites for that email create `UserOrganization` with the assigned role (no manual approval).
+2. API stores a pending `OrganizationInvite` and sends a Resend email with `/auth/accept-invite?token=...`.
+3. Recipient sets a password on the accept-invite page.
+4. API creates `UserOrganization` with the assigned role.
 
 Join-by-code remains available for staff who cannot be invited directly.
 
@@ -89,7 +89,7 @@ Nav items map to permissions in `apps/web/src/components/nav-config.tsx`. Unauth
 | POST | `/tenants/join-requests/:id/approve` | JWT + tenant + admin | Body: `{ role }` required |
 | POST | `/tenants/join-requests/:id/reject` | JWT + tenant + admin | Body: `{ reason? }` |
 | GET | `/tenants/invites` | JWT + tenant + admin | Pending email invites |
-| POST | `/tenants/invites` | JWT + tenant + admin | Body: `{ email, role }` — PropelAuth email invite |
+| POST | `/tenants/invites` | JWT + tenant + admin | Body: `{ email, role }` — Resend email invite |
 | POST | `/tenants/invites/:id/revoke` | JWT + tenant + admin | Revoke pending invite |
 | GET | `/tenants/members` | JWT + tenant + admin | Active members + roles |
 | PATCH | `/tenants/members/:userId/role` | JWT + tenant + admin | Change role (not last OWNER) |

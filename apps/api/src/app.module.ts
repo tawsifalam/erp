@@ -4,6 +4,7 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
 import { BullModule } from "@nestjs/bullmq";
 import { parseApiEnv } from "@erp/config";
 import { PrismaModule } from "./prisma/prisma.module";
+import { AuthCoreModule } from "./auth/auth-core.module";
 import { AuthModule } from "./auth/auth.module";
 import { TenantsModule } from "./tenants/tenants.module";
 import { UsersModule } from "./users/users.module";
@@ -48,6 +49,7 @@ import { HealthController } from "./health.controller";
     TenantScopeModule,
     AuditModule,
     StorageModule,
+    AuthCoreModule,
     AuthModule,
     TenantsModule,
     UsersModule,

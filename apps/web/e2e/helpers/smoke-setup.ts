@@ -8,7 +8,8 @@ import {
 
 export type SmokeFrontDeskAuth = {
   accessToken: string;
-  propelAuthUserId: string;
+  refreshToken: string;
+  userId: string;
   /** Branch with an active UserBranch grant for this user. */
   grantedBranchId: string;
   /** Same-org branch without a grant — requests should return 403. */
@@ -17,10 +18,12 @@ export type SmokeFrontDeskAuth = {
 
 export type SmokeAuth = {
   accessToken: string;
+  refreshToken: string;
+  userId: string;
+  email: string;
   organizationId: string;
   branchId: string;
-  propelAuthUserId: string;
-  /** Present when SMOKE_PROPELAUTH_FRONT_DESK_USER_ID is set during setup. */
+  /** Present when SMOKE_FRONT_DESK_USER_EMAIL is set during setup. */
   frontDeskAuth?: SmokeFrontDeskAuth;
 };
 
@@ -40,49 +43,32 @@ export async function loadSmokeAuth(): Promise<SmokeAuth> {
 }
 
 /**
- * Real stack: PropelAuth token + seed tenant, no API mocks.
- * Mocks only PropelAuth hosted/session endpoints so Next middleware passes.
+ * Real stack: JWT session from setup + seed tenant, no API mocks.
+ * Sets refresh cookie so Next.js middleware passes; AuthProvider uses refresh API.
  */
 export async function setupRealStackPage(page: Page, auth: SmokeAuth) {
-  const { accessToken, organizationId, branchId } = auth;
+  const { accessToken, refreshToken, organizationId, branchId, userId, email } = auth;
 
-  await page.route(/propelauth\.com/i, async (route) => {
-    const url = route.request().url();
-    if (
-      url.includes("/api/v1/refresh_token") ||
-      url.includes("/api/be/v1/") ||
-      url.includes("/api/v1/whoami")
-    ) {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          access_token: accessToken,
-          user_id: auth.propelAuthUserId,
-          email: process.env.SMOKE_PROPELAUTH_USER_EMAIL ?? "smoke@example.com",
-        }),
-      });
-    }
-    return route.fulfill({ status: 200, body: "{}" });
-  });
-
-  await page.route("**/api/auth/userinfo", (route) =>
-    route.fulfill({
+  await page.route("**/api/auth/refresh", (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        userinfo: { user_id: auth.propelAuthUserId },
         accessToken,
+        user: { id: userId, email, name: null },
       }),
-    }),
-  );
+    });
+  });
 
   await page.context().addCookies([
     {
-      name: "__pa_at",
-      value: accessToken,
+      name: process.env.AUTH_COOKIE_NAME ?? "erp_refresh",
+      value: refreshToken,
       domain: "localhost",
       path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
     },
   ]);
 

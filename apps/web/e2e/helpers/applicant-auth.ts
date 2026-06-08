@@ -16,40 +16,21 @@ function fulfillJson(route: import("@playwright/test").Route, body: unknown) {
   });
 }
 
-/** PropelAuth + API mocks for a user with no org membership (join-code flow). */
+/** API mocks for a user with no org membership (join-code flow). */
 export async function mockAuthApplicant(page: Page) {
-  const fulfillPropelAuth = (route: import("@playwright/test").Route) => {
-    const url = route.request().url();
-    if (
-      url.includes("/api/v1/refresh_token") ||
-      url.includes("/api/be/v1/") ||
-      url.includes("/api/v1/whoami")
-    ) {
+  await page.route(
+    (url) => isBackendApiUrl(url.href) && url.pathname.endsWith("/api/auth/refresh"),
+    (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          access_token: "mock-applicant-token",
-          user_id: APPLICANT_USER_ID,
-          email: APPLICANT_EMAIL,
-          org_id_to_org_member_info: {},
+          accessToken: "mock-applicant-token",
+          user: { id: APPLICANT_USER_ID, email: APPLICANT_EMAIL, name: null },
         }),
       });
-    }
-    return route.fulfill({ status: 200, body: "{}" });
-  };
-
-  await page.route(/propelauth/i, fulfillPropelAuth);
-
-  await page.route("**/api/auth/userinfo", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        userinfo: { user_id: APPLICANT_USER_ID, email: APPLICANT_EMAIL },
-        accessToken: "mock-applicant-token",
-      }),
-    }),
+    },
   );
 
   await page.route("**/api/auth/sync", (route) =>
@@ -66,10 +47,12 @@ export async function mockAuthApplicant(page: Page) {
 
   await page.context().addCookies([
     {
-      name: "__pa_at",
-      value: "mock-applicant-token",
+      name: "erp_refresh",
+      value: "mock-applicant-refresh",
       domain: "localhost",
       path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
     },
   ]);
 }

@@ -8,5 +8,6 @@ module.exports = {
   testEnvironment: "node",
   moduleNameMapper: {
     "^@erp/(.*)$": "<rootDir>/../../../packages/$1/src",
+    "^jose$": "<rootDir>/test/__mocks__/jose.ts",
   },
 };

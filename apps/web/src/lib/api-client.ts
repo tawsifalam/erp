@@ -1,8 +1,7 @@
 "use client";
 
 import { getAccessToken } from "./auth";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { getApiBaseUrl } from "./api-base-url";
 
 export type TenantHeaders = {
   organizationId: string;
@@ -26,7 +25,7 @@ export async function apiFetch<T>(
     headers["X-Branch-Id"] = options.tenant.branchId;
   }
 
-  const res = await fetch(`${API_URL}/api${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}/api${path}`, {
     ...options,
     headers,
   });
@@ -65,7 +64,7 @@ export async function apiFetchBlob(
     headers["X-Branch-Id"] = options.tenant.branchId;
   }
 
-  const res = await fetch(`${API_URL}/api${path}`, { ...options, headers });
+  const res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(err.message ?? `API error ${res.status}`);

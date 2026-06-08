@@ -12,6 +12,7 @@ import {
   InclusionType,
 } from "@erp/types";
 import { randomUUID } from "crypto";
+import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -23,11 +24,10 @@ function sid(prefix: string, suffix?: string): string {
 async function main() {
   // ─── Organization ───────────────────────────────────────────────────────────
   const org = await prisma.organization.upsert({
-    where: { propelAuthOrgId: "demo-org-propelauth" },
+    where: { id: sid("org", "00000000-0000-0000-0000-000000000100") },
     update: {},
     create: {
       id: sid("org", "00000000-0000-0000-0000-000000000100"),
-      propelAuthOrgId: "demo-org-propelauth",
       name: "Boulevard Hospitality Group",
       joinCode: "ov_demoseed",
     },
@@ -57,14 +57,16 @@ async function main() {
   });
 
   // ─── Admin User ─────────────────────────────────────────────────────────────
+  const demoPasswordHash = bcrypt.hashSync("DemoPassword1!", 12);
   const admin = await prisma.user.upsert({
-    where: { propelAuthUserId: "demo-admin-propelauth" },
-    update: {},
+    where: { email: "admin@boulevard.cafe" },
+    update: { passwordHash: demoPasswordHash },
     create: {
       id: sid("usr", "00000000-0000-0000-0000-000000000200"),
-      propelAuthUserId: "demo-admin-propelauth",
       email: "admin@boulevard.cafe",
       name: "Admin User",
+      passwordHash: demoPasswordHash,
+      emailVerifiedAt: new Date(),
     },
   });
 

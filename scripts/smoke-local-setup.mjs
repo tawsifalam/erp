@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Prepare local smoke tests: PropelAuth access token + ERP user sync + seed org membership.
+ * Prepare local smoke tests: JWT login + seed org membership.
  * See docs/smoke-local.md
  */
 import { readFileSync } from "node:fs";
@@ -17,6 +17,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const AUTH_FILE = path.join(ROOT, ".playwright", "smoke-auth.json");
+const REFRESH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? "erp_refresh";
 
 function loadEnvFile(filePath) {
   try {
@@ -44,10 +45,10 @@ function loadEnvFile(filePath) {
 loadEnvFile(path.join(ROOT, ".env"));
 loadEnvFile(path.join(ROOT, "apps/web/.env.local"));
 
-const authUrl = process.env.PROPELAUTH_AUTH_URL?.replace(/\/$/, "");
-const apiKey = process.env.PROPELAUTH_API_KEY;
-const userId = process.env.SMOKE_PROPELAUTH_USER_ID;
-const frontDeskUserId = process.env.SMOKE_PROPELAUTH_FRONT_DESK_USER_ID;
+const email = process.env.SMOKE_USER_EMAIL ?? "admin@boulevard.cafe";
+const password = process.env.SMOKE_USER_PASSWORD ?? "DemoPassword1!";
+const frontDeskEmail = process.env.SMOKE_FRONT_DESK_USER_EMAIL;
+const frontDeskPassword = process.env.SMOKE_FRONT_DESK_USER_PASSWORD;
 const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
 
 function requireEnv(name, value) {
@@ -57,46 +58,52 @@ function requireEnv(name, value) {
   }
 }
 
-async function createAccessToken(propelAuthUserId) {
-  const res = await fetch(`${authUrl}/api/backend/v1/access_token`, {
+function parseRefreshCookie(setCookieHeaders) {
+  for (const header of setCookieHeaders) {
+    const [pair] = header.split(";");
+    const eq = pair.indexOf("=");
+    if (eq === -1) continue;
+    const name = pair.slice(0, eq).trim();
+    if (name === REFRESH_COOKIE_NAME) {
+      return pair.slice(eq + 1).trim();
+    }
+  }
+  return null;
+}
+
+async function login(userEmail, userPassword) {
+  const res = await fetch(`${apiBase}/api/auth/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      user_id: propelAuthUserId,
-      duration_in_minutes: 60 * 24,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: userEmail, password: userPassword }),
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`PropelAuth access_token failed (${res.status}): ${body}`);
+    throw new Error(`POST /api/auth/login failed (${res.status}): ${body}`);
   }
   const data = await res.json();
-  const token = data.access_token ?? data.accessToken;
-  if (!token) throw new Error("PropelAuth response missing access_token");
-  return token;
-}
-
-async function syncUser(accessToken) {
-  const res = await fetch(`${apiBase}/api/auth/sync`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "X-Organization-Id": SMOKE_SEED_ORG_ID,
-    },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`POST /api/auth/sync failed (${res.status}): ${body}`);
+  const setCookies =
+    typeof res.headers.getSetCookie === "function"
+      ? res.headers.getSetCookie()
+      : res.headers.get("set-cookie")
+        ? [res.headers.get("set-cookie")]
+        : [];
+  const refreshToken = parseRefreshCookie(setCookies);
+  if (!data.accessToken || !data.user?.id) {
+    throw new Error("Login response missing accessToken or user");
   }
-  return res.json();
+  if (!refreshToken) {
+    throw new Error(`Login response missing ${REFRESH_COOKIE_NAME} cookie`);
+  }
+  return {
+    accessToken: data.accessToken,
+    userId: data.user.id,
+    email: data.user.email,
+    refreshToken,
+  };
 }
 
-async function ensureMembership() {
+async function ensureMembership(userId) {
   const require = createRequire(path.join(ROOT, "apps/api/package.json"));
   const { PrismaClient } = require("@prisma/client");
   let Role;
@@ -108,22 +115,16 @@ async function ensureMembership() {
 
   const prisma = new PrismaClient();
   try {
-    const user = await prisma.user.findUnique({
-      where: { propelAuthUserId: userId },
-    });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw new Error(
-        `No ERP user for PropelAuth id ${userId}. Is the API running? Re-run after sync.`,
-      );
+      throw new Error(`No ERP user ${userId}. Is the API running? Run pnpm db:reset.`);
     }
 
     const org = await prisma.organization.findUnique({
       where: { id: SMOKE_SEED_ORG_ID },
     });
     if (!org) {
-      throw new Error(
-        `Seed org ${SMOKE_SEED_ORG_ID} not found. Run: pnpm db:reset`,
-      );
+      throw new Error(`Seed org ${SMOKE_SEED_ORG_ID} not found. Run: pnpm db:reset`);
     }
 
     const existing = await prisma.userOrganization.findUnique({
@@ -148,9 +149,7 @@ async function ensureMembership() {
   }
 }
 
-async function ensureFrontDeskBranchGrant(ownerPropelAuthUserId) {
-  if (!frontDeskUserId) return null;
-
+async function ensureFrontDeskBranchGrant(ownerUserId, frontDeskLogin) {
   const require = createRequire(path.join(ROOT, "apps/api/package.json"));
   const { PrismaClient } = require("@prisma/client");
   let Role;
@@ -162,16 +161,10 @@ async function ensureFrontDeskBranchGrant(ownerPropelAuthUserId) {
 
   const prisma = new PrismaClient();
   try {
-    const owner = await prisma.user.findUnique({
-      where: { propelAuthUserId: ownerPropelAuthUserId },
-    });
-    const frontDesk = await prisma.user.findUnique({
-      where: { propelAuthUserId: frontDeskUserId },
-    });
+    const owner = await prisma.user.findUnique({ where: { id: ownerUserId } });
+    const frontDesk = await prisma.user.findUnique({ where: { id: frontDeskLogin.userId } });
     if (!frontDesk) {
-      throw new Error(
-        `No ERP user for front-desk PropelAuth id ${frontDeskUserId}. Re-run setup after API sync.`,
-      );
+      throw new Error(`No ERP user for front-desk login ${frontDeskLogin.email}.`);
     }
 
     await prisma.userOrganization.upsert({
@@ -221,10 +214,10 @@ async function ensureFrontDeskBranchGrant(ownerPropelAuthUserId) {
       `Front-desk smoke user: FRONT_DESK on ${SMOKE_SEED_BRANCH_ID} only (no grant on ${SMOKE_SEED_BRANCH_ID_2})`,
     );
 
-    const accessToken = await createAccessToken(frontDeskUserId);
     return {
-      accessToken,
-      propelAuthUserId: frontDeskUserId,
+      accessToken: frontDeskLogin.accessToken,
+      refreshToken: frontDeskLogin.refreshToken,
+      userId: frontDesk.id,
       grantedBranchId: SMOKE_SEED_BRANCH_ID,
       deniedBranchId: SMOKE_SEED_BRANCH_ID_2,
     };
@@ -234,33 +227,30 @@ async function ensureFrontDeskBranchGrant(ownerPropelAuthUserId) {
 }
 
 async function main() {
-  requireEnv("PROPELAUTH_AUTH_URL", authUrl);
-  requireEnv("PROPELAUTH_API_KEY", apiKey);
-  requireEnv("SMOKE_PROPELAUTH_USER_ID", userId);
+  requireEnv("SMOKE_USER_EMAIL (or default admin@boulevard.cafe)", email);
+  requireEnv("SMOKE_USER_PASSWORD (or default DemoPassword1!)", password);
 
-  console.log("Creating PropelAuth access token…");
-  const accessToken = await createAccessToken(userId);
-
-  console.log("Syncing ERP user (API must be running)…");
-  await syncUser(accessToken);
+  console.log(`Logging in as ${email}…`);
+  const session = await login(email, password);
 
   console.log("Ensuring membership in seed organization…");
-  await ensureMembership();
+  await ensureMembership(session.userId);
 
   let frontDeskAuth = null;
-  if (frontDeskUserId) {
+  if (frontDeskEmail && frontDeskPassword) {
     console.log("Preparing front-desk branch-grant smoke user…");
-    const frontDeskToken = await createAccessToken(frontDeskUserId);
-    await syncUser(frontDeskToken);
-    frontDeskAuth = await ensureFrontDeskBranchGrant(userId);
+    const frontDeskLogin = await login(frontDeskEmail, frontDeskPassword);
+    frontDeskAuth = await ensureFrontDeskBranchGrant(session.userId, frontDeskLogin);
   }
 
   await mkdir(path.dirname(AUTH_FILE), { recursive: true });
   const payload = {
-    accessToken,
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    userId: session.userId,
+    email: session.email,
     organizationId: SMOKE_SEED_ORG_ID,
     branchId: SMOKE_SEED_BRANCH_ID,
-    propelAuthUserId: userId,
     ...(frontDeskAuth ? { frontDeskAuth } : {}),
     createdAt: new Date().toISOString(),
   };

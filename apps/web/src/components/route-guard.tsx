@@ -12,14 +12,22 @@ export function RouteGuard({ children }: { children: ReactNode }) {
   const { role, loading } = useTenant();
 
   useEffect(() => {
-    if (loading || !role) return;
+    if (loading) return;
+    if (!role) {
+      router.replace("/onboarding");
+      return;
+    }
     if (!roleCanAccessPath(role, pathname)) {
       router.replace(getDefaultRouteForRole(role));
     }
   }, [pathname, role, loading, router]);
 
-  if (loading || !role) {
+  if (loading) {
     return <LoadingState label="Loading…" />;
+  }
+
+  if (!role) {
+    return <LoadingState label="Redirecting…" />;
   }
 
   if (!roleCanAccessPath(role, pathname)) {

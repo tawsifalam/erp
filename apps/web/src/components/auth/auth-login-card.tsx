@@ -1,9 +1,36 @@
 "use client";
 
-import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
-import { signIn, signUp } from "@/lib/auth";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Box, Button, Heading, Input, Stack, Text } from "@chakra-ui/react";
+import { FormField } from "@erp/ui";
+import { PasswordInput } from "@/components/auth/password-input";
+import { useAuth } from "@/lib/auth-context";
+import { appToast } from "@/lib/app-toast";
+import Link from "next/link";
 
 export function AuthLoginCard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await login(email, password);
+      const returnTo = searchParams.get("return_to");
+      router.replace(returnTo?.startsWith("/") ? returnTo : "/");
+    } catch (err) {
+      appToast.error(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <Box
       w="full"
@@ -15,8 +42,8 @@ export function AuthLoginCard() {
       shadow="lg"
       p={{ base: 6, md: 8 }}
     >
-      <Stack gap={6} textAlign="center">
-        <Stack gap={2}>
+      <Stack gap={6} as="form" onSubmit={handleSubmit} data-testid="auth-login-form">
+        <Stack gap={2} textAlign="center">
           <Box
             mx="auto"
             w="12"
@@ -33,25 +60,47 @@ export function AuthLoginCard() {
           >
             OV
           </Box>
-          <Heading size="lg">Welcome</Heading>
+          <Heading size="lg">Welcome back</Heading>
           <Text color="fg.muted" fontSize="sm">
-            Sign in or create an account to access your organization dashboard.
+            Sign in to access your organization dashboard.
           </Text>
         </Stack>
 
-        <Stack gap={3}>
-          <Button size="lg" colorPalette="blue" w="full" onClick={() => signIn()}>
-            Sign in
-          </Button>
-          <Button size="lg" variant="outline" w="full" onClick={() => signUp()}>
-            Create account
-          </Button>
-        </Stack>
+        <FormField label="Email">
+          <Input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </FormField>
 
-        <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-          Secure authentication for your team. By continuing, you agree to use One Venue
-          for your organization&apos;s operations.
-        </Text>
+        <FormField label="Password">
+          <PasswordInput
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </FormField>
+
+        <Button
+          type="submit"
+          size="lg"
+          colorPalette="blue"
+          w="full"
+          loading={submitting}
+        >
+          Sign in
+        </Button>
+
+        <Stack gap={2} textAlign="center" fontSize="sm">
+          <Link href="/auth/forgot-password">Forgot password?</Link>
+          <Text color="fg.muted">
+            No account? <Link href="/auth/register">Create one</Link>
+          </Text>
+        </Stack>
       </Stack>
     </Box>
   );

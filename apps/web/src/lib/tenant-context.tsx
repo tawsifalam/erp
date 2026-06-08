@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { useUser } from "@propelauth/nextjs/client";
+import { useUser } from "@/lib/auth-context";
 import { apiFetch } from "./api-client";
 import {
   type OrgMembership,

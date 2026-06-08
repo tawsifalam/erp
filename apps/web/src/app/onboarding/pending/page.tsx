@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Stack, Text } from "@chakra-ui/react";
-import { useUser } from "@propelauth/nextjs/client";
+import { useUser } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";
 import { useTenant } from "@/lib/tenant-context";

@@ -8,13 +8,15 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  propelAuthUserId String   @unique
-  email         String   @unique
-  name          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  name            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
+  refreshSessions AuthRefreshSession[]
   memberships UserOrganization[]
   joinRequests OrganizationJoinRequest[] @relation("JoinRequestUser")
   reviewedJoinRequests OrganizationJoinRequest[] @relation("JoinRequestReviewer")
@@ -28,9 +30,23 @@ model User {
   reportJobs    ReportJob[] @relation("ReportJobRequester")
 }
 
+model AuthRefreshSession {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Organization {
   id           String   @id @default(uuid())
-  propelAuthOrgId String   @unique
   name         String
   joinCode     String   @unique
   createdAt    DateTime @default(now())

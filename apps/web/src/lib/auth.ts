@@ -4,44 +4,42 @@ import {
   clearCachedAccessToken,
   getCachedAccessToken,
 } from "./auth-token-store";
+import { getApiBaseUrl } from "./api-base-url";
 
-/** Redirect to PropelAuth hosted login (handled by /api/auth/login). */
+/** Redirect to login page. */
 export function signIn() {
-  window.location.href = "/api/auth/login";
+  window.location.href = "/auth/login";
 }
 
-/** Redirect to PropelAuth hosted signup (handled by /api/auth/signup). */
+/** Redirect to register page. */
 export function signUp() {
-  window.location.href = "/api/auth/signup";
+  window.location.href = "/auth/register";
 }
 
-/** Calls PropelAuth logout (POST clears session + invalidates token), then redirects. */
+/** Logout via API and redirect to login. */
 export async function signOut() {
   clearCachedAccessToken();
-  await fetch("/api/auth/logout", {
+  document.cookie = "erp_session=; path=/; max-age=0";
+  await fetch(`${getApiBaseUrl()}/api/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
   window.location.href = "/auth/login";
 }
 
-/**
- * Returns the access token from PropelAuth AuthProvider (via AuthTokenSync).
- * Does not call /api/auth/userinfo — AuthProvider refreshes that once centrally.
- */
 export async function getAccessToken(): Promise<string | null> {
   const token = getCachedAccessToken();
   return token ?? null;
 }
 
-/** Sync PropelAuth user into local ERP database after login. */
+/** Sync ERP user state after login. */
 export async function syncUserAfterLogin(orgId?: string, token?: string | null) {
   const accessToken = token ?? (await getAccessToken());
   if (!accessToken) return;
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-  await fetch(`${apiUrl}/api/auth/sync`, {
+  await fetch(`${getApiBaseUrl()}/api/auth/sync`, {
     method: "POST",
+    credentials: "include",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",

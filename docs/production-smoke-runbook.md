@@ -1,10 +1,10 @@
 # Production smoke runbook
 
-Use this checklist before go-live or after each major deploy. It validates **Phase 1** on a **real stack** (PropelAuth, PostgreSQL, Redis, MinIO, optional Resend) — not the mocked E2E suite.
+Use this checklist before go-live or after each major deploy. It validates **Phase 1** on a **real stack** (JWT auth, PostgreSQL, Redis, MinIO, optional Resend) — not the mocked E2E suite.
 
 **Authority:** [phase1-signoff.md](./phase1-signoff.md) · **Workflow detail:** [app-workflow-guide.md](./app-workflow-guide.md) · **Deploy:** [cloud-deployment.md](./cloud-deployment.md) · **VPS stop/inspect:** [vps-docker-operations.md](./vps-docker-operations.md)
 
-**Automated locally (subset):** [smoke-local.md](./smoke-local.md) — `pnpm smoke:local` with real PropelAuth + DB on localhost (no deploy required).
+**Automated locally (subset):** [smoke-local.md](./smoke-local.md) — `pnpm smoke:local` with real JWT login + DB on localhost (no deploy required).
 
 ---
 
@@ -18,7 +18,7 @@ Use this checklist before go-live or after each major deploy. It validates **Pha
 | Git commit / tag | |
 | Tester | |
 | Date | |
-| PropelAuth project | |
+| JWT secrets configured | |
 | Resend configured? | Yes / No |
 
 **Overall result:** ☐ Pass · ☐ Fail (blockers listed at bottom)
@@ -33,7 +33,7 @@ Complete before starting flows. All must pass.
 |---|--------|:----:|-------|
 | P1 | `pnpm prisma migrate deploy` applied (all migrations in [phase1-signoff](./phase1-signoff.md#database-migrations-production)) | ☐ | |
 | P2 | `GET {API}/health` returns OK | ☐ | |
-| P3 | Web login redirects through PropelAuth and lands on `/dashboard` | ☐ | |
+| P3 | Web login at `/auth/login` succeeds and lands on `/dashboard` | ☐ | |
 | P4 | Redis reachable (report/payroll jobs queue) | ☐ | |
 | P5 | MinIO/S3 reachable (payslips, report files) | ☐ | See [cloud-deployment.md § Object storage (MinIO)](./cloud-deployment.md#object-storage-minio) |
 | P6 | At least one org, branch, and ADMIN user exist (seed or onboarding) | ☐ | |
@@ -44,14 +44,14 @@ Complete before starting flows. All must pass.
 
 ## 1. Auth & team (email invite)
 
-**Goal:** PropelAuth invite → signup → ERP membership with assigned role.
+**Goal:** Resend invite email → accept-invite → ERP membership with assigned role.
 
 | Step | Action | Pass | Evidence |
 |------|--------|:----:|----------|
 | 1.1 | As **ADMIN**, open **Settings → Team & access** | ☐ | |
 | 1.2 | Send invite to a **new** email (not already in org) with role e.g. `FRONT_DESK` | ☐ | |
-| 1.3 | Invitee receives PropelAuth email and completes signup | ☐ | |
-| 1.4 | Invitee opens app → `POST /auth/sync` runs → lands on role home (e.g. `/pms` for front desk) | ☐ | |
+| 1.3 | Invitee receives invite email and opens `/auth/accept-invite` | ☐ | |
+| 1.4 | Invitee sets password → lands on role home (e.g. `/pms` for front desk) | ☐ | |
 | 1.5 | Admin sees member in team list with correct ERP role | ☐ | |
 | 1.6 | **Settings → Audit log** shows invite/membership-related activity (if applicable) | ☐ | |
 

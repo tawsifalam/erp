@@ -34,9 +34,8 @@ erp_cd_root
 erp_require_env_keys \
   NEXT_PUBLIC_API_URL \
   NEXT_PUBLIC_APP_URL \
-  NEXT_PUBLIC_AUTH_URL \
-  PROPELAUTH_API_KEY \
-  PROPELAUTH_VERIFIER_KEY \
+  JWT_ACCESS_SECRET \
+  JWT_REFRESH_SECRET \
   CORS_ORIGIN
 
 if [[ "${DO_PULL}" -eq 1 ]]; then

@@ -34,7 +34,7 @@ export class TenantsController {
 
   private async requireUser(claims: AuthUserPayload) {
     const user = await this.prisma.user.findUnique({
-      where: { propelAuthUserId: claims.userId },
+      where: { id: claims.userId },
     });
     if (!user) return null;
     return user;
@@ -71,7 +71,7 @@ export class TenantsController {
   @Post("organizations")
   async createOrganization(
     @CurrentUser() claims: AuthUserPayload,
-    @Body() body: { name: string; timezone: string; propelAuthOrgId?: string },
+    @Body() body: { name: string; timezone: string },
   ) {
     const user = await this.requireUser(claims);
     if (!user) return null;
@@ -220,21 +220,6 @@ export class TenantsController {
   @RequirePermission(Permission.ADMIN)
   async listMembers(@Tenant() t: TenantContext) {
     return this.tenants.listMembers(t.organizationId);
-  }
-
-  @Post("members/sync-propelauth")
-  @UseGuards(TenantGuard, PermissionGuard)
-  @RequirePermission(Permission.ADMIN)
-  async syncMembersFromPropelAuth(
-    @CurrentUser() claims: AuthUserPayload,
-    @Tenant() t: TenantContext,
-  ) {
-    const user = await this.requireUser(claims);
-    if (!user) return null;
-    return this.tenants.syncOrganizationMembersFromPropelAuth(
-      t.organizationId,
-      user.id,
-    );
   }
 
   @Delete("members/:userId")

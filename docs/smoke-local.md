@@ -4,7 +4,7 @@ Step-by-step coverage of [production-smoke-runbook.md](./production-smoke-runboo
 
 - Real PostgreSQL, Redis, MinIO (Docker)
 - Real Nest API (`:3001`)
-- Real PropelAuth access token ([testing your backend](https://docs.propelauth.com/recipes/testing-your-backend))
+- Real JWT login via `POST /api/auth/login` (seeded demo user or your credentials)
 - **No** mocked `:3001` API routes (unlike `pnpm test:e2e`)
 
 Specs run in order (`smoke-local-00` … `08`) with a **headed** browser by default. Element assertions use a **5 second** timeout (`playwright.config.ts` → `smoke-local` project).
@@ -20,19 +20,18 @@ Specs run in order (`smoke-local-00` … `08`) with a **headed** browser by defa
    pnpm db:reset   # seed vendor, PMS, POS, HR, COA, etc.
    ```
 
-2. **PropelAuth** — project configured for `http://localhost:3000` ([local-setup.md](./local-setup.md), [propelauth.md](./propelauth.md)).
+2. **JWT secrets** in root `.env` ([auth.md](./auth.md), [local-setup.md](./local-setup.md)).
 
-3. **Create a test user** in the PropelAuth dashboard. Copy the **User ID** (UUID).
-
-4. **Root `.env`**
+3. **Root `.env`** (defaults match seeded demo user after `pnpm db:reset`):
 
    ```env
-   PROPELAUTH_AUTH_URL=https://your-project.propelauth.com
-   PROPELAUTH_API_KEY=...
-   SMOKE_PROPELAUTH_USER_ID=<paste-user-id>
-   SMOKE_PROPELAUTH_USER_EMAIL=you@example.com   # optional, for session mocks
-   # Optional — second PropelAuth user for branch-grant denial in smoke-local-08:
-   SMOKE_PROPELAUTH_FRONT_DESK_USER_ID=<second-user-id>
+   JWT_ACCESS_SECRET=dev-access-secret-change-me
+   JWT_REFRESH_SECRET=dev-refresh-secret-change-me
+   SMOKE_USER_EMAIL=admin@boulevard.cafe
+   SMOKE_USER_PASSWORD=DemoPassword1!
+   # Optional — second user for branch-grant denial in smoke-local-08:
+   # SMOKE_FRONT_DESK_USER_EMAIL=frontdesk@example.com
+   # SMOKE_FRONT_DESK_USER_PASSWORD=...
    ```
 
 ---
@@ -49,10 +48,10 @@ pnpm smoke:local
 
 `smoke:local` runs:
 
-1. `pnpm smoke:local:setup` — PropelAuth `access_token`, `POST /api/auth/sync`, **always** links user to seed org as OWNER, writes `.playwright/smoke-auth.json` (gitignored).
+1. `pnpm smoke:local:setup` — `POST /api/auth/login`, ensures seed org OWNER membership, writes `.playwright/smoke-auth.json` (gitignored).
 2. `playwright test --project=smoke-local` — starts API + web if not already running; selects seed org/branch in the header before each navigation.
 
-Setup always links your PropelAuth user to the **seed organization** (`Boulevard Hospitality Group` / `Main Hotel & Restaurant`), even if you belong to other orgs.
+Setup always links the smoke user to the **seed organization** (`Boulevard Hospitality Group` / `Main Hotel & Restaurant`), even if you belong to other orgs.
 
 **Setup only** (API must be up):
 
@@ -130,9 +129,9 @@ pnpm smoke:local
 | Redis (BullMQ jobs) | No | Yes |
 | MinIO (report PDFs, payslips) | No | Yes |
 | `.playwright/smoke-auth.json` | No | No — run `pnpm smoke:local:setup` |
-| PropelAuth users/orgs | No | No (external service) |
+| Auth users (external) | No | N/A (first-party auth) |
 
-PropelAuth accounts are unchanged; setup only adds/syncs your test user into the **new** seed organization in Postgres.
+Setup only ensures your smoke login user is an OWNER of the seed organization in Postgres.
 
 ### When to reset
 
@@ -156,13 +155,13 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 | §5 HR | `smoke-local-05-hr` | Add employee, attendance, **staff meals** drawer, payroll run (queued/completed) |
 | Prereq P7 + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
-| Tenant isolation | `smoke-local-08-tenant-isolation` | Missing org header → 400; foreign `branchId` → 403 (inventory, PMS, reporting, POS, HR, inclusions); foreign `roomId` / `accountId` / `excludeReservationId` / payroll payslip → 404; branch members foreign branch → 404; **FRONT_DESK branch-grant denial** (optional second PropelAuth user) |
+| Tenant isolation | `smoke-local-08-tenant-isolation` | Missing org header → 400; foreign `branchId` → 403 (inventory, PMS, reporting, POS, HR, inclusions); foreign `roomId` / `accountId` / `excludeReservationId` / payroll payslip → 404; branch members foreign branch → 404; **FRONT_DESK branch-grant denial** (optional second smoke user) |
 
 ### Manual only (second user / email / production infra)
 
 | Runbook | Why manual |
 |---------|------------|
-| §1 Email invite end-to-end | Requires PropelAuth email + second account (team tab form is smoke-tested; submit not asserted) |
+| §1 Email invite end-to-end | Requires Resend + second account (team tab form is smoke-tested; submit not asserted) |
 | §2 Join code approval | Requires second user without org |
 | §8.3 Notification email | Requires `RESEND_API_KEY` and inbox check |
 | §5.5 Payslip PDF download | Optional deep check; payroll job must complete + MinIO |
@@ -179,7 +178,7 @@ Training screenshots (mocked E2E): [visual-guide.md](./visual-guide.md) · `pnpm
 
 | Error | Fix |
 |-------|-----|
-| `Missing SMOKE_PROPELAUTH_USER_ID` | Set in `.env` |
+| `Missing SMOKE_USER_EMAIL` / login failed | Set credentials in `.env`; run `pnpm db:reset` |
 | `access_token failed (401)` | Check `PROPELAUTH_API_KEY` |
 | `auth/sync failed` | Start API: `pnpm --filter @erp/api dev` |
 | `Seed org not found` | `pnpm db:reset` |

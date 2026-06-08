@@ -12,7 +12,7 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
-import { useUser } from "@propelauth/nextjs/client";
+import { useUser } from "@/lib/auth-context";
 import { AppSelect } from "@/components/app-select";
 import { apiFetch } from "@/lib/api-client";
 import { syncUserAfterLogin } from "@/lib/auth";

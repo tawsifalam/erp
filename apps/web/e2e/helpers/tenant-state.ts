@@ -13,7 +13,6 @@ type MockBranch = {
 type MockOrgCurrent = {
   id: string;
   name: string;
-  propelAuthOrgId: string;
   joinCode: string;
   branches: MockBranch[];
 };
@@ -29,7 +28,6 @@ const INITIAL_BRANCHES: MockBranch[] = [
 const ORG_B: MockOrgCurrent = {
   id: MOCK_ORG_B_ID,
   name: "Harbor Hotel Group",
-  propelAuthOrgId: "pa-org-b-propelauth",
   joinCode: "ov_harbor",
   branches: [{ id: MOCK_BRANCH_B1_ID, name: "Harbor Downtown", timezone: "Asia/Dhaka" }],
 };
@@ -57,7 +55,6 @@ export function getCurrentOrganization(): MockOrgCurrent {
   return {
     id: "org-test-001",
     name: orgName,
-    propelAuthOrgId: "demo-org-propelauth",
     joinCode: "ov_testcode",
     branches: getTenantBranches(),
   };
@@ -238,7 +235,6 @@ export function handleTenantMutation(
     const created: MockOrgCurrent = {
       id: `org-new-${createdOrganizations.length + 1}`,
       name: String(body?.name ?? "New Org"),
-      propelAuthOrgId: `pa_org_new_${createdOrganizations.length + 1}`,
       joinCode: `ov_new_${createdOrganizations.length + 1}`,
       branches: [
         {
@@ -253,10 +249,8 @@ export function handleTenantMutation(
       organization: {
         id: created.id,
         name: created.name,
-        propelAuthOrgId: created.propelAuthOrgId,
         branches: created.branches,
       },
-      propelAuthSynced: true,
     };
   }
 

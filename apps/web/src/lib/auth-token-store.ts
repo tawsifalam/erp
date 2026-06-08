@@ -1,4 +1,4 @@
-/** In-memory access token synced from @propelauth/nextjs AuthProvider (useUser). */
+/** In-memory access token synced from AuthProvider (useAuth). */
 let accessToken: string | null | undefined;
 
 declare global {

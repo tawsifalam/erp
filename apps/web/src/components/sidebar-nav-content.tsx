@@ -13,7 +13,7 @@ import {
   Button,
   IconButton,
 } from "@chakra-ui/react";
-import { useUser } from "@propelauth/nextjs/client";
+import { useUser } from "@/lib/auth-context";
 import { signOut } from "@/lib/auth";
 import { formatRoleLabel } from "@erp/utils";
 import {

@@ -6,8 +6,12 @@ export const apiEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
-  PROPELAUTH_AUTH_URL: z.string().url(),
-  PROPELAUTH_API_KEY: z.string().min(1),
+  JWT_ACCESS_SECRET: z.string().min(16),
+  JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_ACCESS_TTL: z.string().default("15m"),
+  JWT_REFRESH_TTL: z.string().default("30d"),
+  AUTH_COOKIE_NAME: z.string().default("erp_refresh"),
+  APP_URL: z.string().url().optional(),
   MINIO_ENDPOINT: z.string().default("localhost"),
   MINIO_PORT: z.coerce.number().default(9000),
   MINIO_ACCESS_KEY: z.string().default("minioadmin"),
@@ -24,7 +28,6 @@ export const apiEnvSchema = z.object({
 
 export const webEnvSchema = z.object({
   NEXT_PUBLIC_API_URL: z.string().url(),
-  NEXT_PUBLIC_AUTH_URL: z.string().url(),
   NEXT_PUBLIC_APP_URL: z.string().url(),
 });
 

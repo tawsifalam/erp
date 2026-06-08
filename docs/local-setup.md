@@ -22,20 +22,23 @@ PUPPETEER_SKIP_DOWNLOAD=true pnpm install
 
 `pnpm generate:visual-guide-pdf` still needs Chrome or Playwright browsers (`pnpm test:e2e:install`), not Puppeteer’s bundled Chromium.
 
-## 2. PropelAuth
+## 2. Authentication (JWT)
 
-1. Create a project at [PropelAuth](https://www.propelauth.com).
-2. Copy Auth URL, API key, and verifier key from **Backend Integration**.
-3. Set env vars (see [propelauth.md](./propelauth.md)):
+Set JWT secrets in root `.env` (see [auth.md](./auth.md)):
 
 ```env
-PROPELAUTH_AUTH_URL=https://your-project.propelauth.com
-PROPELAUTH_API_KEY=...
-NEXT_PUBLIC_AUTH_URL=https://your-project.propelauth.com
-PROPELAUTH_REDIRECT_URI=http://localhost:3000/api/auth/callback
+JWT_ACCESS_SECRET=dev-access-secret-change-me
+JWT_REFRESH_SECRET=dev-refresh-secret-change-me
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=30d
+AUTH_COOKIE_NAME=erp_refresh
+APP_URL=http://localhost:3000
 ```
 
-4. In PropelAuth dashboard, set login redirect to `http://localhost:3000/api/auth/callback`.
+After `pnpm db:reset`, sign in at http://localhost:3000/auth/login with:
+
+- Email: `admin@boulevard.cafe`
+- Password: `DemoPassword1!`
 
 ## 3. Infrastructure
 
@@ -72,7 +75,7 @@ docker compose up -d postgres redis minio
 pnpm db:reset
 ```
 
-Demo seed uses `propelAuthOrgId` `demo-org-propelauth` and user `demo-admin-propelauth`. After PropelAuth login, the dashboard syncs your real user via `POST /api/auth/sync`.
+Demo seed creates organization **Boulevard Hospitality Group** and user `admin@boulevard.cafe` with the password above.
 
 ## 5. Run apps
 
@@ -82,7 +85,7 @@ pnpm dev
 
 - Web: http://localhost:3000
 - API: http://localhost:3001/api/health
-- Login: http://localhost:3000/api/auth/login
+- Login: http://localhost:3000/auth/login
 
 ## 6. Tests
 
@@ -95,7 +98,7 @@ pnpm db:reset && pnpm test:e2e   # Mocked API browser tests (web only)
 docker compose up -d postgres redis
 RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration
 
-# Real stack smoke (PropelAuth token + Postgres) — see docs/smoke-local.md
+# Real stack smoke (JWT login + Postgres) — see docs/smoke-local.md
 pnpm smoke:local:setup   # after db:reset or when switching orgs
 pnpm smoke:local
 ```

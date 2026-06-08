@@ -1,4 +1,4 @@
-# Hospitality ERP Web — Next.js standalone (monorepo, PropelAuth)
+# Hospitality ERP Web — Next.js standalone (monorepo)
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
@@ -20,10 +20,8 @@ ARG SOURCE_REV=unknown
 
 # NEXT_PUBLIC_* are inlined at build time
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
-ARG NEXT_PUBLIC_AUTH_URL=https://your-project.propelauth.com
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_AUTH_URL=$NEXT_PUBLIC_AUTH_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 RUN echo "web build SOURCE_REV=${SOURCE_REV}" \

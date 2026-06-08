@@ -22,7 +22,7 @@ export function useSmokeHarness() {
   test.describe.configure({ mode: "serial" });
 
   test.skip(
-    () => !!process.env.CI && !process.env.SMOKE_PROPELAUTH_USER_ID,
+    () => !!process.env.CI && !process.env.SMOKE_USER_EMAIL,
     "CI runs mocked e2e only; set secrets to enable smoke-local in CI",
   );
 

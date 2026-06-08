@@ -11,8 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://erp:erp@localhost:5432/hospitality_erp
-      PROPELAUTH_AUTH_URL: https://ci.example.propelauth.com
-      PROPELAUTH_API_KEY: ci-test-api-key
+      JWT_ACCESS_SECRET: ci-test-access-secret-min-16-chars
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-min-16-chars
+      APP_URL: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3000
       REDIS_URL: redis://localhost:6379
     services:
       postgres:

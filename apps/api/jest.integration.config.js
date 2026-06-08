@@ -5,6 +5,7 @@ module.exports = {
   transform: { "^.+\\.(t|j)s$": "ts-jest" },
   testEnvironment: "node",
   testTimeout: 60000,
+  transformIgnorePatterns: ["/node_modules/.pnpm/(?!jose@)"],
   moduleNameMapper: {
     "^@erp/(.*)$": "<rootDir>/../../../packages/$1/src",
   },

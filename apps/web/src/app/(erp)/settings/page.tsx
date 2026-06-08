@@ -49,7 +49,6 @@ type Branch = {
 type OrganizationDetail = {
   id: string;
   name: string;
-  propelAuthOrgId: string;
   joinCode?: string;
   branches: Branch[];
 };
@@ -268,7 +267,8 @@ export default function SettingsPage() {
                   Current organization
                 </Text>
                 <Text fontSize="xs" color="fg.muted" fontFamily="mono" mb={3}>
-                  ID: {org.id} · PropelAuth: {shortId(org.propelAuthOrgId, 12)}
+                  ID: {org.id}
+                  {org.joinCode ? ` · Join code: ${org.joinCode}` : null}
                 </Text>
                 <Flex gap={2} align="flex-end" mb={2}>
                   <FormField label="Organization name">

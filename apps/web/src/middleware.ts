@@ -1,32 +1,37 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { authMiddleware } from "@propelauth/nextjs/server/app-router";
 
-const PUBLIC_PATHS = ["/auth/login", "/auth/signup", "/api/auth/"];
+const PUBLIC_PATHS = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/accept-invite",
+];
 const ONBOARDING_PATHS = ["/onboarding"];
+const REFRESH_COOKIE = "erp_refresh";
+const SESSION_COOKIE = "erp_session";
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const isOnboarding = ONBOARDING_PATHS.some((p) => pathname.startsWith(p));
+  const hasRefresh =
+    req.cookies.has(REFRESH_COOKIE) || req.cookies.has(SESSION_COOKIE);
+
   if (isPublic || isOnboarding || pathname === "/") {
-    return authMiddleware(req);
+    return NextResponse.next();
   }
 
-  // Run PropelAuth middleware to refresh tokens / attach headers
-  const res = await authMiddleware(req);
-
-  // Check if user has a valid session (access token cookie exists)
-  const hasSession = req.cookies.has("__pa_at");
-  if (!hasSession) {
+  if (!hasRefresh) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/auth/login";
+    loginUrl.searchParams.set("return_to", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  return res;
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
 };

@@ -5,20 +5,23 @@ const mockAuthService = {
   syncUser: jest.fn(),
 };
 
+const mockConfig = {
+  get: jest.fn((key: string, fallback?: string) => fallback),
+  getOrThrow: jest.fn(),
+};
+
 describe("AuthController", () => {
   let controller: AuthController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new AuthController(mockAuthService as never);
+    controller = new AuthController(mockAuthService as never, mockConfig as never);
   });
 
   it("POST sync delegates to AuthService with JWT claims", async () => {
     const claims = {
-      userId: "pa_1",
+      userId: "usr_1",
       email: "user@example.com",
-      firstName: "Test",
-      lastName: "User",
     };
     mockAuthService.syncUser.mockResolvedValue({
       hasActiveMembership: false,
@@ -31,9 +34,8 @@ describe("AuthController", () => {
     expect(result.hasActiveMembership).toBe(false);
   });
 
-  it("GET me returns JWT claims unchanged", () => {
-    const claims = { userId: "pa_1", email: "a@b.c", orgId: "pa_org" };
-
+  it("POST me returns JWT claims unchanged", () => {
+    const claims = { userId: "usr_1", email: "a@b.c" };
     expect(controller.me(claims)).toEqual(claims);
   });
 });

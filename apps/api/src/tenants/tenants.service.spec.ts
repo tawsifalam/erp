@@ -42,26 +42,12 @@ const mockInventoryPools = {
   seedDefaultPools: jest.fn().mockResolvedValue(undefined),
 };
 
-const mockPropelAuth = {
-  createOrg: jest.fn(),
-  fetchOrg: jest.fn(),
-  addUserToOrg: jest.fn(),
-  updateOrg: jest.fn(),
-  inviteUserToOrg: jest.fn(),
-  revokePendingOrgInvite: jest.fn(),
-  fetchAllUsersInOrg: jest.fn(),
-  removeUserFromOrg: jest.fn(),
-  mapPropelAuthRoleToErp: jest.fn((role: string) => {
-    const normalized = role.toLowerCase();
-    if (normalized === "owner") return "OWNER";
-    if (normalized === "admin") return "ADMIN";
-    return "FRONT_DESK";
-  }),
-  mapErpRoleToPropelAuth: jest.fn((role: string) => {
-    if (role === "OWNER") return "Owner";
-    if (role === "ADMIN") return "Admin";
-    return "Member";
-  }),
+const mockTokens = {
+  signInviteToken: jest.fn().mockResolvedValue("invite-jwt"),
+};
+
+const mockEmailAuth = {
+  sendInviteEmail: jest.fn().mockResolvedValue(undefined),
 };
 
 describe("TenantsService", () => {
@@ -70,16 +56,12 @@ describe("TenantsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
-    mockPropelAuth.fetchOrg.mockResolvedValue({ orgId: "pa_org" });
-    mockPropelAuth.createOrg.mockResolvedValue({ orgId: "pa_org_new" });
-    mockPropelAuth.addUserToOrg.mockResolvedValue(true);
-    mockPropelAuth.updateOrg.mockResolvedValue(true);
-    mockPropelAuth.inviteUserToOrg.mockResolvedValue(true);
     service = new TenantsService(
       mockPrisma as never,
       mockInventoryPools as never,
       mockAudit as never,
-      mockPropelAuth as never,
+      mockTokens as never,
+      mockEmailAuth as never,
     );
   });
 
@@ -191,31 +173,16 @@ describe("TenantsService", () => {
     );
   });
 
-  it("updateOrganization syncs name to PropelAuth when linked", async () => {
+  it("updateOrganization updates organization name", async () => {
     mockPrisma.organization.update.mockResolvedValue({
       id: "org_1",
       name: "Renamed Hotel",
-      propelAuthOrgId: "pa_org_1",
       branches: [],
     });
 
     const result = await service.updateOrganization("org_1", { name: "Renamed Hotel" }, "usr_1");
 
     expect(result.name).toBe("Renamed Hotel");
-    expect(mockPropelAuth.updateOrg).toHaveBeenCalledWith("pa_org_1", "Renamed Hotel");
-  });
-
-  it("updateOrganization skips PropelAuth sync for synthetic org ids", async () => {
-    mockPrisma.organization.update.mockResolvedValue({
-      id: "org_1",
-      name: "Renamed Hotel",
-      propelAuthOrgId: "erp_local_org",
-      branches: [],
-    });
-
-    await service.updateOrganization("org_1", { name: "Renamed Hotel" });
-
-    expect(mockPropelAuth.updateOrg).not.toHaveBeenCalled();
   });
 
   it("getOnboardingStatus reports membership and pending request", async () => {
@@ -231,20 +198,13 @@ describe("TenantsService", () => {
     });
   });
 
-  it("createOrganization seeds pools, links PropelAuth, and adds creator", async () => {
-    mockPrisma.organization.findUnique.mockResolvedValue(null);
-    mockPrisma.user.findUnique.mockResolvedValue({ propelAuthUserId: "pa_creator" });
-    mockPropelAuth.fetchOrg.mockResolvedValue(null);
-    mockPropelAuth.createOrg.mockResolvedValue({ orgId: "pa_org_new", name: "Test Org" });
-    mockPrisma.organization.update.mockResolvedValue({});
-
+  it("createOrganization seeds pools and creates org with owner membership", async () => {
     mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
       const tx = {
         organization: {
           create: jest.fn().mockResolvedValue({
             id: "org_new",
             name: "Test Org",
-            propelAuthOrgId: "erp_temp_org",
             joinCode: "ov_abc",
           }),
         },
@@ -266,84 +226,7 @@ describe("TenantsService", () => {
     });
 
     expect(mockInventoryPools.seedDefaultPools).toHaveBeenCalledWith("org_new");
-    expect(mockPropelAuth.createOrg).toHaveBeenCalledWith("Test Org", "org_new");
-    expect(mockPropelAuth.addUserToOrg).toHaveBeenCalledWith("pa_org_new", "pa_creator");
-    expect(result.propelAuthSynced).toBe(true);
-    expect(result.organization.propelAuthOrgId).toBe("pa_org_new");
-  });
-
-  it("createOrganization uses provided propelAuthOrgId and still adds creator", async () => {
-    mockPrisma.organization.findUnique.mockResolvedValue(null);
-    mockPrisma.user.findUnique.mockResolvedValue({ propelAuthUserId: "pa_creator" });
-    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
-      const tx = {
-        organization: {
-          create: jest.fn().mockResolvedValue({
-            id: "org_new",
-            name: "Linked Org",
-            propelAuthOrgId: "pa_existing",
-            joinCode: "ov_xyz",
-          }),
-        },
-        branch: {
-          create: jest.fn().mockResolvedValue({
-            id: "br_main",
-            name: "Main Branch",
-            timezone: "Asia/Dhaka",
-          }),
-        },
-        userOrganization: { create: jest.fn().mockResolvedValue({}) },
-      };
-      return fn(tx as never);
-    });
-
-    const result = await service.createOrganization("user_1", {
-      name: "Linked Org",
-      timezone: "Asia/Dhaka",
-      propelAuthOrgId: "pa_existing",
-    });
-
-    expect(mockPropelAuth.createOrg).not.toHaveBeenCalled();
-    expect(mockPropelAuth.addUserToOrg).toHaveBeenCalledWith("pa_existing", "pa_creator");
-    expect(result.propelAuthSynced).toBe(true);
-  });
-
-  it("createOrganization completes when PropelAuth sync fails", async () => {
-    mockPrisma.organization.findUnique.mockResolvedValue(null);
-    mockPrisma.user.findUnique.mockResolvedValue({ propelAuthUserId: "pa_creator" });
-    mockPropelAuth.fetchOrg.mockResolvedValue(null);
-    mockPropelAuth.createOrg.mockRejectedValue(new Error("PropelAuth down"));
-
-    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => {
-      const tx = {
-        organization: {
-          create: jest.fn().mockResolvedValue({
-            id: "org_new",
-            name: "Offline Org",
-            propelAuthOrgId: "erp_offline",
-            joinCode: "ov_off",
-          }),
-        },
-        branch: {
-          create: jest.fn().mockResolvedValue({
-            id: "br_main",
-            name: "Main Branch",
-            timezone: "Asia/Dhaka",
-          }),
-        },
-        userOrganization: { create: jest.fn().mockResolvedValue({}) },
-      };
-      return fn(tx as never);
-    });
-
-    const result = await service.createOrganization("user_1", {
-      name: "Offline Org",
-      timezone: "Asia/Dhaka",
-    });
-
     expect(result.organization.id).toBe("org_new");
-    expect(result.propelAuthSynced).toBe(false);
-    expect(mockPropelAuth.addUserToOrg).not.toHaveBeenCalled();
   });
 
   it("createOrganization rejects missing name or timezone", async () => {
@@ -385,7 +268,8 @@ describe("TenantsService", () => {
       mockPrisma as never,
       mockInventoryPools as never,
       mockAudit as never,
-      mockPropelAuth as never,
+      mockTokens as never,
+      mockEmailAuth as never,
     );
     mockPrisma.branch.create.mockResolvedValue({
       id: "br_new",
@@ -445,11 +329,10 @@ describe("TenantsService", () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it("inviteMember sends PropelAuth invite and records pending invite", async () => {
+  it("inviteMember sends email invite and records pending invite", async () => {
     mockPrisma.organization.findUnique.mockResolvedValue({
       id: "org_1",
       name: "Test Org",
-      propelAuthOrgId: "pa_org_1",
     });
     mockPrisma.user.findUnique.mockResolvedValue(null);
     mockPrisma.organizationInvite.findFirst.mockResolvedValue(null);
@@ -464,10 +347,9 @@ describe("TenantsService", () => {
       role: "FRONT_DESK",
     });
 
-    expect(mockPropelAuth.inviteUserToOrg).toHaveBeenCalledWith(
-      "pa_org_1",
-      "new@example.com",
-      "Member",
+    expect(mockTokens.signInviteToken).toHaveBeenCalled();
+    expect(mockEmailAuth.sendInviteEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "new@example.com", organizationName: "Test Org" }),
     );
     expect(mockPrisma.organizationInvite.create).toHaveBeenCalled();
   });
@@ -475,7 +357,6 @@ describe("TenantsService", () => {
   it("inviteMember rejects duplicate pending invite", async () => {
     mockPrisma.organization.findUnique.mockResolvedValue({
       id: "org_1",
-      propelAuthOrgId: "pa_org_1",
       name: "Test",
     });
     mockPrisma.user.findUnique.mockResolvedValue(null);
@@ -489,36 +370,19 @@ describe("TenantsService", () => {
     ).rejects.toThrow(ConflictException);
   });
 
-  it("removeMember deletes non-founder membership and removes from PropelAuth", async () => {
+  it("removeMember deletes non-founder membership", async () => {
     mockPrisma.userOrganization.findFirst.mockResolvedValue({ userId: "usr_founder" });
     mockPrisma.userOrganization.findUnique.mockResolvedValue({
       id: "uo_2",
       userId: "usr_member",
       role: "FRONT_DESK",
     });
-    mockPrisma.organization.findUnique.mockResolvedValue({
-      propelAuthOrgId: "pa_org_1",
-    });
-    mockPrisma.user.findUnique.mockResolvedValue({
-      propelAuthUserId: "pa_user_member",
-      email: "member@test.com",
-    });
-    mockPropelAuth.removeUserFromOrg.mockResolvedValue(true);
-    mockPropelAuth.revokePendingOrgInvite.mockResolvedValue(true);
     mockPrisma.userOrganization.delete.mockResolvedValue({});
 
     const result = await service.removeMember("org_1", "usr_member", "usr_admin");
 
     expect(result.removed).toBe(true);
     expect(mockPrisma.userOrganization.delete).toHaveBeenCalledWith({ where: { id: "uo_2" } });
-    expect(mockPropelAuth.removeUserFromOrg).toHaveBeenCalledWith(
-      "pa_org_1",
-      "pa_user_member",
-    );
-    expect(mockPropelAuth.revokePendingOrgInvite).toHaveBeenCalledWith(
-      "pa_org_1",
-      "member@test.com",
-    );
   });
 
   it("listOrganizations filters branches for non-admin members", async () => {
@@ -669,87 +533,4 @@ describe("TenantsService", () => {
     expect(mockPrisma.userBranch.delete).not.toHaveBeenCalled();
   });
 
-  it("syncUserPropelAuthOrgMemberships creates membership for linked PropelAuth org", async () => {
-    mockPrisma.organization.findUnique.mockResolvedValue({
-      id: "org_1",
-      propelAuthOrgId: "pa_org_1",
-    });
-    mockPrisma.userOrganization.findUnique.mockResolvedValue(null);
-    mockPrisma.organizationInvite.findFirst.mockResolvedValue(null);
-    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) =>
-      fn({
-        ...mockPrisma,
-        userOrganization: { create: jest.fn() },
-        organizationInvite: { updateMany: jest.fn() },
-        organizationJoinRequest: { updateMany: jest.fn() },
-      } as never),
-    );
-
-    await service.syncUserPropelAuthOrgMemberships("usr_1", "member@test.com", [
-      { orgId: "pa_org_1", role: "Member" },
-    ]);
-
-    expect(mockPrisma.organization.findUnique).toHaveBeenCalledWith({
-      where: { propelAuthOrgId: "pa_org_1" },
-    });
-    expect(mockPrisma.$transaction).toHaveBeenCalled();
-  });
-
-  it("syncPropelAuthOrgUsersToDb upserts users and adds team membership", async () => {
-    mockPrisma.organization.findUnique.mockResolvedValue({
-      id: "org_1",
-      propelAuthOrgId: "pa_org_1",
-    });
-    mockPropelAuth.fetchAllUsersInOrg.mockResolvedValue([
-      {
-        userId: "pa_user_1",
-        email: "member@test.com",
-        firstName: "Team",
-        lastName: "Member",
-        roleInOrg: "Admin",
-      },
-    ]);
-    mockPrisma.user.upsert.mockResolvedValue({
-      id: "usr_1",
-      email: "member@test.com",
-    });
-    mockPrisma.organizationInvite.findMany.mockResolvedValue([]);
-    mockPrisma.userOrganization.findUnique.mockResolvedValue(null);
-    mockPrisma.organizationInvite.findFirst.mockResolvedValue(null);
-    mockPrisma.$transaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) =>
-      fn({
-        ...mockPrisma,
-        userOrganization: { create: jest.fn() },
-        organizationInvite: { updateMany: jest.fn() },
-        organizationJoinRequest: { updateMany: jest.fn() },
-      } as never),
-    );
-
-    const result = await service.syncPropelAuthOrgUsersToDb("pa_org_1");
-
-    expect(result).toEqual({ usersSynced: 1, membershipsAdded: 1 });
-    expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { propelAuthUserId: "pa_user_1" },
-        create: expect.objectContaining({ email: "member@test.com", name: "Team Member" }),
-      }),
-    );
-  });
-
-  it("syncPropelAuthOrgUsersToDb skips synthetic erp_ org ids", async () => {
-    const result = await service.syncPropelAuthOrgUsersToDb("erp_local_org");
-    expect(result).toEqual({ usersSynced: 0, membershipsAdded: 0 });
-    expect(mockPropelAuth.fetchAllUsersInOrg).not.toHaveBeenCalled();
-  });
-
-  it("syncOrganizationMembersFromPropelAuth throws when org is not linked", async () => {
-    mockPrisma.organization.findUnique.mockResolvedValue({
-      id: "org_1",
-      propelAuthOrgId: "erp_local_org",
-    });
-
-    await expect(
-      service.syncOrganizationMembersFromPropelAuth("org_1", "usr_admin"),
-    ).rejects.toThrow(BadRequestException);
-  });
 });

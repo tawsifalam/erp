@@ -6,7 +6,7 @@ import {
 import { Test } from "@nestjs/testing";
 import { PrismaClient } from "@prisma/client";
 import { AppModule } from "../app.module";
-import { PropelAuthGuard } from "../common/guards/propelauth.guard";
+import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { UserBranchStatus } from "../tenants/branch-access.constants";
 
 /** Plain client — PrismaService rewrites ids that lack model prefixes on create/upsert. */
@@ -68,10 +68,10 @@ export type IntegrationFixture = {
   };
 };
 
-const TOKEN_TO_PROPEL: Record<string, string> = {
-  "Bearer int-owner-a": `${INTEGRATION_PREFIX}-pa-owner-a`,
-  "Bearer int-front-desk": `${INTEGRATION_PREFIX}-pa-front`,
-  "Bearer int-owner-b": `${INTEGRATION_PREFIX}-pa-owner-b`,
+const TOKEN_TO_USER: Record<string, string> = {
+  "Bearer int-owner-a": `${INTEGRATION_PREFIX}-usr-owner-a`,
+  "Bearer int-front-desk": `${INTEGRATION_PREFIX}-usr-front`,
+  "Bearer int-owner-b": `${INTEGRATION_PREFIX}-usr-owner-b`,
 };
 
 let integrationBaseUrl: string | undefined;
@@ -80,16 +80,16 @@ export async function createIntegrationApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
   })
-    .overrideGuard(PropelAuthGuard)
+    .overrideGuard(JwtAuthGuard)
     .useValue({
       canActivate: (context: import("@nestjs/common").ExecutionContext) => {
         const req = context.switchToHttp().getRequest();
         const auth = req.headers.authorization as string | undefined;
-        const propelId = auth ? TOKEN_TO_PROPEL[auth] : undefined;
-        if (!propelId) {
+        const userId = auth ? TOKEN_TO_USER[auth] : undefined;
+        if (!userId) {
           throw new UnauthorizedException("Invalid or missing access token");
         }
-        req.user = { userId: propelId };
+        req.user = { userId };
         return true;
       },
     })
@@ -125,12 +125,10 @@ export async function seedIntegrationFixture(
     create: {
       id: orgAId,
       name: "Integration Org A",
-      propelAuthOrgId: `${INTEGRATION_PREFIX}-pa-org-a`,
       joinCode: `${INTEGRATION_PREFIX}-join-a`,
     },
     update: {
       name: "Integration Org A",
-      propelAuthOrgId: `${INTEGRATION_PREFIX}-pa-org-a`,
       joinCode: `${INTEGRATION_PREFIX}-join-a`,
     },
   });
@@ -139,12 +137,10 @@ export async function seedIntegrationFixture(
     create: {
       id: orgBId,
       name: "Integration Org B",
-      propelAuthOrgId: `${INTEGRATION_PREFIX}-pa-org-b`,
       joinCode: `${INTEGRATION_PREFIX}-join-b`,
     },
     update: {
       name: "Integration Org B",
-      propelAuthOrgId: `${INTEGRATION_PREFIX}-pa-org-b`,
       joinCode: `${INTEGRATION_PREFIX}-join-b`,
     },
   });
@@ -166,11 +162,9 @@ export async function seedIntegrationFixture(
     create: {
       id: `${INTEGRATION_PREFIX}-usr-owner-a`,
       email: `${INTEGRATION_PREFIX}-owner-a@test.local`,
-      propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-owner-a"],
     },
     update: {
       email: `${INTEGRATION_PREFIX}-owner-a@test.local`,
-      propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-owner-a"],
     },
   });
   const frontDesk = await prisma.user.upsert({
@@ -178,11 +172,9 @@ export async function seedIntegrationFixture(
     create: {
       id: `${INTEGRATION_PREFIX}-usr-front`,
       email: `${INTEGRATION_PREFIX}-front@test.local`,
-      propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-front-desk"],
     },
     update: {
       email: `${INTEGRATION_PREFIX}-front@test.local`,
-      propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-front-desk"],
     },
   });
   const ownerB = await prisma.user.upsert({
@@ -190,11 +182,9 @@ export async function seedIntegrationFixture(
     create: {
       id: `${INTEGRATION_PREFIX}-usr-owner-b`,
       email: `${INTEGRATION_PREFIX}-owner-b@test.local`,
-      propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-owner-b"],
     },
     update: {
       email: `${INTEGRATION_PREFIX}-owner-b@test.local`,
-      propelAuthUserId: TOKEN_TO_PROPEL["Bearer int-owner-b"],
     },
   });
   const applicant = await prisma.user.upsert({
@@ -202,11 +192,9 @@ export async function seedIntegrationFixture(
     create: {
       id: `${INTEGRATION_PREFIX}-usr-applicant`,
       email: `${INTEGRATION_PREFIX}-applicant@test.local`,
-      propelAuthUserId: `${INTEGRATION_PREFIX}-pa-applicant`,
     },
     update: {
       email: `${INTEGRATION_PREFIX}-applicant@test.local`,
-      propelAuthUserId: `${INTEGRATION_PREFIX}-pa-applicant`,
     },
   });
 
@@ -823,7 +811,6 @@ async function findFixtureOrgIds(prisma: PrismaClient): Promise<string[]> {
     where: {
       OR: [
         { id: { startsWith: INTEGRATION_PREFIX } },
-        { propelAuthOrgId: { startsWith: INTEGRATION_PREFIX } },
         { joinCode: { startsWith: INTEGRATION_PREFIX } },
       ],
     },
@@ -837,7 +824,6 @@ async function findFixtureUserIds(prisma: PrismaClient): Promise<string[]> {
     where: {
       OR: [
         { id: { startsWith: INTEGRATION_PREFIX } },
-        { propelAuthUserId: { startsWith: INTEGRATION_PREFIX } },
         { email: { contains: `${INTEGRATION_PREFIX}-` } },
       ],
     },

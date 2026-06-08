@@ -124,60 +124,40 @@ export const FAKE_BRANCH_ID = "branch-test-001";
 export const FAKE_BRANCH_ID_2 = "branch-test-002";
 export const FAKE_BRANCH_ID_2B = "branch-test-003";
 
+const MOCK_AUTH_USER = {
+  id: "test-user-id",
+  email: "admin@boulevard.cafe",
+  name: "Admin User",
+};
+
+const MOCK_ACCESS_TOKEN = "mock-access-token";
+
 /**
- * Mock PropelAuth and backend API auth so pages render as if a user is
- * logged in. Call this BEFORE navigating to any protected page.
+ * Mock first-party auth (refresh cookie + API session) so pages render as logged in.
+ * Call this BEFORE navigating to any protected page.
  */
 export async function mockAuth(page: Page) {
-  // 1. PropelAuth client SDK fetches auth info from the hosted auth URL.
-  //    Intercept any request to the PropelAuth domain so the AuthProvider
-  //    thinks the user is logged in.
-  const fulfillPropelAuth = (route: import("@playwright/test").Route) => {
-    const url = route.request().url();
-    if (
-      url.includes("/api/v1/refresh_token") ||
-      url.includes("/api/be/v1/") ||
-      url.includes("/api/v1/whoami")
-    ) {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          access_token: "mock-access-token",
-          user_id: "test-user-id",
-          email: "admin@boulevard.cafe",
-          org_id_to_org_member_info: {
-            [FAKE_ORG_ID]: {
-              org_id: FAKE_ORG_ID,
-              org_name: "Boulevard Café",
-              url_safe_org_name: "boulevard-cafe",
-              user_role: "Admin",
-            },
-          },
-        }),
-      });
-    }
-    return route.fulfill({ status: 200, body: "{}" });
-  };
+  const sessionBody = JSON.stringify({
+    accessToken: MOCK_ACCESS_TOKEN,
+    user: MOCK_AUTH_USER,
+  });
 
-  await page.route(/propelauth/i, fulfillPropelAuth);
-
-  // Intercept /api/auth/userinfo (PropelAuth AuthProvider session refresh)
-  await page.route("**/api/auth/userinfo", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        userinfo: {
-          user_id: "test-user-id",
-          email: "admin@boulevard.cafe",
-        },
-        accessToken: "mock-access-token",
-      }),
-    }),
+  await page.route(
+    (url) => isBackendApiUrl(url.href) && url.pathname.endsWith("/api/auth/refresh"),
+    (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      return route.fulfill({ status: 200, contentType: "application/json", body: sessionBody });
+    },
   );
 
-  // 3. Intercept /api/auth/sync (called by syncUserAfterLogin)
+  await page.route(
+    (url) => isBackendApiUrl(url.href) && url.pathname.endsWith("/api/auth/login"),
+    (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      return route.fulfill({ status: 200, contentType: "application/json", body: sessionBody });
+    },
+  );
+
   await page.route("**/api/auth/sync", (route) =>
     route.fulfill({
       status: 200,
@@ -186,13 +166,14 @@ export async function mockAuth(page: Page) {
     }),
   );
 
-  // 4. Set the PropelAuth access-token cookie so Next.js middleware passes
   await page.context().addCookies([
     {
-      name: "__pa_at",
-      value: "mock-token",
+      name: "erp_refresh",
+      value: "mock-refresh-token",
       domain: "localhost",
       path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
     },
   ]);
 }

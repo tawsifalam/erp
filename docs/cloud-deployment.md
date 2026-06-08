@@ -2,7 +2,7 @@
 
 Step-by-step plan to deploy the hospitality ERP to production. Covers **Phase 1** modules (PMS, POS, kitchen, inventory, accounting, HR, payroll, reporting, settings).
 
-**Related:** [deployment.md](./deployment.md) (summary), [vps-docker-operations.md](./vps-docker-operations.md) (stop/inspect/rebuild), [local-setup.md](./local-setup.md) (dev), [propelauth.md](./propelauth.md) (auth).
+**Related:** [deployment.md](./deployment.md) (summary), [vps-docker-operations.md](./vps-docker-operations.md) (stop/inspect/rebuild), [local-setup.md](./local-setup.md) (dev), [auth.md](./auth.md) (authentication).
 
 ---
 
@@ -13,14 +13,13 @@ Step-by-step plan to deploy the hospitality ERP to production. Covers **Phase 1*
 | Edge | **Host nginx** (systemd) | TLS on 80/443, proxies to localhost |
 | App | **web**, **api** (Docker) | Published on `127.0.0.1:3000` / `3001` only |
 | Data | **postgres**, **redis**, **minio** (Docker) | Not published on host in prod (`docker-compose.prod.yml`) |
-| Auth | **PropelAuth** (SaaS) | External |
+| Auth | **First-party JWT** (API + Redis) | In-app |
 
 We do **not** run nginx in Docker for production. Certbot and `/etc/nginx` own the public ports. App containers stay on the internal Compose network plus localhost bindings.
 
 ```mermaid
 flowchart TB
   User[Browser]
-  PA[PropelAuth]
   HN[Host nginx TLS]
   WEB[web 127.0.0.1:3000]
   API[api 127.0.0.1:3001]
@@ -29,14 +28,12 @@ flowchart TB
   S3[(MinIO)]
 
   User --> HN
-  User --> PA
   HN --> WEB
   HN --> API
   WEB --> API
   API --> PG
   API --> RD
   API --> S3
-  API --> PA
 ```
 
 **Single-domain URLs** (recommended):
@@ -44,9 +41,9 @@ flowchart TB
 | URL | Target |
 |-----|--------|
 | `https://app.yourdomain.com/` | Next.js |
-| `https://app.yourdomain.com/api/*` | NestJS (except `/api/auth/*` handled by Next — see nginx example) |
+| `https://app.yourdomain.com/api/*` | NestJS (including `/api/auth/*`) |
 | `https://app.yourdomain.com/socket.io/*` | WebSocket |
-| `https://app.yourdomain.com/api/auth/callback` | PropelAuth (Next.js route) |
+| `https://app.yourdomain.com/auth/login` | Next.js login page |
 
 Reference config: [infra/nginx/host-nginx.conf.example](../infra/nginx/host-nginx.conf.example). Route rules match the legacy [infra/nginx/nginx.conf](../infra/nginx/nginx.conf) (Docker upstream names `api`/`web` → use `127.0.0.1` on the host).
 
@@ -264,16 +261,20 @@ Full checklist: [production-smoke-runbook.md](./production-smoke-runbook.md) pre
 
 ---
 
-## Step 4 — PropelAuth
+## Step 4 — JWT authentication
 
-In the PropelAuth dashboard:
+Generate strong secrets and set in `/opt/erp/.env` (see [auth.md](./auth.md)):
 
-1. Redirect URL: `https://app.yourdomain.com/api/auth/callback`
-2. Copy auth URL → `PROPELAUTH_AUTH_URL` / `NEXT_PUBLIC_AUTH_URL`
-3. API key → `PROPELAUTH_API_KEY`
-4. Verifier key (single line) → `PROPELAUTH_VERIFIER_KEY` (web)
+```env
+JWT_ACCESS_SECRET=<random-32+-chars>
+JWT_REFRESH_SECRET=<different-random-32+-chars>
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=30d
+AUTH_COOKIE_NAME=erp_refresh
+APP_URL=https://app.yourdomain.com
+```
 
-See [propelauth.md](./propelauth.md). After deploy, run [production-smoke-runbook.md](./production-smoke-runbook.md).
+After deploy, run [production-smoke-runbook.md](./production-smoke-runbook.md).
 
 ---
 
@@ -284,13 +285,14 @@ Create once (never commit):
 ```env
 # --- App secrets & public URLs (required) ---
 CORS_ORIGIN=https://app.yourdomain.com
-PROPELAUTH_AUTH_URL=https://YOUR_PROJECT.propelauth.com
-PROPELAUTH_API_KEY=your-production-api-key
+JWT_ACCESS_SECRET=your-production-access-secret-min-16-chars
+JWT_REFRESH_SECRET=your-production-refresh-secret-min-16-chars
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=30d
+AUTH_COOKIE_NAME=erp_refresh
+APP_URL=https://app.yourdomain.com
 NEXT_PUBLIC_API_URL=https://app.yourdomain.com
-NEXT_PUBLIC_AUTH_URL=https://YOUR_PROJECT.propelauth.com
 NEXT_PUBLIC_APP_URL=https://app.yourdomain.com
-PROPELAUTH_REDIRECT_URI=https://app.yourdomain.com/api/auth/callback
-PROPELAUTH_VERIFIER_KEY=-----BEGIN PUBLIC KEY-----\n...
 
 API_PORT=3001
 ```
@@ -317,22 +319,20 @@ RESEND_API_KEY=re_...
 EMAIL_FROM=ERP <notifications@yourdomain.com>
 ```
 
-See [Email (Resend + PropelAuth)](#email-resend--propelauth) below.
+See [Email (Resend)](#email-resend) below.
 
 ---
 
-## Email (Resend + PropelAuth)
+## Email (Resend)
 
-Two providers, two jobs:
-
-| Mail | Provider | Configuration |
-|------|----------|----------------|
-| Login, signup, **Settings → Team invite** | **PropelAuth** | PropelAuth dashboard (sender, branding, redirect URLs) |
-| ERP alerts (low stock, payroll complete/failed) | **Resend** | `RESEND_API_KEY` + `EMAIL_FROM` in `/opt/erp/.env` |
+| Mail | Configuration |
+|------|----------------|
+| Password reset, **Settings → Team invite** | `RESEND_API_KEY` + `EMAIL_FROM` in `/opt/erp/.env` |
+| ERP alerts (low stock, payroll complete/failed) | Same Resend keys |
 
 **Resend setup:** Create an API key at [resend.com](https://resend.com), verify your sending domain (DNS), set `EMAIL_FROM` to an address on that domain. Without `RESEND_API_KEY`, in-app notifications still work; the API logs email bodies instead of sending.
 
-**Production check:** [production-smoke-runbook.md](./production-smoke-runbook.md) — §1 (PropelAuth invite), §8.3 (low stock or payroll email when Resend is set). Recipients are the user’s **PropelAuth-synced email** in the ERP; low-stock email goes to Owner/Admin/Accountant roles with **Low stock alerts → Email** enabled in Settings.
+**Production check:** [production-smoke-runbook.md](./production-smoke-runbook.md) — §1 (email invite), §8.3 (low stock or payroll email when Resend is set). Low-stock email goes to Owner/Admin/Accountant roles with **Low stock alerts → Email** enabled in Settings.
 
 **Local test:** Add keys to repo root `.env`, restart `pnpm dev`, ensure Redis is up, record a large **OUT** adjustment on seed item Rice (`INV-001`, threshold 10 kg) while logged in as an admin on the seed org.
 

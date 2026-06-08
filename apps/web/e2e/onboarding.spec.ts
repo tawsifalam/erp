@@ -72,10 +72,8 @@ test.describe("Onboarding create organization", () => {
             organization: {
               id: "org-created-001",
               name: body.name,
-              propelAuthOrgId: "pa_created",
               branches: [{ id: "br-created-001", name: "Main Branch" }],
             },
-            propelAuthSynced: true,
           }),
         });
       }

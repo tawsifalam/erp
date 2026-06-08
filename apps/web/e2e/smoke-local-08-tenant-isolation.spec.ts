@@ -268,7 +268,7 @@ test.describe("Smoke — tenant isolation", () => {
     const auth = await loadSmokeAuth();
     test.skip(
       !auth.frontDeskAuth,
-      "Set SMOKE_PROPELAUTH_FRONT_DESK_USER_ID and re-run pnpm smoke:local:setup",
+      "Set SMOKE_FRONT_DESK_USER_EMAIL/PASSWORD and re-run pnpm smoke:local:setup",
     );
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";

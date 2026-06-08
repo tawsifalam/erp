@@ -2,9 +2,9 @@
 
 ## Hierarchy
 
-- **Organization** — maps to PropelAuth org (`propelAuthOrgId`); includes shareable `joinCode` for onboarding
+- **Organization** — top-level tenant; includes shareable `joinCode` for onboarding
 - **Branch** — property/location within an org
-- **User** — maps to PropelAuth user; linked via `UserOrganization` with a `Role`
+- **User** — ERP account (`email`, `passwordHash`); linked via `UserOrganization` with a `Role`
 
 New users must complete [organization onboarding](organization-onboarding.md) (create org or approved join request) before accessing ERP modules. UI navigation is filtered by org role — see onboarding doc § Org roles & RBAC.
 
@@ -107,7 +107,7 @@ Pre-membership onboarding (applicant join-code flow) intentionally calls JWT-onl
 | Unit | `pnpm --filter @erp/api test:unit` | `TenantScopeService`, guards, controller FK rejection |
 | Mock helper vitest | `cd apps/web && pnpm exec vitest run e2e/helpers/tenant-scope-mock.test.ts e2e/helpers/join-request-state.test.ts` | Mock scope helpers + join-request validation |
 | Mock API E2E | `pnpm test:e2e -- e2e/tenant-isolation.spec.ts` | 44 cases — org/branch guards, mutations, admin settings |
-| Real-stack smoke | `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` | Live API + PropelAuth; optional FRONT_DESK branch-grant denial |
+| Real-stack smoke | `pnpm smoke:local -- e2e/smoke-local-08-tenant-isolation.spec.ts` | Live API + JWT login; optional FRONT_DESK branch-grant denial |
 | API integration | `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` | 30 cases — two-org PostgreSQL harness |
 
 See [test-coverage-gaps.md](./test-coverage-gaps.md) for the living checklist.

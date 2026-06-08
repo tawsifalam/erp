@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { useUser } from "@propelauth/nextjs/client";
+import { useUser } from "@/lib/auth-context";
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs";
 import { signOut } from "@/lib/auth";
 import { LoadingState } from "@erp/ui";

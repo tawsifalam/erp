@@ -63,8 +63,6 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
   const [approveRoles, setApproveRoles] = useState<Record<string, string>>({});
   const [acting, setActing] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
-  const [syncingPropelAuth, setSyncingPropelAuth] = useState(false);
-
   const load = useCallback(async () => {
     if (!tenant) {
       setLoading(false);
@@ -139,31 +137,6 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
     if (!org?.joinCode) return;
     await navigator.clipboard.writeText(org.joinCode);
     appToast.success("Join code copied to clipboard");
-  };
-
-  const syncFromPropelAuth = async () => {
-    if (!tenant) return;
-    setSyncingPropelAuth(true);
-    try {
-      const result = await apiFetch<{ usersSynced: number; membershipsAdded: number }>(
-        "/tenants/members/sync-propelauth",
-        {
-          method: "POST",
-          tenant,
-          body: JSON.stringify({}),
-        },
-      );
-      const added =
-        result.membershipsAdded > 0
-          ? ` (${result.membershipsAdded} added to team)`
-          : "";
-      appToast.success(`Synced ${result.usersSynced} user(s) from PropelAuth${added}`);
-      load();
-    } catch (e) {
-      appToast.error(e instanceof Error ? e.message : "Failed to sync from PropelAuth");
-    } finally {
-      setSyncingPropelAuth(false);
-    }
   };
 
   const approve = async (requestId: string) => {
@@ -274,8 +247,8 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
             Invite by email
           </Text>
           <Text fontSize="sm" color="fg.muted" mb={3}>
-            Sends a PropelAuth signup invite. When they sign in, they are added to your team with
-            the role you choose.
+            Sends an email invite with a secure link. When they accept and set a password, they
+            join your team with the role you choose.
           </Text>
           <Flex gap={3} wrap="wrap" align="flex-end">
             <Box width="min(280px, 100%)">
@@ -450,24 +423,9 @@ export function TeamAccessSection({ tenant }: { tenant: TenantHeaders | undefine
         </ContentCard>
 
         <ContentCard>
-          <Flex justify="space-between" align="flex-start" gap={3} mb={3} wrap="wrap">
-            <Box>
-              <Text fontWeight="semibold">Team members</Text>
-              <Text fontSize="sm" color="fg.muted" mt={1}>
-                Added someone directly in PropelAuth? Sync to import them here. PropelAuth
-                Owner → Owner, Admin → Admin, Member → Front Desk (pending email invites keep
-                their assigned ERP role).
-              </Text>
-            </Box>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={syncFromPropelAuth}
-              loading={syncingPropelAuth}
-            >
-              Sync from PropelAuth
-            </Button>
-          </Flex>
+          <Text fontWeight="semibold" mb={3}>
+            Team members
+          </Text>
           <TableScrollArea>
             <Table.Root size="sm">
               <Table.Header>

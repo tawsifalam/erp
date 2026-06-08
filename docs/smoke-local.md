@@ -7,7 +7,7 @@ Step-by-step coverage of [production-smoke-runbook.md](./production-smoke-runboo
 - Real JWT login via `POST /api/auth/login` (seeded demo user or your credentials)
 - **No** mocked `:3001` API routes (unlike `pnpm test:e2e`)
 
-Specs run in order (`smoke-local-00` … `08`) with a **headed** browser by default. Element assertions use a **5 second** timeout (`playwright.config.ts` → `smoke-local` project).
+Specs run in order (`smoke-local-00` … `09`) with a **headed** browser by default. Element assertions use a **5 second** timeout (`playwright.config.ts` → `smoke-local` project).
 
 ---
 
@@ -46,17 +46,18 @@ pnpm dev
 pnpm smoke:local
 ```
 
-`smoke:local` runs:
+`smoke:local` runs (`scripts/smoke-local-run.mjs`):
 
-1. `pnpm smoke:local:setup` — `POST /api/auth/login`, ensures seed org OWNER membership, writes `.playwright/smoke-auth.json` (gitignored).
-2. `playwright test --project=smoke-local` — starts API + web if not already running; selects seed org/branch in the header before each navigation.
+1. Starts API (`:3001`) and web (`:3000`) if not already up (reuses `pnpm dev` when running).
+2. `pnpm smoke:local:setup` — `POST /api/auth/login` on the API directly, ensures seed org OWNER membership, writes `.playwright/smoke-auth.json` (gitignored).
+3. `playwright test --project=smoke-local` — selects seed org/branch in the header before each navigation.
 
 Setup always links the smoke user to the **seed organization** (`Boulevard Hospitality Group` / `Main Hotel & Restaurant`), even if you belong to other orgs.
 
-**Setup only** (API must be up):
+**Setup only** (API must be up on `:3001`):
 
 ```bash
-pnpm dev
+pnpm --filter @erp/api dev   # or pnpm dev
 pnpm smoke:local:setup
 pnpm --filter @erp/web test:smoke-local
 ```
@@ -156,12 +157,13 @@ See also [local-setup.md § Database](./local-setup.md#4-database).
 | Prereq P7 + §7 Reports | `smoke-local-06-accounting-reports` | Fiscal periods; post/reverse journal; P&L CSV; **trial balance PDF** |
 | §8 Notifications | `smoke-local-07-notifications` | Bell + mark all read; low stock bell; report-ready bell |
 | Tenant isolation | `smoke-local-08-tenant-isolation` | Missing org header → 400; foreign `branchId` → 403 (inventory, PMS, reporting, POS, HR, inclusions); foreign `roomId` / `accountId` / `excludeReservationId` / payroll payslip → 404; branch members foreign branch → 404; **FRONT_DESK branch-grant denial** (optional second smoke user) |
+| Auth flows | `smoke-local-09-auth` | **Register** → onboarding → create org; owner **invites** teammate via API; invitee **accepts** at `/auth/accept-invite` (invite JWT signed with `scripts/smoke-sign-invite-token.mjs`, no Resend required) |
 
 ### Manual only (second user / email / production infra)
 
 | Runbook | Why manual |
 |---------|------------|
-| §1 Email invite end-to-end | Requires Resend + second account (team tab form is smoke-tested; submit not asserted) |
+| §1 Email invite delivery | Resend + inbox check; accept-invite UI is covered in `smoke-local-09-auth` |
 | §2 Join code approval | Requires second user without org |
 | §8.3 Notification email | Requires `RESEND_API_KEY` and inbox check |
 | §5.5 Payslip PDF download | Optional deep check; payroll job must complete + MinIO |
@@ -178,8 +180,10 @@ Training screenshots (mocked E2E): [visual-guide.md](./visual-guide.md) · `pnpm
 
 | Error | Fix |
 |-------|-----|
+| `fetch failed` on setup | API not running — use `pnpm smoke:local` (starts servers) or `pnpm dev` first |
+| Report export `FAILED` / storage unavailable | MinIO not running — `pnpm smoke:local` auto-starts Docker services; or `docker compose -f infra/docker/docker-compose.yml up -d minio` |
 | `Missing SMOKE_USER_EMAIL` / login failed | Set credentials in `.env`; run `pnpm db:reset` |
-| `access_token failed (401)` | Check `PROPELAUTH_API_KEY` |
+| `access_token failed (401)` | Check `JWT_*` secrets and `SMOKE_USER_PASSWORD` match seed |
 | `auth/sync failed` | Start API: `pnpm --filter @erp/api dev` |
 | `Seed org not found` | `pnpm db:reset` |
 | `Missing .playwright/smoke-auth.json` | Run `pnpm smoke:local:setup` |
@@ -187,6 +191,19 @@ Training screenshots (mocked E2E): [visual-guide.md](./visual-guide.md) · `pnpm
 | PMS lifecycle / room 103 | Re-run `pnpm db:reset` to restore INQUIRY seed |
 | Report notification timeout | Ensure Redis is up; wait and re-run `07-notifications` |
 | Stale data / odd smoke failures | [Reset data before smoke](#reset-data-before-smoke-clean-run) |
+
+---
+
+## CI
+
+The `smoke-local` job in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the full suite headlessly on every push/PR to `main` and `develop`:
+
+- Services: PostgreSQL, Redis, MinIO
+- `prisma migrate deploy` + `db seed`
+- API (`:3001`) and web (`:3000`) started before `pnpm smoke:local:setup`
+- `SMOKE_USER_EMAIL` / `SMOKE_USER_PASSWORD` match seeded demo user
+
+Integration tests (`RUN_INTEGRATION=1`) run in the `ci` job with PostgreSQL and Redis.
 
 ---
 

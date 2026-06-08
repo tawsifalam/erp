@@ -37,13 +37,21 @@ test.describe("Smoke — Inventory", () => {
 test.describe("Smoke — POS & kitchen", () => {
   test("POS — draft order send to kitchen", async ({ page }) => {
     await goto(page, "/pos");
-    const draftRow = page.getByRole("row").filter({ hasText: "T5" });
-    if (await draftRow.isVisible().catch(() => false)) {
-      await draftRow.getByRole("button", { name: "Send to kitchen" }).click();
-      await expect(draftRow.getByText("SUBMITTED", { exact: true })).toBeVisible();
-    } else {
+    const t5Row = page.getByRole("row").filter({ hasText: "T5" });
+    if (!(await t5Row.isVisible().catch(() => false))) {
       await expect(page.getByRole("row").nth(1)).toBeVisible();
+      return;
     }
+
+    const sendBtn = t5Row.getByRole("button", { name: "Send to kitchen" });
+    if (await sendBtn.isVisible().catch(() => false)) {
+      await sendBtn.click();
+      await expect(t5Row.getByText("SUBMITTED", { exact: true })).toBeVisible();
+      return;
+    }
+
+    // Seed T5 may already be SUBMITTED from a prior smoke run (no "Send to kitchen" button).
+    await expect(t5Row.getByText("SUBMITTED", { exact: true })).toBeVisible();
   });
 
   test("POS — complete and pay drawer on submitted order", async ({ page }) => {

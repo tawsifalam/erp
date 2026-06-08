@@ -15,3 +15,6 @@ export const SMOKE_AUTH_FILE = ".playwright/smoke-auth.json";
 
 /** Default Playwright expect / action timeout for smoke-local (ms). */
 export const SMOKE_TIMEOUT = 5_000;
+
+/** Background report exports (BullMQ + MinIO) can take longer than UI actions. */
+export const SMOKE_REPORT_JOB_TIMEOUT = 60_000;

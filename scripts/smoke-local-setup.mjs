@@ -49,7 +49,12 @@ const email = process.env.SMOKE_USER_EMAIL ?? "admin@boulevard.cafe";
 const password = process.env.SMOKE_USER_PASSWORD ?? "DemoPassword1!";
 const frontDeskEmail = process.env.SMOKE_FRONT_DESK_USER_EMAIL;
 const frontDeskPassword = process.env.SMOKE_FRONT_DESK_USER_PASSWORD;
-const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
+/** Login hits Nest directly — not the Next.js proxy (web may not be up yet). */
+const apiBase = (
+  process.env.SMOKE_API_URL ??
+  process.env.API_URL ??
+  "http://localhost:3001"
+).replace(/\/$/, "");
 
 function requireEnv(name, value) {
   if (!value) {
@@ -72,11 +77,20 @@ function parseRefreshCookie(setCookieHeaders) {
 }
 
 async function login(userEmail, userPassword) {
-  const res = await fetch(`${apiBase}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: userEmail, password: userPassword }),
-  });
+  let res;
+  try {
+    res = await fetch(`${apiBase}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail, password: userPassword }),
+    });
+  } catch (err) {
+    const hint =
+      err?.cause?.code === "ECONNREFUSED" || err?.message === "fetch failed"
+        ? ` Is the API running at ${apiBase}? Try: pnpm dev — or pnpm smoke:local (starts servers automatically).`
+        : "";
+    throw new Error(`POST /api/auth/login failed: ${err?.message ?? err}.${hint}`);
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`POST /api/auth/login failed (${res.status}): ${body}`);

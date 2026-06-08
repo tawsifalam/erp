@@ -30,6 +30,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -52,6 +61,98 @@ jobs:
       - run: RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration
         env:
           RUN_INTEGRATION: "1"
+
+  smoke-local:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://erp:erp@localhost:5432/hospitality_erp
+      JWT_ACCESS_SECRET: ci-smoke-access-secret-min-16-chars
+      JWT_REFRESH_SECRET: ci-smoke-refresh-secret-min-16-chars
+      REDIS_URL: redis://localhost:6379
+      APP_URL: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      MINIO_ENDPOINT: localhost
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: erp-files
+      SMOKE_USER_EMAIL: admin@boulevard.cafe
+      SMOKE_USER_PASSWORD: DemoPassword1!
+      SMOKE_HEADLESS: "1"
+      CI: "true"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: hospitality_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm --filter @erp/config build
+      - run: pnpm --filter @erp/types build
+      - run: pnpm --filter @erp/utils build
+      - run: pnpm --filter @erp/ui build
+      - run: pnpm exec prisma migrate deploy
+        working-directory: apps/api
+      - run: pnpm exec prisma db seed
+        working-directory: apps/api
+      - run: pnpm test:e2e:install
+      - name: Start API and web
+        run: |
+          pnpm --filter @erp/api dev &
+          pnpm --filter @erp/web dev &
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:3001/api/health >/dev/null && curl -sf http://localhost:3000 >/dev/null; then
+              echo "API and web are up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for API/web"
+          exit 1
+      - run: pnpm smoke:local:setup
+      - run: pnpm --filter @erp/web test:smoke-local:headless
 
   e2e:
     runs-on: ubuntu-latest

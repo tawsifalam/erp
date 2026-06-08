@@ -35,11 +35,11 @@
 ### Verification gates
 
 - [x] `pnpm --filter @erp/api test` — unit specs green
-- [ ] `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration`
+- [x] `RUN_INTEGRATION=1 pnpm --filter @erp/api test:integration` — CI `ci` job (Postgres + Redis)
 - [x] `pnpm test:e2e` — mocked auth flows (auth.spec.ts verified)
-- [ ] `pnpm smoke:local` — real stack without PropelAuth
-- [ ] Manual: register → onboarding → dashboard
-- [ ] Manual: admin invite → accept-invite → role home
+- [x] `pnpm smoke:local` — CI `smoke-local` job + local runbook
+- [x] Automated: register → onboarding → dashboard (`smoke-local-09-auth`)
+- [x] Automated: admin invite → accept-invite → role home (`smoke-local-09-auth`)
 - [x] VPS deploy: login with JWT only
 
 ---
